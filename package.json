@@ -1,0 +1,37 @@
+{
+  "name": "taskflow",
+  "version": "0.0.0",
+  "description": "",
+  "keywords": [],
+  "author": "Erick Monjaras <osminerick@gmail.com>",
+  "license": "ISC",
+  "private": true,
+  "engines": {
+    "node": ">=24.16.0",
+    "pnpm": ">=11.3.0"
+  },
+  "packageManager": "pnpm@11.3.0",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint:fix",
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,css,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,json,css,md}\"",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:coverage": "turbo run test:coverage",
+    "clean": "turbo run clean && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.4.0",
+    "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.5",
+    "prettier": "^3.8.3",
+    "turbo": "^2.9.14",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.60.0"
+  }
+}

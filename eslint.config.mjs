@@ -1,0 +1,48 @@
+// @ts-check
+import js from "@eslint/js";
+import tseslint from "typescript-eslint";
+import prettierConfig from "eslint-config-prettier";
+import { defineConfig } from "eslint/config";
+
+export default defineConfig([
+  // Base JS recommended rules
+  js.configs.recommended,
+
+  // TypeScript strict rules - only for TS source files
+  {
+    files: ["**/*.ts", "**/*.tsx"],
+    extends: [...tseslint.configs.strictTypeChecked, ...tseslint.configs.stylisticTypeChecked],
+    languageOptions: {
+      parserOptions: { projectService: true },
+    },
+    rules: {
+      // Forbid `any` in production and test code
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/explicit-module-boundary-types": "error",
+      // Only allow @ts-expect-error with a description, never @ts-ignore
+      "@typescript-eslint/ban-ts-comment": [
+        "error",
+        {
+          "ts-expect-error": "allow-with-description",
+          "ts-ignore": true,
+          "ts-nocheck": true,
+        },
+      ],
+      // Enforce consistent imports
+      "@typescript-eslint/consistent-type-imports": ["error", { prefer: "type-imports" }],
+    },
+  },
+
+  // Prettier disables formatting rules that conflict
+  prettierConfig,
+
+  {
+    ignores: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/.next/**",
+      "**/coverage/**",
+      "**/packages/database/src/generated/**",
+    ],
+  },
+]);

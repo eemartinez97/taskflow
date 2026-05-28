@@ -1,0 +1,27 @@
+{
+  "name": "@taskflow/config",
+  "version": "0.0.0",
+  "description": "",
+  "keywords": [],
+  "author": "Erick Monjaras <osminerick@gmail.com>",
+  "license": "ISC",
+  "private": true,
+  "exports": {
+    "./eslint/base": "./eslint/base.mjs",
+    "./typescript/base": "./typescript/base.json",
+    "./typescript/next": "./typescript/next.json",
+    "./typescript/node": "./typescript/node.json",
+    "./tailwind/theme": "./tailwind/theme.css",
+    "./vitest/base": "./vitest/base.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@vitest/coverage-v8": "^4.1.7",
+    "eslint": "^10.4.0",
+    "eslint-config-next": "^16.2.6",
+    "eslint-config-prettier": "^10.1.8",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.60.0",
+    "vitest": "^4.1.7"
+  }
+}

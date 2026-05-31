@@ -26,7 +26,7 @@ export const createTaskSchema = z.object({
   description: z.string().max(10_000).optional(),
   assigneeId: idSchema.optional(),
   priority: taskPrioritySchema.default("NONE"),
-  dueData: z.date().optional(),
+  dueDate: z.date().optional(),
 });
 
 export const updateTaskSchema = createTaskSchema

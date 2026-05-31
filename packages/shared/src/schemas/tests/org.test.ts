@@ -16,7 +16,7 @@ describe("roleSchema", () => {
     expect(roleSchema.parse("VIEWER")).toBe("VIEWER");
   });
 
-  it("rejects unkFIXED_DATEn roles", () => {
+  it("rejects unknown roles", () => {
     expect(() => roleSchema.parse("SUPERUSER")).toThrow();
   });
 });

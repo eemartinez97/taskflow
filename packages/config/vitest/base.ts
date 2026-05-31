@@ -1,18 +1,15 @@
-import { defineConfig, type ViteUserConfig } from "vitest/config";
+import { defineConfig, mergeConfig, type ViteUserConfig } from "vitest/config";
 
 /**
- * Base Vitest 4 configuration shared across all packages and apps.
- * Each consumer calls defineConfig() and spreads/merges this.
+ * Base Vitest 4 configuration.
+ * Each package extends this via mergeConfig():
  *
- * Vitest 4 notes:
- * - `coverage.all`, `coverage.extensions`, `poolMatchGlobs` removed.
- * - Use `projects` instead of `poolMatchGlobs`.
- * - Use `coverage.include` / `coverage.exclude` for glob patterns.
+ * import { mergeConfig, baseVitestConfig } from "@taskflow/config/vitest/base";
+ * import { defineConfig } from "vitest/config";
+ * export default mergeConfig(baseVitestConfig, defineConfig({ test: { ... } }));
  */
-
 export const baseVitestConfig: ViteUserConfig = defineConfig({
   test: {
-    // Use V8 for coverage (fastest, no instrumentation overhead)
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov", "html"],
@@ -22,14 +19,15 @@ export const baseVitestConfig: ViteUserConfig = defineConfig({
         "**/.next/**",
         "**/coverage/**",
         "**/*.config.{ts,js,mjs}",
-        "**/test/**",
+        "**/tests/**",
         "**/__mocks__/**",
+        "**/index.ts",
       ],
     },
-    // Clear mocks between tests
     clearMocks: true,
     restoreMocks: true,
   },
 });
 
-export default baseVitestConfig;
+// Re-export so consumers only need one import
+export { mergeConfig, defineConfig };

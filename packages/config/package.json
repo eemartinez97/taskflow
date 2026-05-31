@@ -1,11 +1,12 @@
 {
   "name": "@taskflow/config",
   "version": "0.0.0",
-  "description": "",
+  "description": "Shared ESLint, TypeScript, Tailwind, and Vitest configurations",
   "keywords": [],
   "author": "Erick Monjaras <osminerick@gmail.com>",
   "license": "ISC",
   "private": true,
+  "type": "module",
   "exports": {
     "./eslint/base": "./eslint/base.mjs",
     "./typescript/base": "./typescript/base.json",
@@ -16,6 +17,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/node": "^25.9.1",
     "@vitest/coverage-v8": "^4.1.7",
     "eslint": "^10.4.0",
     "eslint-config-next": "^16.2.6",

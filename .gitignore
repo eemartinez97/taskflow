@@ -21,6 +21,7 @@ build
 pino-*.log
 
 # Coverage
+coverage/
 .nyc_output/
 
 # Prisma generated

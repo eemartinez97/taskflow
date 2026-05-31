@@ -16,7 +16,7 @@
     "./vitest/base": "./vitest/base.ts"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
+    "@eslint/js": "^10.1.0",
     "@types/node": "^25.9.1",
     "@vitest/coverage-v8": "^4.1.7",
     "eslint": "^10.4.0",

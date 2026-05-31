@@ -12,7 +12,7 @@
     },
     "lint": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "*.ts", "*.tsx", "*.mjs", "eslint.config.mjs"]
+      "inputs": ["src/**", "eslint.config.mjs", "tsconfig.json", "package.json"]
     },
     "lint:fix": {
       "cache": false
@@ -21,19 +21,19 @@
       "cache": false
     },
     "format:check": {
-      "inputs": ["src/**", "*.ts", "*.tsx", "*.mjs", "*.json", "*.css", "*.md"]
+      "inputs": ["src/**", "*.mjs", "*.json", "*.css", "*.md"]
     },
     "typecheck": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "tsconfig.json"]
+      "inputs": ["src/**", "tsconfig.json", "package.json"]
     },
     "test": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "tests/**", "vitest.config.ts"]
+      "inputs": ["src/**", "tests/**", "vitest.config.ts", "package.json"]
     },
     "test:coverage": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "tests/**", "vitest.config.ts"],
+      "inputs": ["src/**", "tests/**", "vitest.config.ts", "package.json"],
       "outputs": ["coverage/**"]
     },
     "clean": {

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://www.schemastore.org/tsconfig",
+  "extends": "@taskflow/config/typescript/node",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "noEmit": true
+  },
+  "include": ["src", "prisma"],
+  "exclude": ["node_modules", "dist", "src/generated"]
+}

@@ -3,5 +3,8 @@ packages:
   - "packages/*"
 
 allowBuilds:
+  "@prisma/engines": true
   bson: true
+  esbuild: true
+  prisma: true
   unrs-resolver: true

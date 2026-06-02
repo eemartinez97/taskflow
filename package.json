@@ -1,7 +1,7 @@
 {
   "name": "taskflow",
   "version": "0.0.0",
-  "description": "",
+  "description": "Portfolio-grade project management SaaS demonstrating monorepo architecture, real-time collaboration, and end-to-end type safety",
   "keywords": [],
   "author": "Erick Monjaras <osminerick@gmail.com>",
   "license": "ISC",
@@ -24,13 +24,13 @@
     "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {
-    "@eslint/js": "^10.1.0",
+    "@eslint/js": "^10.0.1",
     "eslint": "^10.4.0",
     "eslint-config-prettier": "^10.1.8",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.5",
     "prettier": "^3.8.3",
-    "turbo": "^2.9.14",
+    "turbo": "^2.9.16",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.60.0"
   }

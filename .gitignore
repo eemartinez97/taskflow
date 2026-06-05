@@ -42,3 +42,6 @@ playwright-report/
 test-results/
 
 .docs
+
+# TypeScript incremental build cache
+*.tsbuildinfo

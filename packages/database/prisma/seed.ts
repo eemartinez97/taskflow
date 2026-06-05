@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-import { PrismaClient, Role } from "../src/index.js";
+import { PrismaClient } from "../src/index.js";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 // dotenv 17 - pass quiet:true to suppress the startup log line
@@ -62,7 +62,7 @@ async function main(): Promise<void> {
       id: SEED_IDS.membership,
       orgId: org.id,
       userId: user.id,
-      role: Role.OWNER,
+      role: "OWNER",
     },
   });
 
@@ -76,7 +76,7 @@ async function main(): Promise<void> {
       name: "Demo Project",
       key: "DEMO",
       slug: "demo-project",
-      description: "A demonstration project for Taskflow",
+      description: "A demonstration project for TaskFlow",
     },
   });
 
@@ -132,7 +132,7 @@ async function main(): Promise<void> {
 
 main()
   .catch((error: unknown) => {
-    console.log("Seed failed:", error);
+    console.error("Seed failed:", error);
     process.exit(1);
   })
   .finally(() => {

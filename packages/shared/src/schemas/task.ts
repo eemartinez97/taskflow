@@ -1,4 +1,4 @@
-import z from "zod";
+import { z } from "zod";
 import { TASK_PRIORITIES, TASK_STATUSES } from "../constants";
 import { idSchema } from "./common";
 

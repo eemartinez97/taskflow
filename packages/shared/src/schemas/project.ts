@@ -1,4 +1,4 @@
-import z from "zod";
+import { z } from "zod";
 import { idSchema, slugSchema } from "./common";
 
 const projectKeySchema = z

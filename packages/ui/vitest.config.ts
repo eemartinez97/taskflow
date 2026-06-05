@@ -1,11 +1,13 @@
-import { mergeConfig, baseVitestConfig } from "@taskflow/config/vitest/base";
+import { baseVitestConfig, mergeConfig } from "@taskflow/config/vitest/base";
 import { defineConfig } from "vitest/config";
 
 export default mergeConfig(
   baseVitestConfig,
   defineConfig({
     test: {
-      environment: "node",
+      environment: "jsdom",
+      globals: true,
+      setupFiles: ["./src/tests/setup.ts"],
       coverage: {
         // packages/shared must hit >= 90% coverage
         thresholds: {
@@ -14,7 +16,8 @@ export default mergeConfig(
           branches: 90,
           statements: 90,
         },
-        include: ["src/**/*.ts"],
+        include: ["src/**/*.{ts,tsx}"],
+        exclude: ["src/index.ts", "src/tests/**", "src/theme.css"],
       },
     },
   }),

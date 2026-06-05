@@ -1,13 +1,16 @@
 import { defineConfig, mergeConfig, type ViteUserConfig } from "vitest/config";
 
 /**
- * Base Vitest 4 configuration.
- * Each package extends this via mergeConfig():
+ * Base Vitest 4 configuration shared across all packages.
  *
- * import { mergeConfig, baseVitestConfig } from "@taskflow/config/vitest/base";
- * import { defineConfig } from "vitest/config";
- * export default mergeConfig(baseVitestConfig, defineConfig({ test: { ... } }));
+ * Usage in each package's vitest.config.ts:
+ *
+ *   import { defineConfig } from "vitest/config";
+ *   import { mergeConfig, baseVitestConfig } from "@taskflow/config/vitest/base";
+ *
+ *   export default mergeConfig(baseVitestConfig, defineConfig({ test: { ... } }));
  */
+
 export const baseVitestConfig: ViteUserConfig = defineConfig({
   test: {
     coverage: {
@@ -29,5 +32,5 @@ export const baseVitestConfig: ViteUserConfig = defineConfig({
   },
 });
 
-// Re-export so consumers only need one import
-export { mergeConfig, defineConfig };
+// Only export mergeConfig - consumers import defineConfig directly from "vitest/config"
+export { mergeConfig };

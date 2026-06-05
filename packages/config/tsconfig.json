@@ -3,7 +3,9 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": ".",
-    "noEmit": true
+    "noEmit": true,
+    "allowJs": true,
+    "checkJs": false
   },
   "include": ["vitest/**/*.ts"],
   "exclude": ["node_modules"]

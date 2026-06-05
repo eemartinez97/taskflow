@@ -9,7 +9,7 @@ export const TASK_STATUSES = ["TODO", "IN_PROGRESS", "IN_REVIEW", "DONE", "CANCE
 export const DEFAULT_PAGE_SIZE = 25;
 export const MAX_PAGE_SIZE = 100;
 
-// Socker.IO room prefix
+// Socket.IO room prefix
 export const SOCKET_ROOM_PREFIX = "project:" as const;
 
 // Position step for lexorank-style ordering (functional float)

@@ -1,4 +1,4 @@
-import z from "zod";
+import { z } from "zod";
 import { colorSchema, idSchema } from "./common";
 
 export const labelSchema = z.object({

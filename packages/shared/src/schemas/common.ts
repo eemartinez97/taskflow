@@ -1,4 +1,4 @@
-import z from "zod";
+import { z } from "zod";
 
 // Reusable base fields
 export const idSchema = z.uuid();

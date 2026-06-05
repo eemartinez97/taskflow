@@ -1,0 +1,12 @@
+{
+  "$schema": "https://www.schemastore.org/tsconfig",
+  "extends": "@taskflow/config/typescript/next",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "types": ["node", "@testing-library/jest-dom"]
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}

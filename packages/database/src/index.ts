@@ -23,4 +23,5 @@ if (!isProduction) {
 
 // Re-export all generated types - consumers import from "@taskflow/database"
 // PrismaClient is already exported as a value above via the import
-export * from "./generated/index.js";
+export { PrismaClient } from "./generated/index.js";
+export type * from "./generated/index.js";

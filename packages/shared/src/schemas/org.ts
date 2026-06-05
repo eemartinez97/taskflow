@@ -1,4 +1,4 @@
-import z from "zod";
+import { z } from "zod";
 import { ROLES } from "../constants";
 import { idSchema, slugSchema } from "./common";
 

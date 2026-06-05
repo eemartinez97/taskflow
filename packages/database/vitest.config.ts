@@ -1,4 +1,5 @@
-import { baseVitestConfig, defineConfig, mergeConfig } from "@taskflow/config/vitest/base";
+import { baseVitestConfig, mergeConfig } from "@taskflow/config/vitest/base";
+import { defineConfig } from "vitest/config";
 
 export default mergeConfig(
   baseVitestConfig,

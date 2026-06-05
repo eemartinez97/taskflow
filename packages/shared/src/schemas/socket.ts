@@ -1,4 +1,4 @@
-import z from "zod";
+import { z } from "zod";
 import { taskSchema } from "./task";
 import { colorSchema, idSchema } from "./common";
 import { commentSchema } from "./comment";

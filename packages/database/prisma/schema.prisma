@@ -145,7 +145,7 @@ model Project {
   name        String   @db.VarChar(100)
   key         String   @db.VarChar(10)
   slug        String   @db.VarChar(50)
-  description String   @db.VarChar(500)
+  description String?  @db.VarChar(500)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

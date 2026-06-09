@@ -8,16 +8,7 @@ import {
   socketTaskMovedSchema,
   socketCommentCreatedSchema,
 } from "../socket";
-import { ANOTHER_UUID, FIXED_DATE, VALID_UUID, validTaskPayload } from "./fixtures";
-
-const validCommentPayload = {
-  id: VALID_UUID,
-  taskId: VALID_UUID,
-  authorId: ANOTHER_UUID,
-  body: "LGTM",
-  createdAt: FIXED_DATE,
-  updatedAt: FIXED_DATE,
-};
+import { VALID_UUID, validCommentPayload, validTaskPayload } from "./fixtures";
 
 describe("socketTaskCreatedSchema", () => {
   it("accepts a valid task:created payload", () => {
@@ -33,7 +24,7 @@ describe("socketTaskCreatedSchema", () => {
 describe("socketTaskUpdatedSchema", () => {
   it("accepts a valid task:updated payload", () => {
     const result = socketTaskUpdatedSchema.parse({ task: validTaskPayload });
-    expect(result.task.id).toBe(VALID_UUID);
+    expect(result.task.id).toBe(validTaskPayload.id);
   });
 
   it("rejects missing task field", () => {
@@ -44,7 +35,7 @@ describe("socketTaskUpdatedSchema", () => {
 describe("socketTaskMovedSchema", () => {
   it("accepts a valid task:moved payload", () => {
     const result = socketTaskMovedSchema.parse({ task: validTaskPayload });
-    expect(result.task.columnId).toBe(VALID_UUID);
+    expect(result.task.columnId).toBe(validTaskPayload.columnId);
   });
 
   it("rejects missing task field", () => {

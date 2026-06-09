@@ -23,7 +23,10 @@ describe("Input", () => {
 
   it("does not apply error styles by default", () => {
     render(<Input />);
-    expect(screen.getByRole("textbox")).not.toHaveClass("boder-red-500");
+    const input = screen.getByRole("textbox");
+    // Verify both the correct border and ring classes are absent
+    expect(input).not.toHaveClass("border-red-500");
+    expect(input).not.toHaveClass("focus-visible:ring-red-500");
   });
 
   it("is disabled when disabled prop is passed", () => {

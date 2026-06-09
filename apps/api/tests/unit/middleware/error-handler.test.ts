@@ -16,16 +16,22 @@ vi.mock("../../../src/config/logger.js", () => ({
 }));
 
 import { type AppError, createError, errorHandler } from "../../../src/middleware/error-handler.js";
-import { type ErrorBody, makeMockNext, makeMockReq, makeMockRes } from "../../helpers.js";
+import { type ErrorBody, makeMockNext, makeMockReq } from "../../helpers.js";
 import { isProduction } from "../../../src/config/env.js";
+import type { Response } from "express";
 
 function call(err: AppError | Error): { status: number; body: ErrorBody } {
-  const { res, statusMock } = makeMockRes();
+  const jsonMock = vi.fn();
+  const statusMock = vi.fn().mockReturnValue({ json: jsonMock });
+  const res = { status: statusMock } as unknown as Response;
+
   errorHandler(err, makeMockReq(), res, makeMockNext());
 
-  const status = statusMock.mock.calls[0]?.[0] as number;
-  const body = (statusMock.mock.results[0]?.value as { json: ReturnType<typeof vi.fn> }).json.mock
-    .calls[0]?.[0] as ErrorBody;
+  // Safe non-null assertion here: errorHandler ALWAYS calls res.status(...).json(...)
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const status = statusMock.mock.calls[0]![0] as number;
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const body = jsonMock.mock.calls[0]![0] as ErrorBody;
 
   return { status, body };
 }

@@ -7,7 +7,7 @@ import {
   roleSchema,
   updateOrgSchema,
 } from "../org";
-import { FIXED_DATE, VALID_UUID } from "./fixtures";
+import { validMembershipPayload, validOrgPayload } from "./fixtures";
 
 describe("roleSchema", () => {
   it("accepts all valid roles", () => {
@@ -24,16 +24,17 @@ describe("roleSchema", () => {
 
 describe("createOrgSchema", () => {
   it("accepts a valid org creation payload", () => {
-    const result = createOrgSchema.parse({ name: "Test Corp", slug: "test-corp" });
-    expect(result).toEqual({ name: "Test Corp", slug: "test-corp" });
+    const { name, slug } = validOrgPayload;
+    const result = createOrgSchema.parse({ name, slug });
+    expect(result).toEqual({ name, slug });
   });
 
   it("rejects empty name", () => {
-    expect(() => createOrgSchema.parse({ name: "", slug: "test" })).toThrow();
+    expect(() => createOrgSchema.parse({ ...validOrgPayload, name: "" })).toThrow();
   });
 
   it("rejects name exceeding 100 characters", () => {
-    expect(() => createOrgSchema.parse({ name: "a".repeat(101), slug: "test" })).toThrow();
+    expect(() => createOrgSchema.parse({ ...validOrgPayload, name: "a".repeat(101) })).toThrow();
   });
 });
 
@@ -59,14 +60,8 @@ describe("updateOrgSchema", () => {
 
 describe("orgSchema", () => {
   it("parses a valid org object", () => {
-    const org = orgSchema.parse({
-      id: VALID_UUID,
-      name: "Test Corp",
-      slug: "test-corp",
-      createdAt: FIXED_DATE,
-      updatedAt: FIXED_DATE,
-    });
-    expect(org.slug).toBe("test-corp");
+    const org = orgSchema.parse(validOrgPayload);
+    expect(org.slug).toBe(validOrgPayload.slug);
   });
 
   it("rejects org without required fields", () => {
@@ -76,15 +71,8 @@ describe("orgSchema", () => {
 
 describe("membershipSchema", () => {
   it("parses a valid membership", () => {
-    const result = membershipSchema.parse({
-      id: VALID_UUID,
-      orgId: VALID_UUID,
-      userId: VALID_UUID,
-      role: "ADMIN",
-      createdAt: FIXED_DATE,
-      updatedAt: FIXED_DATE,
-    });
-    expect(result.role).toBe("ADMIN");
+    const result = membershipSchema.parse(validMembershipPayload);
+    expect(result.role).toBe(validMembershipPayload.role);
   });
 });
 

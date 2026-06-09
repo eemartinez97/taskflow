@@ -1,6 +1,6 @@
 import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeAll } from "vitest";
 import { Dialog } from "../dialog";
 
 /**
@@ -20,7 +20,7 @@ function mockDialogMethods(): void {
 }
 
 describe("Dialog", () => {
-  beforeEach(() => {
+  beforeAll(() => {
     mockDialogMethods();
   });
 

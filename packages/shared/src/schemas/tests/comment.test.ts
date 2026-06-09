@@ -1,20 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { commentSchema, createCommentSchema } from "../comment";
-import { FIXED_DATE, VALID_UUID } from "./fixtures";
+import { validCommentPayload } from "./fixtures";
 
 describe("createCommentSchema", () => {
   it("accepts a valid comment", () => {
-    const result = createCommentSchema.parse({ taskId: VALID_UUID, body: "Looks good!" });
-    expect(result.body).toBe("Looks good!");
+    const { taskId, body } = validCommentPayload;
+    const result = createCommentSchema.parse({ taskId, body });
+    expect(result.body).toBe(body);
   });
 
   it("rejects empty body", () => {
-    expect(() => createCommentSchema.parse({ taskId: VALID_UUID, body: "" })).toThrow();
+    expect(() =>
+      createCommentSchema.parse({ taskId: validCommentPayload.taskId, body: "" }),
+    ).toThrow();
   });
 
   it("rejects body exceeding 5000 characters", () => {
     expect(() =>
-      createCommentSchema.parse({ taskId: VALID_UUID, body: "a".repeat(5001) }),
+      createCommentSchema.parse({ taskId: validCommentPayload.taskId, body: "a".repeat(5001) }),
     ).toThrow();
   });
 
@@ -25,14 +28,7 @@ describe("createCommentSchema", () => {
 
 describe("commentSchema", () => {
   it("parses a full valid comment", () => {
-    const result = commentSchema.parse({
-      id: VALID_UUID,
-      taskId: VALID_UUID,
-      authorId: VALID_UUID,
-      body: "LGTM",
-      createdAt: FIXED_DATE,
-      updatedAt: FIXED_DATE,
-    });
-    expect(result.authorId).toBe(VALID_UUID);
+    const result = commentSchema.parse(validCommentPayload);
+    expect(result.authorId).toBe(validCommentPayload.authorId);
   });
 });

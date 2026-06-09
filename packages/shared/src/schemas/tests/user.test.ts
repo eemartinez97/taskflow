@@ -10,8 +10,8 @@ describe("userSchema", () => {
 
   it("accepts null name and image", () => {
     const result = userSchema.parse({ ...validUserPayload, name: null, image: null });
-    expect(result.name).toBe(null);
-    expect(result.image).toBe(null);
+    expect(result.name).toBeNull();
+    expect(result.image).toBeNull();
   });
 
   it("rejects invalid email", () => {
@@ -25,7 +25,7 @@ describe("updateUserSchema", () => {
     expect(result.name).toBe("Jane Doe");
   });
 
-  it("accepts empty object - all fields optonal", () => {
+  it("accepts empty object - all fields optional", () => {
     const result = updateUserSchema.parse({});
     expect(result).toEqual({});
   });

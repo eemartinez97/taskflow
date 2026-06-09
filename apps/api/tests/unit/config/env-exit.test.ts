@@ -1,10 +1,14 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * Tests the process.exit(1) branch in env.ts when required vars are missing.
  * This file is isolated from env.test.ts because it mocks process.exit
  * and needs vi.resetModules() to force re-evaluation of the module.
  */
+
+beforeEach(() => {
+  vi.resetModules();
+});
 
 afterEach(() => {
   vi.unstubAllEnvs();

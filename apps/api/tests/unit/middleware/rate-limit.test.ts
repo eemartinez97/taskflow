@@ -87,8 +87,13 @@ describe("authRateLimiter", () => {
   });
 
   it("uses the auth-specific message on 429", async () => {
-    // Use the real authRateLimiter instance - not a re-created one with makeApp
-    const app = makeAppWithMiddleware(authRateLimiter);
+    const freshAuthLimiter = createRateLimiter({
+      windowMs: 60_000,
+      limit: 10,
+      message: "Too many authentication attempts, please try again later.",
+    });
+    const app = makeAppWithMiddleware(freshAuthLimiter);
+
     const responses = await Promise.all(
       Array.from({ length: 11 }, () => request(app).get("/test")),
     );

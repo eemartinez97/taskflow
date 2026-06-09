@@ -7,7 +7,7 @@ import {
   taskStatusSchema,
   updateTaskSchema,
 } from "../task";
-import { VALID_UUID, validTaskPayload } from "./fixtures";
+import { ANOTHER_UUID, VALID_UUID, validTaskPayload } from "./fixtures";
 
 describe("taskPrioritySchema", () => {
   it("accepts all valid priorities", () => {
@@ -19,6 +19,10 @@ describe("taskPrioritySchema", () => {
 
   it("rejects unknown priority", () => {
     expect(() => taskPrioritySchema.parse("CRITICAL")).toThrow();
+  });
+
+  it("rejects empty string", () => {
+    expect(() => taskPrioritySchema.parse("")).toThrow();
   });
 });
 
@@ -33,52 +37,70 @@ describe("taskStatusSchema", () => {
   it("rejects unknown status", () => {
     expect(() => taskStatusSchema.parse("BLOCKED")).toThrow();
   });
+
+  it("rejects empty string", () => {
+    expect(() => taskStatusSchema.parse("")).toThrow();
+  });
 });
 
 describe("createTaskSchema", () => {
-  it("accepts a minimal valid task", () => {
-    const result = createTaskSchema.parse({ columnId: VALID_UUID, title: "Fix bug" });
-    expect(result.priority).toBe("NONE"); // default applied
-    expect(result.title).toBe("Fix bug");
+  it("accepts a minimal valid task (title + columnId only)", () => {
+    const { columnId, title } = validTaskPayload;
+    const result = createTaskSchema.parse({ columnId, title });
+    expect(result.title).toBe(title); // default applied
+    expect(result.columnId).toBe(columnId);
+  });
+
+  it("applies default priority NONE when priority is omitted", () => {
+    const result = createTaskSchema.parse({
+      columnId: validTaskPayload.columnId,
+      title: validTaskPayload.title,
+    });
+    // Verify the property exists and carries the default value - not undefined
+    expect(result).toHaveProperty("priority");
+    expect(result.priority).toBe("NONE");
   });
 
   it("accepts all optional fields", () => {
+    const dueDate = new Date("2026-12-31");
     const result = createTaskSchema.parse({
-      columnId: VALID_UUID,
-      title: "Task",
-      description: "A description",
+      columnId: validTaskPayload.columnId,
+      title: validTaskPayload.title,
+      description: "A full description",
       assigneeId: VALID_UUID,
       priority: "HIGH",
-      dueDate: new Date("2026-12-31"),
+      dueDate,
     });
     expect(result.assigneeId).toBe(VALID_UUID);
-    expect(result.dueDate).toBeInstanceOf(Date);
+    expect(result.priority).toBe("HIGH");
+    expect(result.dueDate).toStrictEqual(dueDate);
+    expect(result.description).toBe("A full description");
   });
 
   it("rejects empty title", () => {
-    expect(() => createTaskSchema.parse({ columnId: VALID_UUID, title: "" })).toThrow();
+    expect(() => createTaskSchema.parse({ ...validTaskPayload, title: "" })).toThrow();
   });
 
   it("rejects title exceeding 255 characters", () => {
-    expect(() =>
-      createTaskSchema.parse({ columnId: VALID_UUID, title: "a".repeat(256) }),
-    ).toThrow();
+    expect(() => createTaskSchema.parse({ ...validTaskPayload, title: "a".repeat(256) })).toThrow();
   });
 
-  it("rejects description exceeding 10000 characters", () => {
+  it("rejects description exceeding 10,000 characters", () => {
     expect(() =>
-      createTaskSchema.parse({
-        columnId: VALID_UUID,
-        title: "Task",
-        description: "a".repeat(10_001),
-      }),
+      createTaskSchema.parse({ ...validTaskPayload, description: "a".repeat(10_001) }),
     ).toThrow();
   });
 
   it("rejects invalid priority", () => {
-    expect(() =>
-      createTaskSchema.parse({ columnId: VALID_UUID, title: "Task", priority: "CRITICAL" }),
-    ).toThrow();
+    expect(() => createTaskSchema.parse({ ...validTaskPayload, priority: "CRITICAL" })).toThrow();
+  });
+
+  it("rejects missing columnId", () => {
+    expect(() => createTaskSchema.parse({ title: validTaskPayload.title })).toThrow();
+  });
+
+  it("rejects invalid columnId (non-UUID)", () => {
+    expect(() => createTaskSchema.parse({ ...validTaskPayload, columnId: "not-a-uuid" })).toThrow();
   });
 });
 
@@ -97,7 +119,12 @@ describe("updateTaskSchema", () => {
     expect(result.status).toBe("DONE");
   });
 
-  it("accepts null assigneeId to unassign", () => {
+  it("accepts priority update", () => {
+    const result = updateTaskSchema.parse({ priority: "URGENT" });
+    expect(result.priority).toBe("URGENT");
+  });
+
+  it("accepts null assigneeId to unassign a user", () => {
     const result = updateTaskSchema.parse({ assigneeId: null });
     expect(result.assigneeId).toBeNull();
   });
@@ -107,43 +134,126 @@ describe("updateTaskSchema", () => {
     expect(result.dueDate).toBeNull();
   });
 
-  it("rejects invalid status", () => {
-    expect(() => updateTaskSchema.parse({ status: "BLOCKED" })).toThrow();
+  it("accepts a valid dueDate Date object", () => {
+    const dueDate = new Date("2027-01-15");
+    const result = updateTaskSchema.parse({ dueDate });
+    expect(result.dueDate).toStrictEqual(dueDate);
+  });
+
+  it("accepts a description update", () => {
+    const result = updateTaskSchema.parse({ description: "New description" });
+    expect(result.description).toBe("New description");
   });
 
   it("rejects title exceeding 255 characters", () => {
     expect(() => updateTaskSchema.parse({ title: "a".repeat(256) })).toThrow();
   });
+
+  it("rejects empty title", () => {
+    expect(() => updateTaskSchema.parse({ title: "" })).toThrow();
+  });
+
+  it("rejects invalid status", () => {
+    expect(() => updateTaskSchema.parse({ status: "BLOCKED" })).toThrow();
+  });
+
+  it("rejects invalid priority", () => {
+    expect(() => updateTaskSchema.parse({ priority: "EXTREME" })).toThrow();
+  });
+
+  it("rejects description exceeding 10,000 characters", () => {
+    expect(() => updateTaskSchema.parse({ description: "a".repeat(10_001) })).toThrow();
+  });
+
+  it("does not accept columnId — column moves use moveTaskSchema", () => {
+    // columnId is intentionally omitted from updateTaskSchema
+    // Passing it should be silently stripped (Zod strips unknown keys by default)
+    const result = updateTaskSchema.parse({
+      title: "Task",
+      columnId: VALID_UUID, // unknown key — Zod strips it
+    });
+    expect(result).not.toHaveProperty("columnId");
+    expect(result.title).toBe("Task");
+  });
 });
 
 describe("taskSchema", () => {
-  it("parses a full valid task", () => {
-    const task = taskSchema.parse(validTaskPayload);
-    expect(task.status).toBe(validTaskPayload.status);
-    expect(task.priority).toBe(validTaskPayload.priority);
+  it("parses a full valid task from the fixture", () => {
+    const result = taskSchema.parse(validTaskPayload);
+    expect(result.id).toBe(validTaskPayload.id);
+    expect(result.title).toBe(validTaskPayload.title);
+    expect(result.priority).toBe(validTaskPayload.priority);
+    expect(result.status).toBe(validTaskPayload.status);
+    expect(result.position).toBe(validTaskPayload.position);
   });
 
   it("accepts null assigneeId and dueDate", () => {
-    const result = taskSchema.parse({ ...validTaskPayload, assigneeId: null, dueDate: null });
+    const result = taskSchema.parse({
+      ...validTaskPayload,
+      assigneeId: null,
+      dueDate: null,
+    });
     expect(result.assigneeId).toBeNull();
     expect(result.dueDate).toBeNull();
+  });
+
+  it("accepts null description", () => {
+    const result = taskSchema.parse({ ...validTaskPayload, description: null });
+    expect(result.description).toBeNull();
+  });
+
+  it("accepts a non-null assigneeId", () => {
+    const result = taskSchema.parse({ ...validTaskPayload, assigneeId: ANOTHER_UUID });
+    expect(result.assigneeId).toBe(ANOTHER_UUID);
+  });
+
+  it("accepts fractional position for lexorank-style ordering", () => {
+    const result = taskSchema.parse({ ...validTaskPayload, position: 1500.5 });
+    expect(result.position).toBe(1500.5);
+  });
+
+  it("rejects missing required fields", () => {
+    expect(() => taskSchema.parse({ title: "Incomplete" })).toThrow();
+  });
+
+  it("rejects invalid priority in full schema", () => {
+    expect(() => taskSchema.parse({ ...validTaskPayload, priority: "EXTREME" })).toThrow();
+  });
+
+  it("rejects invalid status in full schema", () => {
+    expect(() => taskSchema.parse({ ...validTaskPayload, status: "BLOCKED" })).toThrow();
+  });
+
+  it("rejects non-UUID id", () => {
+    expect(() => taskSchema.parse({ ...validTaskPayload, id: "not-a-uuid" })).toThrow();
   });
 });
 
 describe("moveTaskSchema", () => {
   it("accepts valid move payload", () => {
     const result = moveTaskSchema.parse({
-      taskId: VALID_UUID,
-      targetColumnId: VALID_UUID,
+      taskId: validTaskPayload.id,
+      targetColumnId: ANOTHER_UUID,
       position: 2000,
     });
+    expect(result.taskId).toBe(validTaskPayload.id);
+    expect(result.targetColumnId).toBe(ANOTHER_UUID);
     expect(result.position).toBe(2000);
+  });
+
+  it("accepts fractional position for mid-column insertion", () => {
+    const result = moveTaskSchema.parse({
+      taskId: validTaskPayload.id,
+      targetColumnId: ANOTHER_UUID,
+      position: 1500.5,
+    });
+    expect(result.position).toBe(1500.5);
   });
 
   it("rejects non-number position", () => {
     expect(() =>
       moveTaskSchema.parse({
-        taskId: VALID_UUID,
+        taskId: validTaskPayload.id,
         targetColumnId: VALID_UUID,
         position: "first",
       }),
@@ -152,7 +262,36 @@ describe("moveTaskSchema", () => {
 
   it("rejects missing targetColumnId", () => {
     expect(() => {
-      moveTaskSchema.parse({ taskId: VALID_UUID, position: 1000 });
+      moveTaskSchema.parse({ taskId: validTaskPayload.id, position: 1000 });
     }).toThrow();
+  });
+
+  it("rejects missing taskId", () => {
+    expect(() =>
+      moveTaskSchema.parse({
+        targetColumnId: ANOTHER_UUID,
+        position: 1000,
+      }),
+    ).toThrow();
+  });
+
+  it("rejects non-UUID taskId", () => {
+    expect(() =>
+      moveTaskSchema.parse({
+        taskId: "not-a-uuid",
+        targetColumnId: ANOTHER_UUID,
+        position: 1000,
+      }),
+    ).toThrow();
+  });
+
+  it("rejects non-UUID targetColumnId", () => {
+    expect(() =>
+      moveTaskSchema.parse({
+        taskId: validTaskPayload.id,
+        targetColumnId: "not-a-uuid",
+        position: 1000,
+      }),
+    ).toThrow();
   });
 });

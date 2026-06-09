@@ -8,51 +8,32 @@ import {
   updateBoardSchema,
   updateColumnSchema,
 } from "../board";
-import { FIXED_DATE, VALID_UUID } from "./fixtures";
+import { VALID_UUID, validBoardPayload, validColumnPayload } from "./fixtures";
 
 describe("boardSchema", () => {
   it("parses a valid board", () => {
-    const result = boardSchema.parse({
-      id: VALID_UUID,
-      projectId: VALID_UUID,
-      name: "Main Board",
-      createdAt: FIXED_DATE,
-      updatedAt: FIXED_DATE,
-    });
-    expect(result.name).toBe("Main Board");
+    const { name } = validBoardPayload;
+    const result = boardSchema.parse(validBoardPayload);
+    expect(result.name).toBe(name);
   });
 
   it("rejects empty name", () => {
-    expect(() =>
-      boardSchema.parse({
-        id: VALID_UUID,
-        projectId: VALID_UUID,
-        name: "",
-        createdAt: FIXED_DATE,
-        updatedAt: FIXED_DATE,
-      }),
-    ).toThrow();
+    expect(() => boardSchema.parse({ ...validBoardPayload, name: "" })).toThrow();
   });
 });
 
 describe("columnSchema", () => {
   it("parses a valid column", () => {
-    const result = columnSchema.parse({
-      id: VALID_UUID,
-      boardId: VALID_UUID,
-      name: "To Do",
-      position: 1000,
-      createdAt: FIXED_DATE,
-      updatedAt: FIXED_DATE,
-    });
-    expect(result.position).toBe(1000);
+    const result = columnSchema.parse(validColumnPayload);
+    expect(result.position).toBe(validColumnPayload.position);
   });
 });
 
 describe("createBoardSchema", () => {
   it("accepts valid board creation payload", () => {
-    const result = createBoardSchema.parse({ name: "Sprint 1", projectId: VALID_UUID });
-    expect(result.name).toBe("Sprint 1");
+    const { name, projectId } = validBoardPayload;
+    const result = createBoardSchema.parse({ name, projectId });
+    expect(result.name).toBe(name);
   });
 
   it("rejects missing projectId", () => {
@@ -65,7 +46,7 @@ describe("updateBoardSchema", () => {
     expect(updateBoardSchema.parse({})).toEqual({});
   });
 
-  it("accepts partial name udpate", () => {
+  it("accepts partial name update", () => {
     const result = updateBoardSchema.parse({ name: "Sprint 2" });
     expect(result.name).toBe("Sprint 2");
   });
@@ -73,12 +54,19 @@ describe("updateBoardSchema", () => {
 
 describe("createColumnSchema", () => {
   it("accepts column without position (optional)", () => {
-    const result = createColumnSchema.parse({ name: "In Progress", boardId: VALID_UUID });
+    const result = createColumnSchema.parse({
+      name: validColumnPayload.name,
+      boardId: validColumnPayload.boardId,
+    });
     expect(result.position).toBeUndefined();
   });
 
   it("accepts column with explicit position", () => {
-    const result = createColumnSchema.parse({ name: "Done", boardId: VALID_UUID, position: 2000 });
+    const result = createColumnSchema.parse({
+      name: validColumnPayload.name,
+      boardId: validColumnPayload.boardId,
+      position: 2000,
+    });
     expect(result.position).toBe(2000);
   });
 });
@@ -90,7 +78,7 @@ describe("updateColumnSchema", () => {
   });
 });
 
-describe("reorderColumnSchema", () => {
+describe("reorderColumnsSchema", () => {
   it("accepts valid reorder payload", () => {
     const result = reorderColumnsSchema.parse({
       boardId: VALID_UUID,

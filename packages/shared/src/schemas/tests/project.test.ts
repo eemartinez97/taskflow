@@ -1,96 +1,60 @@
 import { describe, expect, it } from "vitest";
 import { createProjectSchema, projectSchema, updateProjectSchema } from "../project";
-import { FIXED_DATE, VALID_UUID } from "./fixtures";
+import { validProjectPayload } from "./fixtures";
 
 describe("createProjectSchema", () => {
   it("accepts a valid project", () => {
-    const result = createProjectSchema.parse({
-      name: "My Project",
-      key: "MP",
-      slug: "my-proyect",
-    });
-    expect(result.key).toBe("MP");
+    const { name, key, slug } = validProjectPayload;
+    const result = createProjectSchema.parse({ name, key, slug });
+    expect(result.key).toBe(key);
   });
 
   it("accepts an optional description", () => {
-    const result = createProjectSchema.parse({
-      name: "My Project",
-      key: "MP",
-      slug: "my-project",
-      description: "A test project",
-    });
-    expect(result.description).toBe("A test project");
+    const { name, key, slug, description } = validProjectPayload;
+    const result = createProjectSchema.parse({ name, key, slug, description });
+    expect(result.description).toBe(description);
   });
 
   it("rejects lowercase project key", () => {
-    expect(() =>
-      createProjectSchema.parse({
-        name: "P",
-        key: "mp",
-        slug: "my-project",
-      }),
-    ).toThrow();
+    expect(() => createProjectSchema.parse({ ...validProjectPayload, key: "mp" })).toThrow();
   });
 
   it("rejects project key starting with a number", () => {
-    expect(() =>
-      createProjectSchema.parse({
-        name: "P",
-        key: "1MP",
-        slug: "my-project",
-      }),
-    ).toThrow();
+    expect(() => createProjectSchema.parse({ ...validProjectPayload, key: "1MP" })).toThrow();
   });
 
   it("rejects project key longer than 10 characters", () => {
     expect(() =>
-      createProjectSchema.parse({
-        name: "P",
-        key: "TOOLONGKEY1",
-        slug: "p",
-      }),
+      createProjectSchema.parse({ ...validProjectPayload, key: "TOOLONGKEY1" }),
     ).toThrow();
   });
 
   it("rejects project key shorter than 2 characters", () => {
-    expect(() =>
-      createProjectSchema.parse({
-        name: "P",
-        key: "A",
-        slug: "my-project",
-      }),
-    ).toThrow();
+    expect(() => createProjectSchema.parse({ ...validProjectPayload, key: "A" })).toThrow();
   });
 
   it("rejects description exceeding 500 characters", () => {
     expect(() =>
-      createProjectSchema.parse({
-        name: "P",
-        key: "MP",
-        slug: "p",
-        description: "a".repeat(501),
-      }),
+      createProjectSchema.parse({ ...validProjectPayload, description: "a".repeat(501) }),
     ).toThrow();
   });
 });
 
 describe("projectSchema", () => {
   it("parses a full valid project", () => {
-    const result = projectSchema.parse({
-      id: VALID_UUID,
-      orgId: VALID_UUID,
-      name: "full-project",
-      key: "FP",
-      slug: "full-project",
-      description: "A full project",
-      createdAt: FIXED_DATE,
-      updatedAt: FIXED_DATE,
-    });
-    expect(result.key).toBe("FP");
-    expect(result.description).toBe("A full project");
+    const { key, description } = validProjectPayload;
+    const result = projectSchema.parse(validProjectPayload);
+    expect(result.key).toBe(key);
+    expect(result.description).toBe(description);
   });
 
-  it("rejects missing required fields", () => {
+  it("accepts null description", () => {
+    // description is nullable in Prisma (String?) and Zod (.nullable())
+    const result = projectSchema.parse({ ...validProjectPayload, description: null });
+    expect(result.description).toBeNull();
+  });
+
+  it("rejects object missing id and other required fields", () => {
     expect(() => projectSchema.parse({ name: "Project" })).toThrow();
   });
 });

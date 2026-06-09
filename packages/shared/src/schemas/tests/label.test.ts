@@ -1,36 +1,30 @@
 import { describe, expect, it } from "vitest";
 import { createLabelSchema, labelSchema } from "../label";
-import { FIXED_DATE, VALID_UUID } from "./fixtures";
+import { validLabelPayload } from "./fixtures";
 
 describe("createLabelSchema", () => {
   it("accepts a valid label", () => {
-    const result = createLabelSchema.parse({ name: "Bug", color: "#FF5733" });
-    expect(result.color).toBe("#FF5733");
+    const { name, color } = validLabelPayload;
+    const result = createLabelSchema.parse({ name, color });
+    expect(result.color).toBe(color);
   });
 
   it("rejects empty name", () => {
-    expect(() => createLabelSchema.parse({ name: "", color: "#FF5733" })).toThrow();
+    expect(() => createLabelSchema.parse({ ...validLabelPayload, name: "" })).toThrow();
   });
 
   it("rejects name exceeding 50 characters", () => {
-    expect(() => createLabelSchema.parse({ name: "a".repeat(51), color: "#FF5733" })).toThrow();
+    expect(() => createLabelSchema.parse({ ...validLabelPayload, name: "a".repeat(51) })).toThrow();
   });
 
   it("rejects invalid hex color", () => {
-    expect(() => createLabelSchema.parse({ name: "Bug", color: "red" })).toThrow();
+    expect(() => createLabelSchema.parse({ ...validLabelPayload, color: "red" })).toThrow();
   });
 });
 
 describe("labelSchema", () => {
   it("parses a full valid label", () => {
-    const result = labelSchema.parse({
-      id: VALID_UUID,
-      orgId: VALID_UUID,
-      name: "Feature",
-      color: "#33FF57",
-      createdAt: FIXED_DATE,
-      updatedAt: FIXED_DATE,
-    });
-    expect(result.name).toBe("Feature");
+    const result = labelSchema.parse(validLabelPayload);
+    expect(result.name).toBe(validLabelPayload.name);
   });
 });

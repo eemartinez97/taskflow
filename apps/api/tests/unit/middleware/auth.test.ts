@@ -1,4 +1,3 @@
-import { prisma } from "@taskflow/database";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 
 // vi.hoisted() runs BEFORE vi.mock() hoisting — gives us a stable reference
@@ -79,14 +78,13 @@ describe("validateSession middleware", () => {
     await validateSession(req, res, next);
 
     expect(next).toHaveBeenCalledOnce();
-    const err = getNextError(next);
-    expect(err).toBeInstanceOf(Error);
-    expect(err.statusCode).toBe(401);
+    expect(getNextError(next).statusCode).toBe(401);
+    expect(mockFindUnique).not.toHaveBeenCalled();
   });
 
   it("reads the http next-auth.session-token cookie", async () => {
     const token = "valid-session-token-http";
-    vi.mocked(prisma.session).findUnique.mockResolvedValueOnce(makeValidSession(token));
+    mockFindUnique.mockResolvedValueOnce(makeValidSession(token));
 
     const req = makeMockReq({ cookies: { "next-auth.session-token": token } });
     const { res } = makeMockRes();
@@ -103,7 +101,7 @@ describe("validateSession middleware", () => {
 
   it("reads the __Secure- cookie when the plain one is absent", async () => {
     const token = "valid-session-token-secure";
-    vi.mocked(prisma.session).findUnique.mockResolvedValueOnce(makeValidSession(token));
+    mockFindUnique.mockResolvedValueOnce(makeValidSession(token));
 
     const req = makeMockReq({
       cookies: {
@@ -124,7 +122,7 @@ describe("validateSession middleware", () => {
 
   it("attaches user to req on valid session", async () => {
     const token = "attach-user-token";
-    vi.mocked(prisma.session).findUnique.mockResolvedValueOnce(makeValidSession(token));
+    mockFindUnique.mockResolvedValueOnce(makeValidSession(token));
 
     const req = makeMockReq({ cookies: { "next-auth.session-token": token } });
     const { res } = makeMockRes();
@@ -136,7 +134,7 @@ describe("validateSession middleware", () => {
   });
 
   it("calls next(error) with 401 when session is not found in DB", async () => {
-    vi.mocked(prisma.session).findUnique.mockResolvedValueOnce(null);
+    mockFindUnique.mockResolvedValueOnce(null);
 
     const req = makeMockReq({ cookies: { "next-auth.session-token": "ghost-token" } });
     const { res } = makeMockRes();
@@ -144,8 +142,7 @@ describe("validateSession middleware", () => {
 
     await validateSession(req, res, next);
 
-    const err = getNextError(next);
-    expect(err.statusCode).toBe(401);
+    expect(getNextError(next).statusCode).toBe(401);
   });
 
   it("calls next(error) with 401 when session is expired", async () => {
@@ -153,7 +150,7 @@ describe("validateSession middleware", () => {
       ...makeValidSession("expired-token"),
       expires: new Date(Date.now() - 1000), // 1 second in the past
     };
-    vi.mocked(prisma.session).findUnique.mockResolvedValueOnce(expiredSession);
+    mockFindUnique.mockResolvedValueOnce(expiredSession);
 
     const req = makeMockReq({ cookies: { "next-auth.session-token": "expired-token" } });
     const { res } = makeMockRes();
@@ -165,7 +162,7 @@ describe("validateSession middleware", () => {
 
   it("calls next(error) when prisma throws an unexpected error", async () => {
     const dbError = new Error("Connection refused");
-    vi.mocked(prisma.session).findUnique.mockRejectedValueOnce(dbError);
+    mockFindUnique.mockRejectedValueOnce(dbError);
 
     const req = makeMockReq({ cookies: { "next-auth.session-token": "any-token" } });
     const { res } = makeMockRes();

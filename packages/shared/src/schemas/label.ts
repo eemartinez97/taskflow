@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { colorSchema, idSchema } from "./common";
+import { colorSchema, idSchema } from "./common.js";
 
 export const labelSchema = z.object({
   id: idSchema,

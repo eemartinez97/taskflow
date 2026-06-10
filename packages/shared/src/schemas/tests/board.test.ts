@@ -7,8 +7,8 @@ import {
   reorderColumnsSchema,
   updateBoardSchema,
   updateColumnSchema,
-} from "../board";
-import { VALID_UUID, validBoardPayload, validColumnPayload } from "./fixtures";
+} from "../board.js";
+import { VALID_UUID, validBoardPayload, validColumnPayload } from "./fixtures.js";
 
 describe("boardSchema", () => {
   it("parses a valid board", () => {

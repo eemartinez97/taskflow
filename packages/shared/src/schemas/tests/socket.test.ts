@@ -7,8 +7,8 @@ import {
   socketTaskUpdatedSchema,
   socketTaskMovedSchema,
   socketCommentCreatedSchema,
-} from "../socket";
-import { VALID_UUID, validCommentPayload, validTaskPayload } from "./fixtures";
+} from "../socket.js";
+import { VALID_UUID, validCommentPayload, validTaskPayload } from "./fixtures.js";
 
 describe("socketTaskCreatedSchema", () => {
   it("accepts a valid task:created payload", () => {

@@ -7,7 +7,7 @@ import {
   SOCKET_ROOM_PREFIX,
   TASK_PRIORITIES,
   TASK_STATUSES,
-} from "..";
+} from "../index.js";
 
 describe("ROLES", () => {
   it("contains all four roles in correct order", () => {

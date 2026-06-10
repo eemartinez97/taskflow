@@ -6,8 +6,8 @@ import {
   orgSchema,
   roleSchema,
   updateOrgSchema,
-} from "../org";
-import { validMembershipPayload, validOrgPayload } from "./fixtures";
+} from "../org.js";
+import { validMembershipPayload, validOrgPayload } from "./fixtures.js";
 
 describe("roleSchema", () => {
   it("accepts all valid roles", () => {

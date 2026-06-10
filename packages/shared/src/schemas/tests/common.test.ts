@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { colorSchema, idSchema, paginationSchema, slugSchema } from "../common";
-import { VALID_UUID } from "./fixtures";
+import { colorSchema, idSchema, paginationSchema, slugSchema } from "../common.js";
+import { VALID_UUID } from "./fixtures.js";
 
 describe("idSchema", () => {
   it("accepts a valid UUID", () => {

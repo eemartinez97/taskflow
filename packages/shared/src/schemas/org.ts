@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { ROLES } from "../constants";
-import { idSchema, slugSchema } from "./common";
+import { ROLES } from "../constants/index.js";
+import { idSchema, slugSchema } from "./common.js";
 
 export const roleSchema = z.enum(ROLES);
 

@@ -6,8 +6,8 @@ import {
   taskSchema,
   taskStatusSchema,
   updateTaskSchema,
-} from "../task";
-import { ANOTHER_UUID, VALID_UUID, validTaskPayload } from "./fixtures";
+} from "../task.js";
+import { ANOTHER_UUID, VALID_UUID, validTaskPayload } from "./fixtures.js";
 
 describe("taskPrioritySchema", () => {
   it("accepts all valid priorities", () => {

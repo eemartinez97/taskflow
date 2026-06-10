@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { taskSchema } from "./task";
-import { colorSchema, idSchema } from "./common";
-import { commentSchema } from "./comment";
-import { userSchema } from "./user";
+import { taskSchema } from "./task.js";
+import { colorSchema, idSchema } from "./common.js";
+import { commentSchema } from "./comment.js";
+import { userSchema } from "./user.js";
 
 // Typed payloads for all Socket.IO events (server -> client)
 export const socketTaskCreatedSchema = z.object({ task: taskSchema });

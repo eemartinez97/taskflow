@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { updateUserSchema, userSchema } from "../user";
-import { validUserPayload } from "./fixtures";
+import { updateUserSchema, userSchema } from "../user.js";
+import { validUserPayload } from "./fixtures.js";
 
 describe("userSchema", () => {
   it("parses a valid user with all fields", () => {

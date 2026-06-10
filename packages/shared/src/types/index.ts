@@ -28,8 +28,8 @@ import type {
   updateTaskSchema,
   updateUserSchema,
   userSchema,
-} from "../schemas";
-import { type paginationSchema } from "../schemas/common";
+} from "../schemas/index.js";
+import { type paginationSchema } from "../schemas/common.js";
 
 // User
 export type User = z.infer<typeof userSchema>;

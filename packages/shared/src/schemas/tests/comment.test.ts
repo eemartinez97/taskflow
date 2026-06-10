@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { commentSchema, createCommentSchema } from "../comment";
-import { validCommentPayload } from "./fixtures";
+import { commentSchema, createCommentSchema } from "../comment.js";
+import { validCommentPayload } from "./fixtures.js";
 
 describe("createCommentSchema", () => {
   it("accepts a valid comment", () => {

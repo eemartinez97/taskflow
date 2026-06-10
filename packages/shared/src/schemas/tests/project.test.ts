@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createProjectSchema, projectSchema, updateProjectSchema } from "../project";
-import { validProjectPayload } from "./fixtures";
+import { createProjectSchema, projectSchema, updateProjectSchema } from "../project.js";
+import { validProjectPayload } from "./fixtures.js";
 
 describe("createProjectSchema", () => {
   it("accepts a valid project", () => {

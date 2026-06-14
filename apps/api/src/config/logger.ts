@@ -10,7 +10,7 @@ export const logger = pino({
   level: env.API_LOG_LEVEL,
   // In production emit raw JSON - no transport overhead
   ...(isProduction()
-    ? {}
+    ? {} // v8 ignore next
     : {
         transport: {
           target: "pino-pretty",

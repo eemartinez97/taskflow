@@ -1,6 +1,20 @@
 import type { NextFunction, Request, Response } from "express";
 import { vi } from "vitest";
 
+import type { TRPCContext } from "../src/trpc/init.js";
+import type { PrismaClient } from "@taskflow/database";
+import { mockLogger } from "./mocks/logger.js";
+import { mockDb } from "./mocks/database-mock.js";
+
+// Common fixtures
+
+export const VALID_UUID = "550e8400-e29b-41d4-a716-446655440000";
+export const ANOTHER_UUID = "123e4567-e89b-12d3-a456-426614174000";
+export const VALID_USER = { id: VALID_UUID, email: "alice@example.com" } as const;
+export const VALID_ORG_ID = ANOTHER_UUID;
+
+// Response shapes
+
 /** Shape of every error JSON response from the API */
 export interface ErrorBody {
   error: { message: string; code: string };
@@ -45,4 +59,31 @@ export function makeMockReq(overrides: Partial<Request> = {}): Request {
 
 export function makeMockNext(): NextFunction {
   return vi.fn();
+}
+
+// tRPC context factory
+
+/** Creates a typed tRPC context for unit-testing procedures and middleware */
+export function makeCtx(user: { id: string; email: string } | null = null): TRPCContext {
+  return {
+    db: mockDb as unknown as PrismaClient,
+    logger: mockLogger,
+    user,
+  };
+}
+
+// Error extraction helper
+
+/**
+ * Extracts the first argument passed to a mocked next() function as a typed error.
+ * The cast through unknown is intentional: NextFunction's signature types the
+ * argument as `string | undefined` but the middleware always passes an Error object.
+ */
+export function getNextError(
+  next: ReturnType<typeof makeMockNext>,
+): Error & { statusCode: number; code?: string } {
+  return vi.mocked(next).mock.calls[0]?.[0] as unknown as Error & {
+    statusCode: number;
+    code?: string;
+  };
 }

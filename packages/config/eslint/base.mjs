@@ -46,6 +46,13 @@ export default defineConfig([
     },
   },
 
+  {
+    files: ["**/tests/**/*.ts", "**/*.test.ts"],
+    rules: {
+      "@typescript-eslint/no-extraneous-class": "off",
+    },
+  },
+
   // Prettier disables formatting rules that conflict
   prettierConfig,
 

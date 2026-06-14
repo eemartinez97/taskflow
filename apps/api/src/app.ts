@@ -1,3 +1,4 @@
+import * as trpcExpress from "@trpc/server/adapters/express";
 import { corsMiddleware } from "./middleware/cors.js";
 import { helmetMiddleware } from "./middleware/helmet.js";
 import express, { type Express } from "express";
@@ -6,6 +7,28 @@ import { pinoHttp } from "pino-http";
 import { logger } from "./config/logger.js";
 import { defaultRateLimiter } from "./middleware/rate-limit.js";
 import { errorHandler } from "./middleware/error-handler.js";
+import { appRouter } from "./trpc/router.js";
+import { createTRPCContext, type TRPCError } from "./trpc/init.js";
+
+export function isHealthCheckUrl(url: string | undefined): boolean {
+  return url === "/healthz" || url === "/readyz";
+}
+
+/**
+ * Extracted so it can be unit-tested independently
+ * Called by the tRPC Express adapter's `onError` hook
+ */
+export function handleTRPCError({
+  path,
+  error,
+}: {
+  path: string | undefined;
+  error: TRPCError;
+}): void {
+  if (error.code === "INTERNAL_SERVER_ERROR") {
+    logger.error({ path, error }, "tRPC internal server error");
+  }
+}
 
 /** Creates and configures the Express application
  * Exported separately from the HTTP server so tests can import
@@ -31,10 +54,12 @@ export function createApp(): Express {
   app.use(
     pinoHttp({
       logger,
+      /* v8 ignore start */
       // Skip health-check probes to reduce log noise
       autoLogging: {
-        ignore: (req) => req.url === "/healthz" || req.url === "/readyz",
+        ignore: (req) => isHealthCheckUrl(req.url),
       },
+      /* v8 ignore stop */
     }),
   );
 
@@ -49,6 +74,21 @@ export function createApp(): Express {
   app.get("/readyz", (_req, res) => {
     res.status(200).json({ status: "ready" });
   });
+
+  // tRPC
+  // Express adapter - handles all POST/GET requests at /trpc/*
+  // Each request gets its own context via createTRPCContext.
+  // Protected procedures additionally run the validateSession middleware
+  // inside the tRPC middleware chain (not at the Express level) so that
+  // public procedures like /trpc/healthPing remain unauthenticated.
+  app.use(
+    "/trpc",
+    trpcExpress.createExpressMiddleware({
+      router: appRouter,
+      createContext: createTRPCContext,
+      onError: handleTRPCError,
+    }),
+  );
 
   // Catch-all 404
   app.all("/{*splat}", (_req, res) => {

@@ -25,3 +25,4 @@ if (!isProduction) {
 // PrismaClient is already exported as a value above via the import
 export { PrismaClient } from "./generated/index.js";
 export type * from "./generated/index.js";
+export type { DefaultArgs } from "./generated/runtime/client.js";

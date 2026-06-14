@@ -1,9 +1,17 @@
 import { baseVitestConfig, mergeConfig } from "@taskflow/config/vitest/base";
 import { defineConfig } from "vitest/config";
+import { fileURLToPath } from "node:url";
 
 export default mergeConfig(
   baseVitestConfig,
   defineConfig({
+    resolve: {
+      alias: {
+        "@taskflow/database": fileURLToPath(
+          new URL("./tests/mocks/database-mock.ts", import.meta.url),
+        ),
+      },
+    },
     test: {
       environment: "node",
       // Vitest 4: use `projects` pattern for unit / integration split

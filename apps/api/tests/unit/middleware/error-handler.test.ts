@@ -1,24 +1,11 @@
 import { describe, expect, vi, it, afterEach } from "vitest";
 
-// Mock env BEFORE importing the module under test - vitest hoists vi.mock() calls
-vi.mock("../../../src/config/env.js", async () => {
-  const { envMockFactory } = await import("../../mocks/env.js");
-  return envMockFactory();
-});
+vi.mock("../../../src/config/env.js");
 
-// Mock logger to suppress output during tests
-vi.mock("../../../src/config/logger.js", () => ({
-  logger: {
-    error: vi.fn(),
-    warn: vi.fn(),
-    info: vi.fn(),
-  },
-}));
-
+import type { Response } from "express";
 import { type AppError, createError, errorHandler } from "../../../src/middleware/error-handler.js";
 import { type ErrorBody, makeMockNext, makeMockReq } from "../../helpers.js";
 import { isProduction } from "../../../src/config/env.js";
-import type { Response } from "express";
 
 function call(err: AppError | Error): { status: number; body: ErrorBody } {
   const jsonMock = vi.fn();
@@ -45,8 +32,7 @@ describe("createError", () => {
   });
 
   it("creates an Error without code when not provided", () => {
-    const err = createError("Server error", 500);
-    expect(err.code).toBeUndefined();
+    expect(createError("Server error", 500).code).toBeUndefined();
   });
 });
 

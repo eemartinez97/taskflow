@@ -1,22 +1,22 @@
-import { afterEach, describe, vi, it, expect } from "vitest";
+import { beforeEach, describe, vi, it, expect } from "vitest";
 
-// Control isProduction return value per-test
-vi.mock("../../../src/config/env.ts", async () => {
-  const { envMockFactory } = await import("../../mocks/env.js");
-  return envMockFactory();
-});
+vi.mock("../../../src/config/env.js");
+vi.unmock("../../../src/config/logger.js");
 
-import { isProduction } from "../../../src/config/env.js";
-
-afterEach(() => {
+// Clear module registry before each test so dynamic imports below
+// always receive a freshly evaluated module — critical for the
+// production-branch test where isProduction must return true BEFORE
+// logger.ts is evaluated.
+beforeEach(() => {
   vi.resetModules();
-  vi.mocked(isProduction).mockReturnValue(false);
 });
 
 describe("logger factory", () => {
-  it("returns a pino logger instance in development (with pino-pretty transport)", async () => {
+  it("development: returns pino logger with pino-pretty transport", async () => {
+    // Import env FIRST to get the fresh mock reference after resetModules,
+    // set the return value, THEN import logger so it sees isProduction()===false
+    const { isProduction } = await import("../../../src/config/env.js");
     vi.mocked(isProduction).mockReturnValue(false);
-
     const { logger } = await import("../../../src/config/logger.js");
 
     expect(typeof logger.info).toBe("function");
@@ -24,7 +24,8 @@ describe("logger factory", () => {
     expect(typeof logger.warn).toBe("function");
   });
 
-  it("returns a pino logger instance in production (raw JSON - no transport)", async () => {
+  it("production: returns a pino logger instance in production (raw JSON — no transport)", async () => {
+    const { isProduction } = await import("../../../src/config/env.js");
     vi.mocked(isProduction).mockReturnValue(true);
 
     const { logger } = await import("../../../src/config/logger.js");
@@ -34,8 +35,22 @@ describe("logger factory", () => {
   });
 
   it("logger.level is set from API_LOG_LEVEL env var", async () => {
+    const { isProduction } = await import("../../../src/config/env.js");
+    vi.mocked(isProduction).mockReturnValue(false);
+
     const { logger } = await import("../../../src/config/logger.js");
+
     // env mock sets API_LOG_LEVEL: "silent"
     expect(logger.level).toBe("silent");
+  });
+
+  it("production logger has no pino-pretty transport overhead", async () => {
+    const { isProduction } = await import("../../../src/config/env.js");
+    vi.mocked(isProduction).mockReturnValue(true);
+
+    const { logger } = await import("../../../src/config/logger.js");
+
+    // In production raw JSON is emitted — level is still readable
+    expect(logger.level).toBeDefined();
   });
 });

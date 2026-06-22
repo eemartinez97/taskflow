@@ -2,8 +2,13 @@ import { createApp } from "./app.js";
 import http from "node:http";
 import { env } from "./config/env.js";
 import { logger } from "./config/logger.js";
+import { type Server } from "socket.io";
 
-const app = createApp();
+const placeholderIo = {
+  to: () => ({ emit: (): boolean => false }),
+} as unknown as Server;
+
+const app = createApp(placeholderIo);
 const server = http.createServer(app);
 
 server.listen(env.API_PORT, () => {

@@ -149,6 +149,7 @@ export function roleGuard(
     return next({
       ctx: {
         ...ctx,
+        user: ctx.user,
         membershipRole,
       },
     });

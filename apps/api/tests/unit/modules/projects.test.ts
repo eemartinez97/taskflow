@@ -6,9 +6,10 @@ import { createCallerFactory, createTRPCRouter } from "../../../src/trpc/init.js
 import { projectsRouter } from "../../../src/modules/projects/router.js";
 import {
   ANOTHER_UUID,
-  getMockArg,
+  FIXED_DATE,
   makeCtx,
   VALID_ORG_ID,
+  VALID_PROJECT_ID,
   VALID_USER,
   VALID_UUID,
 } from "../../helpers.js";
@@ -16,10 +17,9 @@ import { mockDb } from "../../mocks/database-mock.js";
 
 const caller = createCallerFactory(createTRPCRouter({ projects: projectsRouter }));
 const authed = () => caller(makeCtx(VALID_USER));
-const FIXED_DATE = new Date("2026-06-06T00:00:00.000Z");
 
 const mockProject = {
-  id: VALID_UUID,
+  id: VALID_PROJECT_ID,
   orgId: VALID_ORG_ID,
   name: "Demo Project",
   key: "DEMO",
@@ -53,7 +53,7 @@ describe("projects.get", () => {
 
   it("returns a project by id", async () => {
     mockDb.project.findUnique.mockResolvedValue(mockProject);
-    const result = await authed().projects.get({ projectId: VALID_UUID });
+    const result = await authed().projects.get({ projectId: VALID_PROJECT_ID });
     expect(result.key).toBe("DEMO");
   });
 
@@ -78,10 +78,13 @@ describe("projects.create", () => {
     });
 
     expect(result.key).toBe("DEMO");
-    expect(mockDb.project.create).toHaveBeenCalledOnce();
-    expect(getMockArg(mockDb.project.create)).toMatchObject({
-      data: { orgId: VALID_ORG_ID },
-    });
+    expect(mockDb.project.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          orgId: VALID_ORG_ID,
+        }) as unknown,
+      }),
+    );
   });
 
   it("rejects lowercase project key", async () => {

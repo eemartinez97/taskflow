@@ -3,7 +3,6 @@ import { PrismaClient } from "./generated/index.js";
 
 // PrismaClient singleton - prevents exhausting DB connections in dev (Next.js HMR)
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
-
 const isProduction = process.env.NODE_ENV === "production";
 
 function createPrismaClient(): PrismaClient {
@@ -26,3 +25,21 @@ if (!isProduction) {
 export { PrismaClient } from "./generated/index.js";
 export type * from "./generated/index.js";
 export type { DefaultArgs } from "./generated/runtime/client.js";
+
+// Shared types derived from query fragments
+export type {
+  OrgWithMembership,
+  BoardWithColumns,
+  MembershipWithUser,
+  NotificationWithActor,
+} from "./types.js";
+
+// Query fragments - consumed by repo files in apps/api
+export {
+  userBasicSelect,
+  userProfileSelect,
+  membershipWithUser,
+  orgWithMembership,
+  boardWithColumns,
+  notificationWithActor,
+} from "./selects.js";

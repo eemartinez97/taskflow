@@ -7,3 +7,4 @@ export * from "./task.js";
 export * from "./comment.js";
 export * from "./label.js";
 export * from "./socket.js";
+export * from "./notification.js";

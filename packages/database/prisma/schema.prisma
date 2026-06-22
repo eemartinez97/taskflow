@@ -45,6 +45,15 @@ enum TaskStatus {
   @@schema("taskflow")
 }
 
+enum NotificationType {
+  TASK_ASSIGNED
+  TASK_UPDATED
+  COMMENT_CREATED
+  MEMBER_INVITED
+
+  @@schema("taskflow")
+}
+
 // Auth tables (managed by @auth/prisma-adapter)
 
 model User {
@@ -60,9 +69,11 @@ model User {
   sessions Session[]
 
   // Application relations
-  memberships   Membership[]
-  assignedTasks Task[]       @relation("TaskAssignee")
-  comments      Comment[]
+  memberships            Membership[]
+  assignedTasks          Task[]         @relation("TaskAssignee")
+  comments               Comment[]
+  notifications          Notification[] @relation("NotificationRecipient")
+  triggeredNotifications Notification[] @relation("NotificationActor")
 
   @@schema("auth")
 }
@@ -252,6 +263,28 @@ model TaskLabel {
   label Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
 
   @@id([taskId, labelId])
+  @@schema("taskflow")
+}
+
+model Notification {
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String           @db.Uuid
+  actorId    String?          @db.Uuid
+  type       NotificationType
+  message    String           @db.VarChar(500)
+  read       Boolean          @default(false)
+  entityId   String?          @db.Uuid
+  entityType String?          @db.VarChar(50)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  // Recipient
+  user  User  @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  // Who triggered the notification (nullable - system events have no actor)
+  actor User? @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([userId, read])
+  @@index([userId, createdAt(sort: Desc)])
   @@schema("taskflow")
 }
 

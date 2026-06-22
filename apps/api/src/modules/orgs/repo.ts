@@ -1,20 +1,28 @@
-import type { Membership, Org, PrismaClient } from "@taskflow/database";
+import type {
+  MembershipWithUser,
+  Membership,
+  Org,
+  OrgWithMembership,
+  PrismaClient,
+} from "@taskflow/database";
+import { membershipWithUser, orgWithMembership } from "@taskflow/database";
 import type { CreateOrg, InviteMember, UpdateOrg } from "@taskflow/shared";
 import { stripUndefined } from "../../utils/prisma.js";
 
-export type OrgWithRole = Org & { membership: Pick<Membership, "role"> };
-
-export async function findOrgsByUser(db: PrismaClient, userId: string): Promise<OrgWithRole[]> {
-  const memberships = await db.membership.findMany({
-    where: { userId },
-    include: { org: true },
+export async function findOrgsByUser(
+  db: PrismaClient,
+  userId: string,
+): Promise<OrgWithMembership[]> {
+  return db.org.findMany({
+    where: { memberships: { some: { userId } } },
+    include: {
+      memberships: {
+        ...orgWithMembership.memberships,
+        where: { userId },
+      },
+    },
     orderBy: { createdAt: "asc" },
   });
-
-  return memberships.map((m) => ({
-    ...m.org,
-    membership: { role: m.role },
-  }));
 }
 
 export async function findOrgById(db: PrismaClient, orgId: string): Promise<Org | null> {
@@ -42,13 +50,10 @@ export async function deleteOrg(db: PrismaClient, orgId: string): Promise<void> 
   await db.org.delete({ where: { id: orgId } });
 }
 
-export async function findMembers(
-  db: PrismaClient,
-  orgId: string,
-): Promise<(Membership & { user: { id: string; name: string | null; email: string } })[]> {
+export async function findMembers(db: PrismaClient, orgId: string): Promise<MembershipWithUser[]> {
   return db.membership.findMany({
     where: { orgId },
-    include: { user: { select: { id: true, name: true, email: true } } },
+    include: membershipWithUser,
     orderBy: { createdAt: "asc" },
   });
 }
@@ -60,9 +65,7 @@ export async function inviteMember(
 ): Promise<Membership> {
   const user = await db.user.findUnique({ where: { email: data.email } });
 
-  if (!user) {
-    throw new Error(`NO_USER:${data.email}`);
-  }
+  if (!user) throw new Error(`NO_USER:${data.email}`);
 
   return db.membership.create({
     data: { orgId, userId: user.id, role: data.role },

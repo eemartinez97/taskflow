@@ -7,8 +7,9 @@ import { pinoHttp } from "pino-http";
 import { logger } from "./config/logger.js";
 import { defaultRateLimiter } from "./middleware/rate-limit.js";
 import { errorHandler } from "./middleware/error-handler.js";
-import { appRouter } from "./trpc/router.js";
-import { createTRPCContext, type TRPCError } from "./trpc/init.js";
+import { createAppRouter } from "./trpc/router.js";
+import { createTRPCContext, TRPCError } from "./trpc/init.js";
+import { type Server } from "socket.io";
 
 export function isHealthCheckUrl(url: string | undefined): boolean {
   return url === "/healthz" || url === "/readyz";
@@ -23,10 +24,10 @@ export function handleTRPCError({
   error,
 }: {
   path: string | undefined;
-  error: TRPCError;
+  error: unknown;
 }): void {
-  if (error.code === "INTERNAL_SERVER_ERROR") {
-    logger.error({ path, error }, "tRPC internal server error");
+  if (error instanceof TRPCError && error.code === "INTERNAL_SERVER_ERROR") {
+    logger.error({ path }, "tRPC internal server error");
   }
 }
 
@@ -34,8 +35,10 @@ export function handleTRPCError({
  * Exported separately from the HTTP server so tests can import
  * the app without binding to a port
  */
-export function createApp(): Express {
+export function createApp(io: Server): Express {
   const app = express();
+
+  const router = createAppRouter(io);
 
   // Security headers
   app.use(helmetMiddleware);
@@ -84,7 +87,7 @@ export function createApp(): Express {
   app.use(
     "/trpc",
     trpcExpress.createExpressMiddleware({
-      router: appRouter,
+      router,
       createContext: createTRPCContext,
       onError: handleTRPCError,
     }),

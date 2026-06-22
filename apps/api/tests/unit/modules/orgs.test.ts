@@ -6,7 +6,7 @@ import { createCallerFactory, createTRPCRouter } from "../../../src/trpc/init.js
 import { orgsRouter } from "../../../src/modules/orgs/router.js";
 import {
   ANOTHER_UUID,
-  getMockArg,
+  FIXED_DATE,
   makeCtx,
   VALID_ORG_ID,
   VALID_USER,
@@ -16,8 +16,6 @@ import { mockDb } from "../../mocks/database-mock.js";
 
 const caller = createCallerFactory(createTRPCRouter({ orgs: orgsRouter }));
 const authed = () => caller(makeCtx(VALID_USER));
-
-const FIXED_DATE = new Date("2026-06-06T00:00:00.000Z");
 
 const mockOrg = {
   id: VALID_ORG_ID,
@@ -46,19 +44,20 @@ describe("orgs.list", () => {
   });
 
   it("returns orgs with membership role", async () => {
-    mockDb.membership.findMany.mockResolvedValueOnce([
+    mockDb.org.findMany.mockResolvedValueOnce([
       {
-        ...mockMembership,
-        org: mockOrg,
+        ...mockOrg,
+        memberships: [{ role: "OWNER" }],
       },
     ]);
+
     const result = await authed().orgs.list();
     expect(result).toHaveLength(1);
-    expect(result[0]?.membership.role).toBe("OWNER");
+    expect(result[0]?.memberships[0]?.role).toBe("OWNER");
   });
 
   it("returns empty array when user has no orgs", async () => {
-    mockDb.membership.findMany.mockResolvedValueOnce([]);
+    mockDb.org.findMany.mockResolvedValueOnce([]);
     expect(await authed().orgs.list()).toEqual([]);
   });
 });
@@ -71,14 +70,15 @@ describe("orgs.create", () => {
     const result = await authed().orgs.create({ name: "Acme Corp", slug: "acme-corp" });
 
     expect(result.slug).toBe("acme-corp");
-    expect(mockDb.org.create).toHaveBeenCalledOnce();
-    expect(getMockArg(mockDb.org.create)).toMatchObject({
-      data: {
-        name: "Acme Corp",
-        slug: "acme-corp",
-        memberships: { create: { userId: VALID_USER.id, role: "OWNER" } },
-      },
-    });
+    expect(mockDb.org.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          name: "Acme Corp",
+          slug: "acme-corp",
+          memberships: { create: { userId: VALID_USER.id, role: "OWNER" } },
+        }) as unknown,
+      }),
+    );
   });
 
   it("rejects invalid slug", async () => {

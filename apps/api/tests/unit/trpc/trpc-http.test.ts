@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { createApp } from "../../../src/app.js";
 import request from "supertest";
 import { type ErrorBody } from "../../helpers.js";
+import { mockIo } from "../../mocks/socket.js";
 
 vi.mock("../../../src/config/env.js");
 
@@ -9,7 +10,7 @@ describe("tRPC HTTP adapter (Express)", () => {
   let app: ReturnType<typeof createApp>;
 
   beforeAll(() => {
-    app = createApp();
+    app = createApp(mockIo);
   });
 
   it("responds with 404 to unknown tRPC procedure path (GET /trpc/unknown)", async () => {

@@ -16,17 +16,26 @@ import { type Logger, logger } from "../config/logger.js";
  * Prisma's internal `DefaultArgs` type from leaking into declaration files,
  * which would cause "inferred type cannot be named" TS errors.
  */
+
+export interface SessionUser {
+  id: string;
+  email: string;
+}
 export interface TRPCContext {
   db: PrismaClient;
   logger: Logger;
-  user: { id: string; email: string } | null;
+  user: SessionUser | null;
+}
+
+export interface TRPCAuthedContext extends Omit<TRPCContext, "user"> {
+  user: SessionUser;
 }
 
 /**
  * Extended context produced by roleGuard — adds the resolved membership role
  * so downstream procedures can read it without a second DB query.
  */
-export type TRPCContextWithRole = TRPCContext & { membershipRole: Role };
+export type TRPCContextWithRole = TRPCAuthedContext & { membershipRole: Role };
 
 // Context factory
 

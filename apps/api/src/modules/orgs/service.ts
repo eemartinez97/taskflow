@@ -1,6 +1,11 @@
-import type { Membership, Org, PrismaClient } from "@taskflow/database";
+import type {
+  Membership,
+  MembershipWithUser,
+  Org,
+  OrgWithMembership,
+  PrismaClient,
+} from "@taskflow/database";
 import {
-  type OrgWithRole,
   createOrg,
   deleteOrg,
   findMembers,
@@ -13,7 +18,7 @@ import {
 import type { CreateOrg, InviteMember, UpdateOrg } from "@taskflow/shared";
 import { TRPCError } from "../../trpc/init.js";
 
-export async function listOrgs(db: PrismaClient, userId: string): Promise<OrgWithRole[]> {
+export async function listOrgs(db: PrismaClient, userId: string): Promise<OrgWithMembership[]> {
   return findOrgsByUser(db, userId);
 }
 
@@ -42,18 +47,12 @@ export async function deleteOrgById(
   orgId: string,
 ): Promise<{ success: boolean }> {
   const org = await findOrgById(db, orgId);
-
   if (!org) throw new TRPCError({ code: "NOT_FOUND", message: "Organization not found." });
-
   await deleteOrg(db, orgId);
-
   return { success: true };
 }
 
-export async function listMembers(
-  db: PrismaClient,
-  orgId: string,
-): Promise<(Membership & { user: { id: string; name: string | null; email: string } })[]> {
+export async function listMembers(db: PrismaClient, orgId: string): Promise<MembershipWithUser[]> {
   return findMembers(db, orgId);
 }
 

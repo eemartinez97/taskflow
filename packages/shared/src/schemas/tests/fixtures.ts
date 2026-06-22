@@ -29,7 +29,7 @@ export const validUserPayload = {
   id: VALID_UUID,
   name: "Alice",
   email: "alice@example.com",
-  image: "https://example.com/avatar.com",
+  image: "https://example.com/avatar.png",
   createdAt: FIXED_DATE,
   updatedAt: FIXED_DATE,
 };
@@ -102,4 +102,19 @@ export const validLabelPayload = {
   color: "#EF4444",
   createdAt: FIXED_DATE,
   updatedAt: FIXED_DATE,
+};
+
+// Notification
+export const validNotification = {
+  id: VALID_UUID,
+  userId: ANOTHER_UUID,
+  actorId: ANOTHER_UUID,
+  type: "COMMENT_CREATED",
+  message: 'Bob commented on "Fix login bug"',
+  read: false,
+  entityId: ANOTHER_UUID,
+  entityType: "task",
+  createdAt: FIXED_DATE,
+  updatedAt: FIXED_DATE,
+  actor: { id: ANOTHER_UUID, name: "Bob", image: "https://example.com/bob.png" },
 };

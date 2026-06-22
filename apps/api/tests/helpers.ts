@@ -6,12 +6,28 @@ import type { PrismaClient } from "@taskflow/database";
 import { mockLogger } from "./mocks/logger.js";
 import { mockDb } from "./mocks/database-mock.js";
 
-// Common fixtures
+// Id fixtures
 
 export const VALID_UUID = "550e8400-e29b-41d4-a716-446655440000";
 export const ANOTHER_UUID = "123e4567-e89b-12d3-a456-426614174000";
-export const VALID_USER = { id: VALID_UUID, email: "alice@example.com" } as const;
-export const VALID_ORG_ID = ANOTHER_UUID;
+
+// Semantic aliases - use these instead of raw UUIDs so test intent is clear
+export const VALID_ORG_ID = "00000001-0000-4000-8000-000000000001";
+export const VALID_PROJECT_ID = "00000002-0000-4000-8000-000000000001";
+export const VALID_BOARD_ID = "00000003-0000-4000-8000-000000000001";
+export const VALID_COLUMN_ID = "00000004-0000-4000-8000-000000000001";
+export const VALID_TASK_ID = "00000005-0000-4000-8000-000000000001";
+export const VALID_COMMENT_ID = "00000006-0000-4000-8000-000000000001";
+export const VALID_LABEL_ID = "00000007-0000-4000-8000-000000000001";
+
+// Date fixtures
+export const FIXED_DATE = new Date("2026-06-06T00:00:00.000Z");
+
+// User fixtures
+export const VALID_USER = {
+  id: VALID_UUID,
+  email: "alice@example.com",
+} as const;
 
 // Response shapes
 
@@ -86,35 +102,4 @@ export function getNextError(
     statusCode: number;
     code?: string;
   };
-}
-
-/**
- * Extracts a call argument from a vi.fn() mock as `unknown`.
- *
- * WHY a structural interface instead of `ReturnType<typeof vi.fn>`:
- * - Our mocks are typed as MockInstance<(...args: unknown[]) => unknown>.
- * - vi.fn() returns Mock<(...args: any[]) => any>.
- * - `unknown[]` is not assignable to `any[]` under strict mode, so
- *   passing our mocks to `ReturnType<typeof vi.fn>` causes a type error.
- * - Accepting only `{ mock: { calls: unknown[][] } }` (the minimal interface
- *   we actually use) satisfies both types without casting.
- *
- * WHY `unknown` return and not a generic T:
- * - vi.fn() already types all call arguments as `unknown[]`.
- * - A generic <T> would only appear in the return type (not the params),
- *   triggering @typescript-eslint/no-unnecessary-type-parameters.
- * - Callers use `expect(arg).toMatchObject(...)` which accepts `unknown`,
- *   so no cast is needed at the call site either.
- *
- * Usage:
- *   expect(mockDb.project.create).toHaveBeenCalledOnce();
- *   const arg = getMockArg(mockDb.project.create);
- *   expect(arg).toMatchObject({ data: { orgId: VALID_ORG_ID } });
- */
-interface HasMockCalls {
-  mock: { calls: unknown[][] };
-}
-
-export function getMockArg(mockFn: HasMockCalls, callIndex = 0, argIndex = 0): unknown {
-  return mockFn.mock.calls[callIndex]?.[argIndex];
 }

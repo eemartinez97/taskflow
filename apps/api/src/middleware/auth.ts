@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { createError } from "./error-handler.js";
 import { prisma } from "@taskflow/database";
+import { type SessionUser } from "../trpc/init.js";
 
 /**
  * Reads the NextAuth v4 session token from the request cookie,
@@ -47,7 +48,7 @@ declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
-      user?: { id: string; email: string };
+      user?: SessionUser;
     }
   }
 }

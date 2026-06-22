@@ -4,6 +4,7 @@ import { createApp, handleTRPCError, isHealthCheckUrl } from "../../src/app.js";
 import type { ErrorBody } from "../helpers.js";
 import { TRPCError } from "../../src/trpc/init.js";
 import { mockLogger } from "../mocks/logger.js";
+import { mockIo } from "../mocks/socket.js";
 
 vi.mock("../../src/config/env.js");
 
@@ -12,7 +13,7 @@ describe("Health endpoints", () => {
   let app: ReturnType<typeof createApp>;
 
   beforeAll(() => {
-    app = createApp();
+    app = createApp(mockIo);
   });
 
   it("GET /healthz returns 200 with status ok", async () => {
@@ -67,7 +68,7 @@ describe("handleTRPCError", () => {
     const error = new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB explored" });
     handleTRPCError({ path: "tasks.list", error });
     expect(mockLogger.error).toHaveBeenCalledWith(
-      { path: "tasks.list", error },
+      { path: "tasks.list" },
       "tRPC internal server error",
     );
   });

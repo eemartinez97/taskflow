@@ -4,6 +4,7 @@ import {
   MAX_PAGE_SIZE,
   POSITION_STEP,
   ROLES,
+  SOCKET_EVENTS,
   SOCKET_ROOM_PREFIX,
   TASK_PRIORITIES,
   TASK_STATUSES,
@@ -84,5 +85,34 @@ describe("POSITION_STEP", () => {
     // Middle position should be strictly between first and second
     expect(middle).toBeGreaterThan(firstPosition);
     expect(middle).toBeLessThan(secondPosition);
+  });
+});
+
+describe("SOCKET_EVENTS", () => {
+  it("contains all 8 socket event strings", () => {
+    expect(Object.keys(SOCKET_EVENTS)).toHaveLength(8);
+  });
+
+  it("task events use task: prefix", () => {
+    expect(SOCKET_EVENTS.TASK_CREATED).toBe("task:created");
+    expect(SOCKET_EVENTS.TASK_UPDATED).toBe("task:updated");
+    expect(SOCKET_EVENTS.TASK_MOVED).toBe("task:moved");
+    expect(SOCKET_EVENTS.TASK_DELETED).toBe("task:deleted");
+  });
+
+  it("comment events use comment: prefix", () => {
+    expect(SOCKET_EVENTS.COMMENT_CREATED).toBe("comment:created");
+  });
+
+  it("presence events use presence: prefix", () => {
+    expect(SOCKET_EVENTS.PRESENCE_JOIN).toBe("presence:join");
+    expect(SOCKET_EVENTS.PRESENCE_LEAVE).toBe("presence:leave");
+    expect(SOCKET_EVENTS.PRESENCE_CURSOR).toBe("presence:cursor");
+  });
+
+  it("all values are lowercase strings with colon separator", () => {
+    for (const value of Object.values(SOCKET_EVENTS)) {
+      expect(value).toMatch(/^[a-z]+:[a-z]+$/);
+    }
   });
 });

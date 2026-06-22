@@ -23,11 +23,19 @@ import type {
   taskPrioritySchema,
   taskSchema,
   taskStatusSchema,
+  updateBoardSchema,
+  updateColumnSchema,
   updateOrgSchema,
   updateProjectSchema,
   updateTaskSchema,
   updateUserSchema,
   userSchema,
+  createNotificationSchema,
+  markNotificationsReadSchema,
+  notificationActorSchema,
+  notificationListSchema,
+  notificationSchema,
+  notificationTypeSchema,
 } from "../schemas/index.js";
 import { type paginationSchema } from "../schemas/common.js";
 
@@ -52,7 +60,9 @@ export type UpdateProject = z.infer<typeof updateProjectSchema>;
 export type Board = z.infer<typeof boardSchema>;
 export type Column = z.infer<typeof columnSchema>;
 export type CreateBoard = z.infer<typeof createBoardSchema>;
+export type UpdateBoard = z.infer<typeof updateBoardSchema>;
 export type CreateColumn = z.infer<typeof createColumnSchema>;
+export type UpdateColumn = z.infer<typeof updateColumnSchema>;
 export type ReorderColumns = z.infer<typeof reorderColumnsSchema>;
 
 // Task
@@ -70,6 +80,14 @@ export type CreateComment = z.infer<typeof createCommentSchema>;
 // Label
 export type Label = z.infer<typeof labelSchema>;
 export type CreateLabel = z.infer<typeof createLabelSchema>;
+
+// Notifications
+export type NotificationType = z.infer<typeof notificationTypeSchema>;
+export type NotificationActor = z.infer<typeof notificationActorSchema>;
+export type Notification = z.infer<typeof notificationSchema>;
+export type CreateNotification = z.infer<typeof createNotificationSchema>;
+export type NotificationList = z.infer<typeof notificationListSchema>;
+export type MarkNotificationsRead = z.infer<typeof markNotificationsReadSchema>;
 
 // Presence (Socket.IO)
 export type PresenceUser = z.infer<typeof presenceUserSchema>;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createLabelSchema, labelSchema } from "../label.js";
+import { createLabelSchema, labelSchema } from "../../src";
 import { validLabelPayload } from "./fixtures.js";
 
 describe("createLabelSchema", () => {

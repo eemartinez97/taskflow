@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createProjectSchema, projectSchema, updateProjectSchema } from "../project.js";
+import { createProjectSchema, projectSchema, updateProjectSchema } from "../../src";
 import { validProjectPayload } from "./fixtures.js";
 
 describe("createProjectSchema", () => {

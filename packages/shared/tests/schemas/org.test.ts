@@ -6,7 +6,7 @@ import {
   orgSchema,
   roleSchema,
   updateOrgSchema,
-} from "../org.js";
+} from "../../src";
 import { validMembershipPayload, validOrgPayload } from "./fixtures.js";
 
 describe("roleSchema", () => {

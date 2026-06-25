@@ -7,7 +7,7 @@ import {
   reorderColumnsSchema,
   updateBoardSchema,
   updateColumnSchema,
-} from "../board.js";
+} from "../../src";
 import { VALID_UUID, validBoardPayload, validColumnPayload } from "./fixtures.js";
 
 describe("boardSchema", () => {

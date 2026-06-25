@@ -7,7 +7,8 @@ export default mergeConfig(
     test: {
       environment: "jsdom",
       globals: true,
-      setupFiles: ["./src/tests/setup.ts"],
+      include: ["tests/**/*.test.{ts,tsx}"],
+      setupFiles: ["./tests/setup.ts"],
       coverage: {
         // packages/shared must hit >= 90% coverage
         thresholds: {
@@ -17,7 +18,7 @@ export default mergeConfig(
           statements: 90,
         },
         include: ["src/**/*.{ts,tsx}"],
-        exclude: ["src/index.ts", "src/tests/**", "src/theme.css"],
+        exclude: ["src/index.ts", "src/theme.css"],
       },
     },
   }),

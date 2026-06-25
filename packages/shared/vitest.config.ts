@@ -6,6 +6,7 @@ export default mergeConfig(
   defineConfig({
     test: {
       environment: "node",
+      include: ["tests/**/*.test.ts"],
       coverage: {
         // packages/shared must hit >= 90% coverage
         thresholds: {

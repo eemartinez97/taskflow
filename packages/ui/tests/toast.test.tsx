@@ -1,8 +1,8 @@
 import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { Toast, ToastContainer } from "../toast";
-import type { ToastItem } from "../toast";
+import { Toast, ToastContainer } from "../src";
+import type { ToastItem } from "../src";
 
 // Timer behavior tests (fake timers required)
 

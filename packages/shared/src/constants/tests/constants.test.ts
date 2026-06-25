@@ -89,8 +89,8 @@ describe("POSITION_STEP", () => {
 });
 
 describe("SOCKET_EVENTS", () => {
-  it("contains all 8 socket event strings", () => {
-    expect(Object.keys(SOCKET_EVENTS)).toHaveLength(8);
+  it("contains all 9 socket event strings", () => {
+    expect(Object.keys(SOCKET_EVENTS)).toHaveLength(9);
   });
 
   it("task events use task: prefix", () => {
@@ -98,6 +98,7 @@ describe("SOCKET_EVENTS", () => {
     expect(SOCKET_EVENTS.TASK_UPDATED).toBe("task:updated");
     expect(SOCKET_EVENTS.TASK_MOVED).toBe("task:moved");
     expect(SOCKET_EVENTS.TASK_DELETED).toBe("task:deleted");
+    expect(SOCKET_EVENTS.TASK_TYPING).toBe("task:typing");
   });
 
   it("comment events use comment: prefix", () => {

@@ -14,4 +14,6 @@ export const slugSchema = z
   .max(50)
   .regex(/^[a-z0-9-]+$/, "Slug must contain only lowercase letters, numbers, and hyphens");
 
-export const colorSchema = z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Must be a valid hex color");
+export const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
+
+export const colorSchema = z.string().regex(HEX_COLOR_REGEX, "Must be a valid hex color");

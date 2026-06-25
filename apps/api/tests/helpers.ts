@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { vi } from "vitest";
 
 import type { TRPCContext } from "../src/trpc/init.js";
-import type { PrismaClient } from "@taskflow/database";
+import type { Prisma, PrismaClient } from "@taskflow/database";
 import { mockLogger } from "./mocks/logger.js";
 import { mockDb } from "./mocks/database-mock.js";
 
@@ -101,5 +101,56 @@ export function getNextError(
   return vi.mocked(next).mock.calls[0]?.[0] as unknown as Error & {
     statusCode: number;
     code?: string;
+  };
+}
+
+/**
+ * Pre-cast mockDb instance typed as PrismaClient.
+ * Use this instead of repeating `mockDb as unknown as PrismaClient` in every test.
+ *
+ * For controlling mock behavior, use mockDb directly:
+ *   mockDb.session.findUnique.mockResolvedValueOnce(...)
+ *
+ * For passing to functions that expect a real PrismaClient:
+ *   import { db } from "../../helpers.js"
+ *   await validateSessionToken(db, token)
+ */
+export const db = mockDb as unknown as PrismaClient;
+
+/**
+ * Prisma inferred type for a Session row with the user select shape
+ * used by validateSessionToken.
+ * Derived form the generated schema - never written by hand.
+ */
+type SessionWithUser = Prisma.SessionGetPayload<{
+  include: {
+    user: {
+      select: { id: true; email: true; name: true };
+    };
+  };
+}>;
+
+/**
+ * Builds a valid session row matching the select shape used by
+ * validateSessionToken (user: { id, email, name }).
+ *
+ * Shared by auth.test.ts, session.test.ts, and any future test that
+ * needs to mock a Prisma session lookup.
+ *
+ * @param token   - The session token string to embed in the fixture.
+ * @param name    - Optional display name for the user (defaults to "Alice").
+ * @param expiresOffset - Milliseconds from now until expiry (defaults to +1 hour).
+ */
+export function makeValidSessionRow(
+  token: string,
+  name: string | null = "Alice",
+  expiresOffset = 1000 * 60 * 60,
+): SessionWithUser {
+  return {
+    id: "session-id-1",
+    sessionToken: token,
+    userId: VALID_USER.id,
+    expires: new Date(Date.now() + expiresOffset),
+    user: { id: VALID_USER.id, email: VALID_USER.email, name },
   };
 }

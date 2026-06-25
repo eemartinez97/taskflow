@@ -39,7 +39,9 @@ export const SOCKET_EVENTS = {
   PRESENCE_JOIN: "presence:join",
   PRESENCE_LEAVE: "presence:leave",
   PRESENCE_CURSOR: "presence:cursor",
-};
+  // Typing indicator (client -> server, server -> room)
+  TASK_TYPING: "task:typing",
+} as const;
 
 /** Union type of all valid socket event name strings. */
 export type SocketEvent = (typeof SOCKET_EVENTS)[keyof typeof SOCKET_EVENTS];

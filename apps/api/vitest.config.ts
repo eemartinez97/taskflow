@@ -23,6 +23,7 @@ export default mergeConfig(
         exclude: [
           "src/main.ts", // entry point - only side-effects
           "src/server.ts", // HTTP server bootstrap - integration test territory
+          "src/socket/events.ts", // events.ts contains only TypeScript interface/type declarations.
         ],
         thresholds: {
           lines: 90,

@@ -2,6 +2,8 @@ import type { NextFunction, Request, Response } from "express";
 import { createError } from "./error-handler.js";
 import { prisma } from "@taskflow/database";
 import { type SessionUser } from "../trpc/init.js";
+import { parseCookieToken } from "../utils/cookies.js";
+import { validateSessionToken } from "../utils/session.js";
 
 /**
  * Reads the NextAuth v4 session token from the request cookie,
@@ -15,9 +17,7 @@ export async function validateSession(
   next: NextFunction,
 ): Promise<void> {
   // NextAuth v4 uses different cookie names for http vs https
-  const token =
-    (req.cookies as Record<string, string | undefined>)["next-auth.session-token"] ??
-    (req.cookies as Record<string, string | undefined>)["__Secure-next-auth.session-token"];
+  const token = parseCookieToken(req.headers.cookie ?? "");
 
   if (!token) {
     next(createError("Authentication required", 401, "UNAUTHORIZED"));
@@ -25,18 +25,15 @@ export async function validateSession(
   }
 
   try {
-    const session = await prisma.session.findUnique({
-      where: { sessionToken: token },
-      include: { user: true },
-    });
+    const session = await validateSessionToken(prisma, token);
 
-    if (!session || session.expires < new Date()) {
+    if (!session) {
       next(createError("Session expired or invalid", 401, "SESSION_EXPIRED"));
       return;
     }
 
     // Attach user to request for downstream middleware and tRPC context
-    req.user = { id: session.user.id, email: session.user.email };
+    req.user = { id: session.userId, email: session.email };
     next();
   } catch (err) {
     next(err);

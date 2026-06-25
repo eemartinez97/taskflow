@@ -6,13 +6,14 @@ import { createCallerFactory, createTRPCRouter } from "../../../src/trpc/init.js
 import { notificationsRouter } from "../../../src/modules/notifications/router.js";
 import {
   ANOTHER_UUID,
+  db,
   FIXED_DATE,
   makeCtx,
   VALID_TASK_ID,
   VALID_USER,
   VALID_UUID,
 } from "../../helpers.js";
-import type { PrismaClient, NotificationWithActor } from "@taskflow/database";
+import { type NotificationWithActor } from "@taskflow/database";
 import { mockDb } from "../../mocks/database-mock.js";
 import {
   buildNotificationMessage,
@@ -260,7 +261,7 @@ describe("notifyTaskAssigned", () => {
     mockDb.user.findUnique.mockResolvedValueOnce({ name: "Alice" });
     mockDb.notification.create.mockResolvedValueOnce({});
 
-    await notifyTaskAssigned(mockDb as unknown as PrismaClient, {
+    await notifyTaskAssigned(db, {
       taskId: VALID_TASK_ID,
       taskTitle: "Fix login bug",
       assigneeId: ANOTHER_UUID,
@@ -279,7 +280,7 @@ describe("notifyTaskAssigned", () => {
   });
 
   it("no-ops when assigneeId is null", async () => {
-    await notifyTaskAssigned(mockDb as unknown as PrismaClient, {
+    await notifyTaskAssigned(db, {
       taskId: VALID_TASK_ID,
       taskTitle: "Task",
       assigneeId: null,
@@ -293,7 +294,7 @@ describe("notifyTaskAssigned", () => {
   it("no-ops when actor IS the assignee (self-assignment)", async () => {
     mockDb.user.findUnique.mockResolvedValueOnce({ name: "Alice" });
 
-    await notifyTaskAssigned(mockDb as unknown as PrismaClient, {
+    await notifyTaskAssigned(db, {
       taskId: VALID_TASK_ID,
       taskTitle: "Task",
       assigneeId: VALID_USER.id, // same as actorId
@@ -308,7 +309,7 @@ describe("notifyTaskAssigned", () => {
     mockDb.user.findUnique.mockResolvedValueOnce({ name: null });
     mockDb.notification.create.mockResolvedValueOnce({});
 
-    await notifyTaskAssigned(mockDb as unknown as PrismaClient, {
+    await notifyTaskAssigned(db, {
       taskId: VALID_TASK_ID,
       taskTitle: "Deploy to production",
       assigneeId: ANOTHER_UUID,
@@ -328,7 +329,7 @@ describe("notifyTaskAssigned", () => {
     mockDb.user.findUnique.mockResolvedValueOnce(null);
     mockDb.notification.create.mockResolvedValueOnce({});
 
-    await notifyTaskAssigned(mockDb as unknown as PrismaClient, {
+    await notifyTaskAssigned(db, {
       taskId: VALID_TASK_ID,
       taskTitle: "Fix critical bug",
       assigneeId: ANOTHER_UUID,

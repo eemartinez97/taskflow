@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { updateUserSchema, userSchema } from "../user.js";
+import { updateUserSchema, userSchema } from "../../src";
 import { validUserPayload } from "./fixtures.js";
 
 describe("userSchema", () => {

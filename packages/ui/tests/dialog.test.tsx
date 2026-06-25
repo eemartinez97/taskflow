@@ -1,7 +1,7 @@
 import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, beforeAll } from "vitest";
-import { Dialog } from "../dialog";
+import { Dialog } from "../src";
 
 /**
  * jsdom does not implement HTMLDialogElement.showModal() / close().

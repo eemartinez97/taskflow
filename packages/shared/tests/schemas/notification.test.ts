@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   createNotificationSchema,
   markNotificationsReadSchema,
+  NOTIFICATION_TYPES,
   notificationActorSchema,
   notificationSchema,
   notificationTypeSchema,
-} from "../notification";
-import { NOTIFICATION_TYPES } from "../../constants";
+} from "../../src";
 import { ANOTHER_UUID, VALID_UUID, validNotification } from "./fixtures";
 
 describe("notificationTypeSchema", () => {

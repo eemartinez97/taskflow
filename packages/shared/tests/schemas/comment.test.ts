@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commentSchema, createCommentSchema } from "../comment.js";
+import { commentSchema, createCommentSchema } from "../../src";
 import { validCommentPayload } from "./fixtures.js";
 
 describe("createCommentSchema", () => {

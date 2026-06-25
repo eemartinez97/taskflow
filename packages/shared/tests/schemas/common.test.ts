@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { colorSchema, idSchema, paginationSchema, slugSchema } from "../common.js";
+import { colorSchema, idSchema, paginationSchema, slugSchema } from "../../src";
 import { VALID_UUID } from "./fixtures.js";
 
 describe("idSchema", () => {

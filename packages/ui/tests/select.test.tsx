@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { Select } from "../select";
+import { Select } from "../src";
 import userEvent from "@testing-library/user-event";
 
 describe("Select", () => {

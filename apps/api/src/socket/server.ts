@@ -8,6 +8,7 @@ import { env } from "../config/env.js";
 import { parseCookieToken } from "../utils/cookies.js";
 import { validateSessionToken } from "../utils/session.js";
 import { logger } from "../config/logger.js";
+import { appCollectors } from "../metrics/index.js";
 
 /**
  * Extracted for two reasons:
@@ -82,6 +83,9 @@ export function createSocketServer(httpServer: HttpServer): AppServer {
   io.on("connection", (socket) => {
     logger.debug({ userId: socket.data.userId, socketId: socket.id }, "Socket connected");
 
+    // increment gauge when client connects
+    appCollectors.socketConnectedClients.inc();
+
     // Built join/leave helpers bound to this socket
     const { joinProjectRoom } = createPresenceHelpers(io, socket);
 
@@ -93,6 +97,12 @@ export function createSocketServer(httpServer: HttpServer): AppServer {
 
     // Register ongoing event handlers (typing, cursor, disconnecting)
     registerPresenceHandlers(io, socket);
+
+    // Decrement gauge when client disconnects
+    socket.on("disconnect", () => {
+      appCollectors.socketConnectedClients.dec();
+      logger.debug({ userId: socket.data.userId, socketId: socket.id }, "Socket disconnected");
+    });
   });
 
   logger.info("Socket.IO server initialized");

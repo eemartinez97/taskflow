@@ -35,11 +35,11 @@ export const mockIoInstance = {
   // Internal helpers for test assertions - not part of the real Server API
   _useHandlers: useHandlers,
   _connectionHandlers: connectionHandlers,
-  _reset(): void {
+  _reset: (): void => {
     useHandlers.length = 0;
     connectionHandlers.length = 0;
-    vi.mocked(this.use).mockClear();
-    vi.mocked(this.on).mockClear();
+    vi.mocked(mockIoInstance.use).mockClear();
+    vi.mocked(mockIoInstance.on).mockClear();
   },
 };
 

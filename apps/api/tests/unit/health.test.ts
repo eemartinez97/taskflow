@@ -94,3 +94,39 @@ describe("handleTRPCError", () => {
     expect(mockLogger.error).toHaveBeenCalled();
   });
 });
+
+describe("GET /metrics", () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeAll(() => {
+    app = createApp(mockIo);
+  });
+
+  it("return 200", async () => {
+    const res = await request(app).get("/metrics");
+    expect(res.status).toBe(200);
+  });
+
+  it("responds with a Prometheus-compatible content-type", async () => {
+    const res = await request(app).get("/metrics");
+    expect(res.headers["content-type"]).toMatch(/text\/plain/);
+  });
+
+  it("response body is non-empty (contains at least default metrics)", async () => {
+    const res = await request(app).get("/metrics");
+    expect(res.text.length).toBeGreaterThan(0);
+  });
+
+  it("is not intercepted by the 404 catch-all", async () => {
+    const res = await request(app).get("/metrics");
+    // 404 handler returns our custom JSON shape
+    expect(res.status).not.toBe(404);
+  });
+
+  it("is excluded from httpRequestsTotal metric (no self-counting)", async () => {
+    const res = await request(app).get("/metrics");
+    // The response body is Prometheus text format - check that the
+    // counter line for /metrics route does NOT appear
+    expect(res.text).not.contain('route="/metrics"');
+  });
+});

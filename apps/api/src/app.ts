@@ -10,6 +10,7 @@ import { errorHandler } from "./middleware/error-handler.js";
 import { createAppRouter } from "./trpc/router.js";
 import { createTRPCContext, TRPCError } from "./trpc/init.js";
 import { type Server } from "socket.io";
+import { appCollectors, appRegistry, createMetricsMiddleware } from "./metrics/index.js";
 
 export function isHealthCheckUrl(url: string | undefined): boolean {
   return url === "/healthz" || url === "/readyz";
@@ -53,6 +54,9 @@ export function createApp(io: Server): Express {
   app.use(express.urlencoded({ extended: false }));
   app.use(cookieParser());
 
+  // Prometheus request metrics
+  app.use(createMetricsMiddleware(appCollectors));
+
   // HTTP request logging
   app.use(
     pinoHttp({
@@ -65,6 +69,12 @@ export function createApp(io: Server): Express {
       /* v8 ignore stop */
     }),
   );
+
+  // Prometheus scrape endpoint
+  app.get("/metrics", async (_req, res) => {
+    res.set("Content-Type", appRegistry.contentType);
+    res.end(await appRegistry.metrics());
+  });
 
   // Global rate limiting
   app.use(defaultRateLimiter);

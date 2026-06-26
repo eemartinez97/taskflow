@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, vi, it } from "vitest";
+import { beforeEach, describe, expect, vi, it, afterEach } from "vitest";
 
 vi.mock("../../../src/config/env.js");
 
@@ -13,8 +13,9 @@ import {
 import { makeIoMock, makeSocketMock } from "../../mocks/socket.js";
 import { makeMockNext, makeValidSessionRow, VALID_USER } from "../../helpers.js";
 import { mockDb } from "../../mocks/database-mock.js";
-import { HEX_COLOR_REGEX, SOCKET_ROOM_PREFIX } from "@taskflow/shared";
+import { HEX_COLOR_REGEX, SOCKET_EVENTS, SOCKET_ROOM_PREFIX } from "@taskflow/shared";
 import { getMockIoInstance, Server } from "../../mocks/socket-io-module.js";
+import { appCollectors } from "../../../src/metrics/index.js";
 
 const fakeHttpServer = {} as HttpServer;
 
@@ -139,7 +140,7 @@ describe("createSocketServer", () => {
   it("returns the io instance", () => {
     const result = createSocketServer(fakeHttpServer);
     expect(result).toBeDefined();
-    expect(result.use).toBeDefined();
+    expect(result).toHaveProperty("use");
   });
 
   describe("io.use() wrapper - delegates to authenticateSocket", () => {
@@ -206,7 +207,13 @@ describe("createSocketServer", () => {
       const { socket, onMock } = makeSocketMock();
       handler(socket);
 
-      expect(onMock).toHaveBeenCalledTimes(3);
+      expect(onMock).toHaveBeenCalledTimes(4);
+
+      const registeredEvents = vi.mocked(onMock).mock.calls.map(([event]) => event);
+      expect(registeredEvents).toContain(SOCKET_EVENTS.TASK_TYPING);
+      expect(registeredEvents).toContain(SOCKET_EVENTS.PRESENCE_CURSOR);
+      expect(registeredEvents).toContain("disconnecting");
+      expect(registeredEvents).toContain("disconnect");
     });
   });
 });
@@ -228,5 +235,47 @@ describe("getConnectedCount", () => {
     // Mock has no `.connected` property - if getConnectedCount tried to use it the
     // test would return undefined, making the assertion fail
     expect(getConnectedCount(makeIoMock(3))).toBe(3);
+  });
+});
+
+describe("socket connection - metrics tracking", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    getMockIoInstance()._reset();
+  });
+
+  it("increments socketConnectedClients gauge on connection", () => {
+    // Import is already mocked via vi.mock("socket.io") above
+    // We just verify the connection handler calls appCollectors.socketConnectedClients.inc
+    const incSpy = vi.spyOn(appCollectors.socketConnectedClients, "inc");
+
+    createSocketServer(fakeHttpServer);
+    const [handler] = getMockIoInstance()._connectionHandlers;
+    if (!handler) throw new Error("connection handler not registered");
+
+    const { socket } = makeSocketMock();
+    handler(socket);
+
+    expect(incSpy).toHaveBeenCalledOnce();
+  });
+
+  it("decrements socketConnectedClients gauge on disconnect", () => {
+    const decSpy = vi.spyOn(appCollectors.socketConnectedClients, "dec");
+
+    createSocketServer(fakeHttpServer);
+    const [handler] = getMockIoInstance()._connectionHandlers;
+    if (!handler) throw new Error("connection handler not registered");
+
+    const { socket, handlers } = makeSocketMock();
+    handler(socket);
+
+    // Simulate disconnect event
+    handlers.disconnect?.();
+
+    expect(decSpy).toHaveBeenCalledOnce();
   });
 });

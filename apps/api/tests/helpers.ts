@@ -1,10 +1,13 @@
 import type { NextFunction, Request, Response } from "express";
+import EventEmitter from "node:events";
 import { vi } from "vitest";
+import { Registry } from "prom-client";
 
-import type { TRPCContext } from "../src/trpc/init.js";
 import type { Prisma, PrismaClient } from "@taskflow/database";
+import type { TRPCContext } from "../src/trpc/init.js";
 import { mockLogger } from "./mocks/logger.js";
 import { mockDb } from "./mocks/database-mock.js";
+import { type AppCollectors, createCollectors } from "../src/metrics/index.js";
 
 // Id fixtures
 
@@ -69,6 +72,9 @@ export function makeMockReq(overrides: Partial<Request> = {}): Request {
     ip: "127.0.0.1",
     cookies: {},
     headers: {},
+    method: "GET",
+    url: "/test",
+    route: undefined,
     ...overrides,
   } as unknown as Request;
 }
@@ -153,4 +159,36 @@ export function makeValidSessionRow(
     expires: new Date(Date.now() + expiresOffset),
     user: { id: VALID_USER.id, email: VALID_USER.email, name },
   };
+}
+
+// Metrics helpers
+
+/**
+ * Named type aliases derived once here.
+ * Test import these instead of writing
+ * `ReturnType<typeof makeTestCollectors>["collectors"]` inline.
+ */
+export type TestRegistry = Registry;
+export type TestCollectors = AppCollectors;
+
+/**
+ * Creates a fresh isolated Registry + collectors for each test.
+ * Prevents cross-test metric pollution from the module-level singleton
+ */
+export function makeTestCollectors(): { registry: TestRegistry; collectors: TestCollectors } {
+  const registry = new Registry();
+  const collectors = createCollectors(registry);
+  return { registry, collectors };
+}
+
+/**
+ * Response mock backed by EventEmitter.
+ * Use when the code under test listens to res.on("finish", ...).
+ * Distinct from makeMockRes() which provides vi.fn() spies for
+ * res.status().json() call assertions.
+ */
+export function makeMockResEE(statusCode = 200): Response & EventEmitter {
+  const emitter = new EventEmitter() as EventEmitter & { statusCode: number };
+  emitter.statusCode = statusCode;
+  return emitter as unknown as Response & EventEmitter;
 }

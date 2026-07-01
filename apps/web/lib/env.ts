@@ -48,7 +48,7 @@ export type FullEnv = z.infer<typeof fullEnvSchema>;
  * Import this in Server Components, Route Handlers, and tRPC context.
  * Throws at module load time (Next.js surface it as built error).
  */
-function parseServeEnv(): ServerEnv {
+function parseServerEnv(): ServerEnv {
   const parsed = serverEnvSchema.safeParse(process.env);
 
   if (!parsed.success) {
@@ -74,5 +74,5 @@ function parsePublicEnv(): PublicEnv {
   return parsed.data;
 }
 
-export const serveEnv: ServerEnv = parseServeEnv();
+export const serverEnv: ServerEnv = parseServerEnv();
 export const publicEnv: PublicEnv = parsePublicEnv();

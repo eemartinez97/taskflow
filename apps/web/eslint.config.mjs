@@ -33,7 +33,7 @@ export default defineConfig([
 
   // 5. Project-specific parser options for typed linting
   {
-    files: ["**/*.ts", "**/*.ts"],
+    files: ["**/*.ts", "**/*.tsx"],
     languageOptions: {
       parserOptions: {
         projectService: {
@@ -41,6 +41,30 @@ export default defineConfig([
         },
         tsconfigRootDir: import.meta.dirname,
       },
+    },
+    rules: {
+      /**
+       * Arrow async functions in JSX event attributes.
+       *
+       * React 19 + react-hook-form pattern:
+       *   <form onSubmit={handleSubmit(onSubmit)}>
+       *
+       * `handleSubmit` wraps an async functions and returns a function that
+       * passes it to the DOM's `onSubmit` (typed as void). This is the
+       * idiomatic pattern - the promise is handled internally by react-hook-form.
+       *
+       * Without this override every form submit handler would need an explicit
+       * void wrapper like `onSubmit={(...args) => void handleSubmit(onSubmit)(...args)}`
+       * which is boilerplate noise for zero safety gain.
+       */
+      "@typescript-eslint/no-misused-promises": [
+        "error",
+        {
+          checksVoidReturn: {
+            attributes: false, // JSX event attributes only
+          },
+        },
+      ],
     },
   },
 

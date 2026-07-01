@@ -43,6 +43,25 @@ export default defineConfig([
 
       // No non-null assertions - use proper narrowing
       "@typescript-eslint/no-non-null-assertion": "error",
+
+      /**
+       * Allow intentionally unused variables/parameters prefixed with `_`.
+       * Standard TypeScript convention for interface-conforming signatures
+       * where the param is required by the type but not needed in the impl.
+       *
+       * Examples:
+       *   function handler(_req: Request, res: Response) { ... }
+       *   const { password: _password, ...rest } = user;
+       */
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          destructuredArrayIgnorePattern: "^_",
+        },
+      ],
     },
   },
 
@@ -50,6 +69,10 @@ export default defineConfig([
     files: ["**/tests/**/*.ts", "**/*.test.ts"],
     rules: {
       "@typescript-eslint/no-extraneous-class": "off",
+      // Type assertions in test boundaries are acceptable
+      "@typescript-eslint/no-unsafe-assignment": "warn",
+      "@typescript-eslint/no-unsafe-call": "warn",
+      "@typescript-eslint/no-unsafe-member-access": "warn",
     },
   },
 

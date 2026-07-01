@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import type { JSX } from "react";
+
+import { Providers } from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -14,13 +16,15 @@ export const metadata: Metadata = {
  * Root layout - HTML shell.
  * Server Component: no "use client" directive.
  *
- * Providers (SessionProvider, tRPC, ReactQuery) are mounted in
- * app/providers.tsx (added latter) and compose here.
+ * <Providers> wraps children in the NextAuth v4 SessionProvider
+ * (and later tRPC + ReactQuery)
  */
 export default function RootLayout({ children }: { children: React.ReactNode }): JSX.Element {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="min-h-screen bg-white font-sans antialiased">{children}</body>
+      <body className="min-h-screen bg-white font-sans antialiased">
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

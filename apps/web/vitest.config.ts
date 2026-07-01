@@ -23,6 +23,7 @@ export default mergeConfig(
           "app/layout.tsx", // Root layout, HTML shell, no logic
           "app/globals.css",
           "**/*.d.ts",
+          "app/api/auth/\\[...nextauth\\]/route.ts",
         ],
         thresholds: {
           lines: 90,

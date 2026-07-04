@@ -1,13 +1,12 @@
 import { Server } from "socket.io";
 import type { Server as HttpServer } from "node:http";
-import { prisma } from "@taskflow/database";
+import { prisma, validateSessionToken } from "@taskflow/database";
 
 import type { AppSocket, AppServer } from "./presence.js";
 import { createPresenceHelpers, registerPresenceHandlers, resolveColor } from "./presence.js";
 import { env } from "../config/env.js";
-import { parseCookieToken } from "../utils/cookies.js";
-import { validateSessionToken } from "../utils/session.js";
 import { logger } from "../config/logger.js";
+import { parseCookieToken } from "@taskflow/shared";
 import { appCollectors } from "../metrics/index.js";
 
 /**
@@ -38,10 +37,10 @@ export async function authenticateSocket(
     // Resolve color once at handshake - stored in socket.data for all
     // subsequent presence events so it's never recomputed per-event
     socket.data = {
-      userId: session.userId,
+      userId: session.id,
       userEmail: session.email,
       userName: session.name,
-      color: resolveColor(session.userId),
+      color: resolveColor(session.id),
     };
 
     next();

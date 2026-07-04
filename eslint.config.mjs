@@ -13,7 +13,15 @@ export default defineConfig([
     files: ["**/*.ts", "**/*.tsx"],
     extends: [...tseslint.configs.strictTypeChecked, ...tseslint.configs.stylisticTypeChecked],
     languageOptions: {
-      parserOptions: { projectService: true },
+      parserOptions: {
+        // Each package sets its own projectService in its local eslint.config.mjs.
+        // The root config avoids setting it to prevent cross-package tsconfig confusion.
+        projectService: {
+          allowDefaultProject: ["*.mjs", "*.ts"],
+          defaultProject: "./tsconfig.base.json",
+        },
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
     rules: {
       // Forbid `any` in production and test code
@@ -29,7 +37,12 @@ export default defineConfig([
         },
       ],
       // Enforce consistent imports
-      "@typescript-eslint/consistent-type-imports": ["error", { prefer: "type-imports" }],
+      "@typescript-eslint/consistent-type-imports": [
+        "error",
+        { prefer: "type-imports", fixStyle: "inline-type-imports" },
+      ],
+      "@typescript-eslint/prefer-nullish-coalescing": "error",
+      "@typescript-eslint/no-non-null-assertion": "error",
     },
   },
 

@@ -1,12 +1,11 @@
-import type { PrismaClient, User } from "@taskflow/database";
-
-export type AuthUser = Pick<User, "id" | "email" | "name" | "image">;
+import type { PrismaClient } from "@taskflow/database";
+import type { SessionUser } from "@taskflow/shared";
 
 /**
  * Finds a user by id for the `me` procedure.
  * Returns only the fields the client needs - never the full user row.
  */
-export async function findUserById(db: PrismaClient, userId: string): Promise<AuthUser | null> {
+export async function findUserById(db: PrismaClient, userId: string): Promise<SessionUser | null> {
   return db.user.findUnique({
     where: { id: userId },
     select: { id: true, email: true, name: true, image: true },

@@ -50,11 +50,8 @@ export type TRPCContextWithRole = TRPCAuthedContext & { membershipRole: Role };
  * Public routes leave it undefined, which is coerced to null here.
  */
 export function createTRPCContext({ req }: CreateExpressContextOptions): TRPCContext {
-  return {
-    db: prisma,
-    logger,
-    user: req.user ?? null,
-  };
+  const user = (req as typeof req & { user?: SessionUser }).user ?? null;
+  return { db: prisma, logger, user };
 }
 
 // tRPC instance

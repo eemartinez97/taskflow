@@ -43,3 +43,5 @@ export {
   boardWithColumns,
   notificationWithActor,
 } from "./selects.js";
+
+export { validateSessionToken } from "./session.js";

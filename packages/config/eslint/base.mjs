@@ -12,9 +12,6 @@ export default defineConfig([
   {
     files: ["**/*.ts", "**/*.tsx"],
     extends: [...tseslint.configs.strictTypeChecked, ...tseslint.configs.stylisticTypeChecked],
-    languageOptions: {
-      parserOptions: { projectService: true },
-    },
     rules: {
       // Forbid `any` in production and test code
       "@typescript-eslint/no-explicit-any": "error",
@@ -68,11 +65,17 @@ export default defineConfig([
   {
     files: ["**/tests/**/*.ts", "**/*.test.ts"],
     rules: {
-      "@typescript-eslint/no-extraneous-class": "off",
-      // Type assertions in test boundaries are acceptable
-      "@typescript-eslint/no-unsafe-assignment": "warn",
-      "@typescript-eslint/no-unsafe-call": "warn",
-      "@typescript-eslint/no-unsafe-member-access": "warn",
+      /**
+       * unbound-method: OFF in tests only.
+       *
+       * The Vitest pattern `expect(mock.fn).toHaveBeenCalled()` separates the
+       * method from its object, triggering this rule as a false positive.
+       * Documented by typescript-eslint: https://typescript-eslint.io/rules/unbound-method/
+       *
+       * Fix: use vi.mocked(mock.fn) for typed mock assertions.
+       * All other strict rules remain active in tests.
+       */
+      "@typescript-eslint/unbound-method": "off",
     },
   },
 

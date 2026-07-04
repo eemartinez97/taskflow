@@ -9,6 +9,10 @@ import { createTasksRouter } from "../modules/tasks/router.js";
 import { createTRPCRouter } from "./init.js";
 import { createCommentsRouter } from "../modules/comments/router.js";
 
+// Re-export for consumers (apps/web imports these via @taskflow/api/trpc)
+export { createCallerFactory } from "./init.js";
+export type { TRPCContext } from "./init.js";
+
 /**
  * Private builder — captures the full inferred AppRouter type.
  * See tasks/router.ts for the full explanation of this pattern.

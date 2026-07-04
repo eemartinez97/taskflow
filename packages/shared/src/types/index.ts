@@ -36,11 +36,13 @@ import type {
   notificationListSchema,
   notificationSchema,
   notificationTypeSchema,
+  sessionUserSchema,
 } from "../schemas/index.js";
 import { type paginationSchema } from "../schemas/common.js";
 
 // User
 export type User = z.infer<typeof userSchema>;
+export type SessionUser = z.infer<typeof sessionUserSchema>;
 export type UpdateUser = z.infer<typeof updateUserSchema>;
 
 // Org & RBAC

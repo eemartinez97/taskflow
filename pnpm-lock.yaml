@@ -50,9 +50,6 @@ importers:
       bcrypt:
         specifier: ^6.0.0
         version: 6.0.0
-      cookie:
-        specifier: ^1.1.1
-        version: 1.1.1
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
@@ -323,6 +320,9 @@ importers:
       '@taskflow/config':
         specifier: workspace:*
         version: link:../config
+      '@taskflow/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@types/node':
         specifier: ^25.9.1
         version: 25.9.4
@@ -356,6 +356,9 @@ importers:
 
   packages/shared:
     dependencies:
+      cookie:
+        specifier: ^2.0.1
+        version: 2.0.1
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -2195,9 +2198,9 @@ packages:
     resolution: {integrity: sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w==}
     engines: {node: '>= 0.6'}
 
-  cookie@1.1.1:
-    resolution: {integrity: sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ==}
-    engines: {node: '>=18'}
+  cookie@2.0.1:
+    resolution: {integrity: sha512-yuToqVvRrj6pfDXREyQAAv8SkAEk/8GS3jQRTiUMm66TVtBYmqQeoEjL2Lmq8Rpo6271vH76InTChTitEAm65w==}
+    engines: {node: '>=22'}
 
   cookiejar@2.1.4:
     resolution: {integrity: sha512-LDx6oHrK+PhzLKJU9j5S7/Y3jM/mUHvD/DeI1WQmJn652iPC5Y4TBzC9l+5OMOXlyTTA+SmVUPm0HQUwpD5Jqw==}
@@ -5928,7 +5931,7 @@ snapshots:
 
   cookie@0.7.2: {}
 
-  cookie@1.1.1: {}
+  cookie@2.0.1: {}
 
   cookiejar@2.1.4: {}
 

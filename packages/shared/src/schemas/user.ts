@@ -10,6 +10,13 @@ export const userSchema = z.object({
   updatedAt: z.date(),
 });
 
+export const sessionUserSchema = userSchema.pick({
+  id: true,
+  email: true,
+  name: true,
+  image: true,
+});
+
 export const updateUserSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   image: z.url().nullable().optional(),

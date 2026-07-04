@@ -1,9 +1,8 @@
 import type { NextFunction, Request, Response } from "express";
 import { createError } from "./error-handler.js";
-import { prisma } from "@taskflow/database";
+import { prisma, validateSessionToken } from "@taskflow/database";
 import { type SessionUser } from "../trpc/init.js";
-import { parseCookieToken } from "../utils/cookies.js";
-import { validateSessionToken } from "../utils/session.js";
+import { parseCookieToken } from "@taskflow/shared";
 
 /**
  * Reads the NextAuth v4 session token from the request cookie,
@@ -33,7 +32,7 @@ export async function validateSession(
     }
 
     // Attach user to request for downstream middleware and tRPC context
-    req.user = { id: session.userId, email: session.email };
+    req.user = { id: session.id, email: session.email };
     next();
   } catch (err) {
     next(err);

@@ -15,7 +15,7 @@
     "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\"",
     "lint": "eslint src tests",
     "lint:fix": "eslint src tests --fix",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "clean": "rm -rf dist"

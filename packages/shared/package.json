@@ -18,10 +18,10 @@
     "format:check": "prettier --check \"src/**/*.ts\"",
     "lint": "eslint src tests",
     "lint:fix": "eslint src tests --fix",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "build": "tsc --noEmit"
+    "build": "tsc"
   },
   "devDependencies": {
     "@taskflow/config": "workspace:*",

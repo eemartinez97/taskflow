@@ -1,10 +1,8 @@
 {
-  "$schema": "https://www.schemastore.org/tsconfig",
+  "$schema": "https://json.schemastore.org/tsconfig",
   "extends": "@taskflow/config/typescript/node",
   "compilerOptions": {
-    "rootDir": ".",
-    "outDir": "dist",
-    "noEmit": true
+    "types": ["node"]
   },
   "include": ["src", "tests"],
   "exclude": ["node_modules", "dist"]

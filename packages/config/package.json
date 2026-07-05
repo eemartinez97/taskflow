@@ -15,6 +15,12 @@
     "./tailwind/theme": "./tailwind/theme.css",
     "./vitest/base": "./vitest/base.ts"
   },
+  "scripts": {
+    "format": "prettier --write \"**/*.{ts,mjs,json}\"",
+    "format:check": "prettier --check \"**/*.{ts,mjs,json}\"",
+    "typecheck": "tsc",
+    "build": "tsc"
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.9.1",

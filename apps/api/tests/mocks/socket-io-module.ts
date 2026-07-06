@@ -49,7 +49,6 @@ export function getMockIoInstance(): typeof mockIoInstance {
 }
 
 // This IS the module mock: export `Server` as vi.fn() constructor
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const Server = vi.fn(function MockServer(this: unknown, ..._args: unknown[]) {
   return mockIoInstance;
 });

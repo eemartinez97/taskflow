@@ -1,13 +1,14 @@
 import type { NextFunction, Request, Response } from "express";
-import EventEmitter from "node:events";
-import { vi } from "vitest";
-import { Registry } from "prom-client";
-
 import type { Prisma, PrismaClient } from "@taskflow/database";
+import type { SessionUser } from "@taskflow/shared";
+import EventEmitter from "node:events";
+import { Registry } from "prom-client";
+import { vi } from "vitest";
+
+import { type AppCollectors, createCollectors } from "../src/metrics/index.js";
+import { mockDb, validateSessionToken } from "./mocks/database-mock.js";
 import type { TRPCContext } from "../src/trpc/init.js";
 import { mockLogger } from "./mocks/logger.js";
-import { mockDb } from "./mocks/database-mock.js";
-import { type AppCollectors, createCollectors } from "../src/metrics/index.js";
 
 // Id fixtures
 
@@ -119,6 +120,7 @@ export function getNextError(
  *
  * For passing to functions that expect a real PrismaClient:
  *   import { db } from "../../helpers.js"
+ *   import { validateSessionToken } from './mocks/database-mock';
  *   await validateSessionToken(db, token)
  */
 export const db = mockDb as unknown as PrismaClient;
@@ -142,10 +144,6 @@ type SessionWithUser = Prisma.SessionGetPayload<{
  *
  * Shared by auth.test.ts, session.test.ts, and any future test that
  * needs to mock a Prisma session lookup.
- *
- * @param token   - The session token string to embed in the fixture.
- * @param name    - Optional display name for the user (defaults to "Alice").
- * @param expiresOffset - Milliseconds from now until expiry (defaults to +1 hour).
  */
 export function makeValidSessionRow(
   token: string,
@@ -160,6 +158,29 @@ export function makeValidSessionRow(
     user: { id: VALID_USER.id, email: VALID_USER.email, name },
   };
 }
+
+/**
+ * Builds a SessionUser — the value returned by validateSessionToken on success.
+ *
+ * Use this to set up the validateSessionToken mock in middleware and socket tests:
+ *
+ *   validateSessionToken.mockResolvedValueOnce(makeSessionUser());
+ *   validateSessionToken.mockResolvedValueOnce(makeSessionUser({ name: null }));
+ *   validateSessionToken.mockResolvedValueOnce(null); // expired / not found
+ */
+
+export function makeSessionUser(overrides: Partial<SessionUser> = {}): SessionUser {
+  return {
+    id: VALID_USER.id,
+    email: VALID_USER.email,
+    name: "Alice",
+    image: null,
+    ...overrides,
+  };
+}
+
+// Re-export so tests can import validateSessionToken through helpers
+export { validateSessionToken };
 
 // Metrics helpers
 

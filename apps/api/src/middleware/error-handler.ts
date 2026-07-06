@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
-import { logger } from "../config/logger.js";
+
 import { isProduction } from "../config/env.js";
+import { logger } from "../config/logger.js";
 
 export interface AppError extends Error {
   statusCode?: number;
@@ -16,7 +17,6 @@ export function errorHandler(
   err: AppError,
   _req: Request,
   res: Response,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _next: NextFunction,
 ): void {
   const statusCode = err.statusCode ?? 500;

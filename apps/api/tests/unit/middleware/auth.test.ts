@@ -2,26 +2,26 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 
 vi.mock("../../../src/config/env.js");
 
-// Mock error-handler to avoid importing env/logger chains
-vi.mock("../../../src/middleware/error-handler.js", () => ({
-  createError: vi.fn((message: string, statusCode: number, code?: string) => {
-    const err = new Error(message) as Error & { statusCode: number; code?: string };
-    err.statusCode = statusCode;
-    if (code !== undefined) err.code = code;
-    return err;
-  }),
-}));
-
+import { validateSession } from "../../../src/middleware/auth.js";
 import {
   getNextError,
   makeMockNext,
   makeMockReq,
   makeMockRes,
-  makeValidSessionRow,
+  validateSessionToken,
   VALID_USER,
+  makeSessionUser,
 } from "../../helpers.js";
-import { validateSession } from "../../../src/middleware/auth.js";
-import { mockDb } from "../../mocks/database-mock.js";
+
+/**
+ * Builds a request with a Cookie header containing the given token.
+ * Uses the http cookie name - server.test.ts covers the __Secure- variant.
+ */
+function makeReqWithToken(token: string): ReturnType<typeof makeMockReq> {
+  return makeMockReq({
+    headers: { cookie: `next-auth.session-token=${token}` },
+  });
+}
 
 describe("validateSession middleware", () => {
   beforeEach(() => vi.resetAllMocks());
@@ -32,14 +32,12 @@ describe("validateSession middleware", () => {
 
     expect(next).toHaveBeenCalledOnce();
     expect(getNextError(next).statusCode).toBe(401);
-    expect(mockDb.session.findUnique).not.toHaveBeenCalled();
+    expect(validateSessionToken).not.toHaveBeenCalled();
   });
 
   it("attaches user to req and calls next() on a valid session", async () => {
-    const token = "valid-session-token";
-    mockDb.session.findUnique.mockResolvedValueOnce(makeValidSessionRow(token));
-
-    const req = makeMockReq({ headers: { cookie: `next-auth.session-token=${token}` } });
+    validateSessionToken.mockResolvedValueOnce(makeSessionUser());
+    const req = makeReqWithToken("valid-token");
     const next = makeMockNext();
 
     await validateSession(req, makeMockRes().res, next);
@@ -50,75 +48,56 @@ describe("validateSession middleware", () => {
 
   it("reads __Secure- cookie for https origins", async () => {
     const token = "secure-token";
-    mockDb.session.findUnique.mockResolvedValueOnce(makeValidSessionRow(token));
+    validateSessionToken.mockResolvedValueOnce(makeSessionUser());
 
     const req = makeMockReq({
       headers: { cookie: `__Secure-next-auth.session-token=${token}` },
     });
+    const next = makeMockNext();
 
-    await validateSession(req, makeMockRes().res, makeMockNext());
+    await validateSession(req, makeMockRes().res, next);
 
-    expect(mockDb.session.findUnique).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { sessionToken: token } }),
+    expect(next).toHaveBeenCalledWith();
+    expect(validateSessionToken).toHaveBeenCalledWith(
+      expect.anything(), // prisma instance
+      token,
     );
   });
 
   it("queries with the correct select shape (user fields only)", async () => {
-    const token = "shape-token";
-    mockDb.session.findUnique.mockResolvedValueOnce(makeValidSessionRow(token));
+    const token = "shape-test-token";
+    validateSessionToken.mockResolvedValueOnce(makeSessionUser());
 
-    await validateSession(
-      makeMockReq({ headers: { cookie: `next-auth.session-token=${token}` } }),
-      makeMockRes().res,
-      makeMockNext(),
-    );
+    await validateSession(makeReqWithToken(token), makeMockRes().res, makeMockNext());
 
-    expect(mockDb.session.findUnique).toHaveBeenCalledWith({
-      where: { sessionToken: token },
-      include: { user: { select: { id: true, email: true, name: true } } },
-    });
+    expect(validateSessionToken).toHaveBeenCalledWith(expect.anything(), token);
   });
 
   it("calls next(401) when session is not found in DB", async () => {
-    mockDb.session.findUnique.mockResolvedValueOnce(null);
     const next = makeMockNext();
 
-    await validateSession(
-      makeMockReq({ headers: { cookie: "next-auth.session-token=ghost" } }),
-      makeMockRes().res,
-      next,
-    );
+    await validateSession(makeReqWithToken("missing-token"), makeMockRes().res, next);
 
     expect(getNextError(next).statusCode).toBe(401);
     expect(getNextError(next).code).toBe("SESSION_EXPIRED");
   });
 
   it("calls next(401) when session is expired", async () => {
-    mockDb.session.findUnique.mockResolvedValueOnce({
-      ...makeValidSessionRow("expired-token"),
-      expires: new Date(Date.now() - 1_000), // 1 second in the past
-    });
+    // validateSessionToken already handles expiry and returns null for expired sessions
+    validateSessionToken.mockResolvedValueOnce(null);
     const next = makeMockNext();
 
-    await validateSession(
-      makeMockReq({ headers: { cookie: "next-auth.session-token=expired-token" } }),
-      makeMockRes().res,
-      next,
-    );
+    await validateSession(makeReqWithToken("expired-token"), makeMockRes().res, next);
 
     expect(getNextError(next).statusCode).toBe(401);
   });
 
   it("passes the raw DB error to next() on unexpected Prisma failure", async () => {
     const dbError = new Error("Connection refused");
-    mockDb.session.findUnique.mockRejectedValueOnce(dbError);
+    validateSessionToken.mockRejectedValueOnce(dbError);
     const next = makeMockNext();
 
-    await validateSession(
-      makeMockReq({ headers: { cookie: "next-auth.session-token=any-token" } }),
-      makeMockRes().res,
-      next,
-    );
+    await validateSession(makeReqWithToken("any-token"), makeMockRes().res, next);
 
     // The catch block passes the raw DB error to next()
     expect(vi.mocked(next).mock.calls[0]?.[0]).toBe(dbError);

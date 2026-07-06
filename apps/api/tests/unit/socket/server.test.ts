@@ -1,20 +1,19 @@
 import { beforeEach, describe, expect, vi, it, afterEach } from "vitest";
 
 vi.mock("../../../src/config/env.js");
-
 vi.mock("socket.io", () => import("../../mocks/socket-io-module.js"));
 
+import { HEX_COLOR_REGEX, SOCKET_EVENTS, SOCKET_ROOM_PREFIX } from "@taskflow/shared";
 import type { Server as HttpServer } from "node:http";
+
 import {
   authenticateSocket,
   createSocketServer,
   getConnectedCount,
 } from "../../../src/socket/server.js";
-import { makeIoMock, makeSocketMock } from "../../mocks/socket.js";
-import { makeMockNext, makeValidSessionRow, VALID_USER } from "../../helpers.js";
-import { mockDb } from "../../mocks/database-mock.js";
-import { HEX_COLOR_REGEX, SOCKET_EVENTS, SOCKET_ROOM_PREFIX } from "@taskflow/shared";
+import { validateSessionToken, makeMockNext, VALID_USER, makeSessionUser } from "../../helpers.js";
 import { getMockIoInstance, Server } from "../../mocks/socket-io-module.js";
+import { makeIoMock, makeSocketMock } from "../../mocks/socket.js";
 import { appCollectors } from "../../../src/metrics/index.js";
 
 const fakeHttpServer = {} as HttpServer;
@@ -31,32 +30,38 @@ describe("authenticateSocket", () => {
 
   it("calls next(UNAUTHORIZED) when no cookie header ir present", async () => {
     const next = makeMockNext();
+
     await authenticateSocket(makeAuthSocket(undefined), next);
+
     expect(next).toHaveBeenCalledWith(new Error("UNAUTHORIZED"));
-    expect(mockDb.session.findUnique).not.toHaveBeenCalled();
+    expect(validateSessionToken).not.toHaveBeenCalled();
   });
 
   it("calls next(UNAUTHORIZED) when cookie has no session token", async () => {
     const next = makeMockNext();
+
     await authenticateSocket(makeAuthSocket("theme=dark; lang=en"), next);
+
     expect(next).toHaveBeenCalledWith(new Error("UNAUTHORIZED"));
-    expect(mockDb.session.findUnique).not.toHaveBeenCalled();
+    expect(validateSessionToken).not.toHaveBeenCalled();
   });
 
   it("calls next() with no args on a valid session", async () => {
-    const token = "valid-socket-token";
-    mockDb.session.findUnique.mockResolvedValueOnce(makeValidSessionRow(token));
+    validateSessionToken.mockResolvedValueOnce(makeSessionUser());
     const next = makeMockNext();
-    await authenticateSocket(makeAuthSocket(`next-auth.session-token=${token}`), next);
+
+    await authenticateSocket(makeAuthSocket("next-auth.session-token=valid-token"), next);
+
     expect(next).toHaveBeenCalledWith();
     expect(next).toHaveBeenCalledOnce();
   });
 
   it("attaches userId, userEmail, userName, color to socket.data on success", async () => {
-    const token = "data-attach-token";
-    mockDb.session.findUnique.mockResolvedValueOnce(makeValidSessionRow(token, "Alice"));
-    const socket = makeAuthSocket(`next-auth.session-token=${token}`);
+    validateSessionToken.mockResolvedValueOnce(makeSessionUser({ name: "Alice" }));
+    const socket = makeAuthSocket("next-auth.session-token=data-token");
+
     await authenticateSocket(socket, makeMockNext());
+
     expect(socket.data.userId).toBe(VALID_USER.id);
     expect(socket.data.userEmail).toBe(VALID_USER.email);
     expect(socket.data.userName).toBe("Alice");
@@ -64,47 +69,51 @@ describe("authenticateSocket", () => {
   });
 
   it("resolves userName to null when user has no display name", async () => {
-    const token = "null-name-token";
-    mockDb.session.findUnique.mockResolvedValueOnce(makeValidSessionRow(token, null));
-    const socket = makeAuthSocket(`next-auth.session-token=${token}`);
+    validateSessionToken.mockResolvedValueOnce(makeSessionUser({ name: null }));
+    const socket = makeAuthSocket(`next-auth.session-token=null-name-token`);
+
     await authenticateSocket(socket, makeMockNext());
+
     expect(socket.data.userName).toBeNull();
   });
 
   it("calls next(UNAUTHORIZED) when session is not found", async () => {
-    mockDb.session.findUnique.mockResolvedValueOnce(null);
+    validateSessionToken.mockResolvedValueOnce(null);
     const next = makeMockNext();
+
     await authenticateSocket(makeAuthSocket("next-auth.session-token=ghost"), next);
+
     expect(next).toHaveBeenCalledWith(new Error("UNAUTHORIZED"));
   });
 
   it("calls next(UNAUTHORIZED) when session is expired", async () => {
-    const token = "expired-token";
-    mockDb.session.findUnique.mockResolvedValueOnce({
-      ...makeValidSessionRow(token),
-      expires: new Date(Date.now() - 1_000),
-    });
+    // validateSessionToken already handles expiry internally and returns null
+    validateSessionToken.mockResolvedValueOnce(null);
     const next = makeMockNext();
-    await authenticateSocket(makeAuthSocket(`next-auth.session-token=${token}`), next);
+
+    await authenticateSocket(makeAuthSocket("next-auth.session-token=expired"), next);
+
     expect(next).toHaveBeenCalledWith(new Error("UNAUTHORIZED"));
   });
 
   it("calls next(UNAUTHORIZED) when Prisma throws", async () => {
-    mockDb.session.findUnique.mockRejectedValueOnce(new Error("Connection refused"));
+    validateSessionToken.mockRejectedValueOnce(new Error("Connection refused"));
     const next = makeMockNext();
+
     await authenticateSocket(makeAuthSocket(`next-auth.session-token=any`), next);
+
     expect(next).toHaveBeenCalledWith(new Error("UNAUTHORIZED"));
   });
 
   it("reads __Secure- prefixed token (HTTPS origin)", async () => {
     const token = "secure-socket-token";
-    mockDb.session.findUnique.mockResolvedValueOnce(makeValidSessionRow(token));
+    validateSessionToken.mockResolvedValueOnce(makeSessionUser());
     const next = makeMockNext();
+
     await authenticateSocket(makeAuthSocket(`__Secure-next-auth.session-token=${token}`), next);
+
     expect(next).toHaveBeenCalledWith();
-    expect(mockDb.session.findUnique).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { sessionToken: token } }),
-    );
+    expect(validateSessionToken).toHaveBeenCalledWith(expect.anything(), token);
   });
 });
 

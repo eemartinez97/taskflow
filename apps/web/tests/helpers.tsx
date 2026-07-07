@@ -1,10 +1,15 @@
-import type { JSX } from "react";
 import { render, type RenderResult } from "@testing-library/react";
-
+import { type QueryClient } from "@tanstack/react-query";
 import { type PrismaClient } from "@taskflow/database";
-import { mockDb } from "@/tests/mocks/database";
+import { type SessionUser } from "@taskflow/shared";
 import { type MockInstance, vi } from "vitest";
 import { useRouter } from "next/navigation";
+import { type Session } from "next-auth";
+import { type JSX } from "react";
+
+import { type WebTRPCContext } from "@/lib/trpc/context";
+import { mockDb } from "@/tests/mocks/taskflow-database";
+import { type Logger } from "@/lib/logger.js";
 
 /**
  * Minimal render wrapper for unit tests.
@@ -30,6 +35,7 @@ export const VALID_SERVER_ENV = {
 
 export const VALID_PUBLIC_ENV = {
   NEXT_PUBLIC_SOCKET_URL: "http://localhost:8000",
+  NEXT_PUBLIC_WEB_URL: "http://localhost:3000",
 };
 
 export const VALID_FULL_ENV = {
@@ -42,8 +48,6 @@ export const VALID_FULL_ENV = {
 export const VALID_USER_ID = "550e8400-e29b-41d4-a716-446655440000";
 export const HASHED_PASSWORD = "$2b$12$hashed";
 export const HASH_PASSWORD = "$2b$12$hash";
-
-export const db = mockDb as unknown as PrismaClient;
 
 /** Full User row as returned by Prisma (includes hashed password) */
 export const mockDbUser = {
@@ -76,17 +80,100 @@ export const validRegisterPayload = {
   confirmPassword: "secure-password-123",
 };
 
+/** ServerSessionUser fixture - returned by getServerSessionFromHeader */
+export const mockServerSessionUser: SessionUser = {
+  ...mockAuthorizedUser,
+};
+
+/** NextAuth v4 Session fixture - used by mocks that return a full Session */
+export const mockSession: Session = {
+  expires: new Date(Date.now() + 1_000 * 60 * 60).toISOString(),
+  user: {
+    ...mockAuthorizedUser,
+  },
+};
+
+// -- Prisma session row fixture --
+
+interface SessionWithUser {
+  id: string;
+  sessionToken: string;
+  userId: string;
+  expires: Date;
+  user: { id: string; email: string; name: string | null; image: string | null };
+}
+
+/**
+ * Builds a valid Prisma session row for mocking session lookups.
+ *
+ */
+export function makeSessionRow(
+  token: string,
+  overrides: Partial<SessionWithUser> = {},
+): SessionWithUser {
+  return {
+    id: "session-id-1",
+    sessionToken: token,
+    userId: VALID_USER_ID,
+    expires: new Date(Date.now() + 1_000 * 60 * 60), // +1 hour
+    user: { ...mockAuthorizedUser },
+    ...overrides,
+  };
+}
+
+// -- Headers helper
+
+/**
+ * Minimal Headers mock for createWebTRPCContext tests.
+ * Avoids importing the global Headers object which may not be available
+ * in all jsdom configurations.
+ */
+export function makeHeaders(entries: Record<string, string> = {}): Headers {
+  const h = new Headers();
+  for (const [key, value] of Object.entries(entries)) {
+    h.set(key, value);
+  }
+  return h;
+}
+
+/**
+ * Builds a Headers instance with a NextAuth v4 session cookie.
+ * Convenience wrapper around makeHeaders for the most common test case.
+ */
+export function makeSessionHeaders(token: string, secure = false): Headers {
+  const cookieName = secure ? "__Secure-next-auth.session-token" : "next-auth.session-token";
+  return makeHeaders({ cookie: `${cookieName}=${token}` });
+}
+
+// -- tRPC context fixture --
+
+/** Pre-cast mockDb as PrismaClient - avoids repeating the cast in every test */
+export const db = mockDb as unknown as PrismaClient;
+
+/**
+ * Creates an isolated WebTRPCContext for unit tests.
+ * Reused by context.test.ts and any future procedure test in apps/web.
+ */
+export function makeWebTRPCContext(overrides: Partial<WebTRPCContext> = {}): WebTRPCContext {
+  return {
+    db: {} as PrismaClient,
+    logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as unknown as Logger,
+    user: { ...mockAuthorizedUser },
+    ...overrides,
+  };
+}
+
 // -- Router mock --
 
 export interface RouterMock {
-  pushMock: MockInstance<(href: string, options?: Record<string, unknown>) => void>;
-  replaceMock: MockInstance<(href: string, options?: Record<string, unknown>) => void>;
+  pushMock: MockInstance<(href: string) => void>;
+  replaceMock: MockInstance<(href: string) => void>;
   router: ReturnType<typeof useRouter>;
 }
 
 export function makeRouterMock(): RouterMock {
-  const pushMock = vi.fn<(href: string, options?: Record<string, unknown>) => void>();
-  const replaceMock = vi.fn<(href: string, options?: Record<string, unknown>) => void>();
+  const pushMock = vi.fn<(href: string) => void>();
+  const replaceMock = vi.fn<(href: string) => void>();
 
   const router = {
     push: pushMock,
@@ -96,7 +183,6 @@ export function makeRouterMock(): RouterMock {
     refresh: vi.fn<() => void>,
     prefetch: vi.fn<() => void>,
   } as unknown as ReturnType<typeof useRouter>;
-
   return { pushMock, replaceMock, router };
 }
 
@@ -110,7 +196,7 @@ export function setupRouterMock(): RouterMock {
   return mock;
 }
 
-// -- Fetch spy --
+// -- Fetch spy helpers --
 
 export type FetchSpy = MockInstance<typeof fetch>;
 
@@ -178,4 +264,13 @@ export function makeJsonThrowRequest(path: string): Request {
     url: `http://localhost${path}`,
     method: "POST",
   } as unknown as Request;
+}
+
+export type ShouldDehydrateFn = (query: { state: { status: string } }) => boolean;
+
+export function extractShouldDehydrate(client: QueryClient): ShouldDehydrateFn {
+  const fn = client.getDefaultOptions().dehydrate?.shouldDehydrateQuery;
+  if (!fn) throw new Error("shouldDehydrateQuery is not configured on this QueryClient");
+  // Post-QueryClient-boundary cast: we test only the boolean decision, not the full Query shape.
+  return fn as unknown as ShouldDehydrateFn;
 }

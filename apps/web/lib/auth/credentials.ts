@@ -1,17 +1,6 @@
 import { type PrismaClient } from "@taskflow/database";
+import type { SessionUser } from "@taskflow/shared";
 import { verifyPassword } from "./password.js";
-
-/**
- * The shape returned by `authorize()` - a subset of the full User row.
- * NextAuth v4 passes this object to the JWT / session callbacks.
- * `password` is intentionally excluded: it must never reach the session.
- */
-export interface AuthorizedUser {
-  id: string;
-  email: string;
-  name: string | null;
-  image: string | null;
-}
 
 /**
  * Core credentials authorization logic - fully injectable.
@@ -27,7 +16,7 @@ export interface AuthorizedUser {
 export async function authorizeCredentials(
   db: PrismaClient,
   credentials: Partial<Record<string, string>>,
-): Promise<AuthorizedUser | null> {
+): Promise<SessionUser | null> {
   // 1. Email is normalized to lowercase. Password is left EXACTLY as typed.
   const email = credentials.email?.trim().toLowerCase();
   const plainPassword = credentials.password;
@@ -52,7 +41,8 @@ export async function authorizeCredentials(
     if (!valid) return null;
 
     // Strip the password hash before returning - it must never reach callbacks
-    return { id: user.id, email: user.email, name: user.name, image: user.image };
+    const { password: _password, ...userWithoutPassword } = user;
+    return userWithoutPassword;
   } catch {
     // Surface DB errors as null to prevent information leakage
     return null;

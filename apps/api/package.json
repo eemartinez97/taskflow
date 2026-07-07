@@ -7,6 +7,10 @@
   "license": "ISC",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/main.ts",
+    "./trpc": "./src/trpc/router.ts"
+  },
   "scripts": {
     "dev": "tsx watch src/main.ts",
     "build": "tsc --project tsconfig.build.json",

@@ -3,16 +3,19 @@
 import { SessionProvider } from "next-auth/react";
 import type { JSX } from "react";
 
+import { TRPCProvider } from "@/lib/trpc/client";
+
 /**
  * Client-side provider tree.
  *
- * Mounted from app/layout.tsx (Server Component) so that all pages
- * automatically have access to the NextAuth v4 session context.
- *
- * tRPC + ReactQuery providers are added later.
- *
- * React: 19 no forwardRef, no propTypes - plain function component.
+ * Provider order (outermost first):
+ *   SessionProvider - NextAuth v4 session context
+ *   TRPCProvider    - tRPC + TanStack Query + HydrationBoundary
  */
 export function Providers({ children }: { children: React.ReactNode }): JSX.Element {
-  return <SessionProvider>{children}</SessionProvider>;
+  return (
+    <SessionProvider>
+      <TRPCProvider>{children}</TRPCProvider>
+    </SessionProvider>
+  );
 }

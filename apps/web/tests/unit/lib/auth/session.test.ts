@@ -1,46 +1,58 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("next-auth/next", () => import("@/tests/mocks/next-auth-server.js"));
+vi.mock("@/lib/auth/server-session", () => ({ getServerSessionFromHeaders: vi.fn() }));
 vi.mock("next/navigation", () => import("@/tests/mocks/next-navigation.js"));
-vi.mock("@/auth", () => ({ authOptions: {} }));
+vi.mock("next/headers", () => ({ headers: vi.fn() }));
+vi.mock("server-only");
 
-import { getServerSession } from "next-auth/next";
+import { headers } from "next/headers";
 
+import { getServerSessionFromHeaders } from "@/lib/auth/server-session";
 import { getSession, requireSession } from "@/lib/auth/session.js";
-import { mockSession } from "@/tests/mocks/next-auth.js";
+import { makeHeaders, makeSessionHeaders, mockServerSessionUser } from "@/tests/helpers";
 import { redirect } from "@/tests/mocks/next-navigation";
 
 describe("getSession", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
-  it("calls getServerSession with authOptions", async () => {
+  it("passes the request headers to getServerSessionFromHeaders", async () => {
+    const h = makeSessionHeaders("tok");
+    vi.mocked(headers).mockResolvedValueOnce(h);
+    vi.mocked(getServerSessionFromHeaders).mockResolvedValueOnce(null);
+
     await getSession();
-    expect(getServerSession).toHaveBeenCalledOnce();
+
+    expect(getServerSessionFromHeaders).toHaveBeenCalledWith(h);
   });
 
-  it("returns the session from getServerSession", async () => {
-    vi.mocked(getServerSession).mockResolvedValueOnce(mockSession);
-    expect(await getSession()).toBe(mockSession);
+  it("returns the session when authenticated", async () => {
+    vi.mocked(headers).mockResolvedValueOnce(makeHeaders());
+    vi.mocked(getServerSessionFromHeaders).mockResolvedValueOnce(mockServerSessionUser);
+    expect(await getSession()).toEqual(mockServerSessionUser);
   });
 
-  it("returns null when getServerSession returns null", async () => {
-    vi.mocked(getServerSession).mockResolvedValueOnce(null);
+  it("returns null when unauthenticated", async () => {
+    vi.mocked(headers).mockResolvedValueOnce(makeHeaders());
+    vi.mocked(getServerSessionFromHeaders).mockResolvedValueOnce(null);
     expect(await getSession()).toBeNull();
   });
 });
 
 describe("requireSession", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(headers).mockResolvedValueOnce(makeHeaders());
+  });
 
-  it("returns the session when authenticated", async () => {
-    vi.mocked(getServerSession).mockResolvedValueOnce(mockSession);
-    const session = await requireSession();
-    expect(session).toBe(mockSession);
+  it("returns the session user when authenticated", async () => {
+    vi.mocked(getServerSessionFromHeaders).mockResolvedValueOnce(mockServerSessionUser);
+    expect(await requireSession()).toBe(mockServerSessionUser);
   });
 
   it("calls redirect('/login') when session is null", async () => {
-    vi.mocked(getServerSession).mockResolvedValueOnce(null);
-
+    vi.mocked(getServerSessionFromHeaders).mockResolvedValueOnce(null);
     await requireSession().catch(() => undefined);
 
     // redirect was called with /login
@@ -48,7 +60,7 @@ describe("requireSession", () => {
   });
 
   it("does NOT call redirect when session exists", async () => {
-    vi.mocked(getServerSession).mockResolvedValueOnce(mockSession);
+    vi.mocked(getServerSessionFromHeaders).mockResolvedValueOnce(mockServerSessionUser);
     await requireSession();
     expect(redirect).not.toHaveBeenCalled();
   });

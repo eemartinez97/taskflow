@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent, { type UserEvent } from "@testing-library/user-event";
 
 vi.mock("next/navigation", () => import("@/tests/mocks/next-navigation.js"));
 vi.mock("@taskflow/ui", () => import("@/tests/mocks/taskflow-ui.js"));
@@ -27,6 +27,9 @@ const SUCCESS_RESPONSE = mockFetchResponse(
   201,
 );
 
+// -- Shared userEvent instance --
+let user: UserEvent;
+
 // -- Helpers --
 
 /**
@@ -34,15 +37,21 @@ const SUCCESS_RESPONSE = mockFetchResponse(
  * Accepts `overrides` for testing specific invalid-input scenarios
  * without repeating the full valid payload in every test.
  */
-async function fillRegisterForm(
-  user: ReturnType<typeof userEvent.setup>,
+function fillRegisterForm(overrides: Partial<typeof validRegisterPayload> = {}): void {
+  const payload = { ...validRegisterPayload, ...overrides };
+  fireEvent.change(screen.getByLabelText(/^name/i), { target: { value: payload.name } });
+  fireEvent.change(screen.getByLabelText(/^email/i), { target: { value: payload.email } });
+  fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: payload.password } });
+  fireEvent.change(screen.getByLabelText(/^confirm password$/i), {
+    target: { value: payload.confirmPassword },
+  });
+}
+
+async function submitRegisterForm(
   overrides: Partial<typeof validRegisterPayload> = {},
 ): Promise<void> {
-  const payload = { ...validRegisterPayload, ...overrides };
-  await user.type(screen.getByLabelText(/^name/i), payload.name);
-  await user.type(screen.getByLabelText(/^email/i), payload.email);
-  await user.type(screen.getByLabelText(/^password$/i), payload.password);
-  await user.type(screen.getByLabelText(/^confirm password$/i), payload.confirmPassword);
+  fillRegisterForm(overrides);
+  await user.click(screen.getByRole("button", { name: /create account/i }));
 }
 
 describe("RegisterPage", () => {
@@ -50,6 +59,7 @@ describe("RegisterPage", () => {
   let routerMock: RouterMock;
 
   beforeEach(() => {
+    user = userEvent.setup({ delay: null });
     vi.clearAllMocks();
     routerMock = setupRouterMock();
     fetchSpy = setupFetchSpy(SUCCESS_RESPONSE);
@@ -61,21 +71,13 @@ describe("RegisterPage", () => {
 
   // -- Rendering --
 
-  it("renders the page heading", () => {
+  it("renders heading, all four fields, and a submit button", () => {
     render(<RegisterPage />);
     expect(screen.getByRole("heading", { name: /create your account/i })).toBeInTheDocument();
-  });
-
-  it("renders all four form fields", () => {
-    render(<RegisterPage />);
     expect(screen.getByLabelText(/^name/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^email/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/^confirm password/i)).toBeInTheDocument();
-  });
-
-  it("renders the submit button", () => {
-    render(<RegisterPage />);
+    expect(screen.getByLabelText(/^confirm password$/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /create account/i })).toBeInTheDocument();
   });
 
@@ -88,27 +90,27 @@ describe("RegisterPage", () => {
 
   it("calls fetch POST /api/auth/register on valid submission", async () => {
     render(<RegisterPage />);
-    const user = userEvent.setup();
-    await fillRegisterForm(user);
-    await user.click(screen.getByRole("button", { name: /create account/i }));
-
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/auth/register",
-        expect.objectContaining({ method: "POST" }),
-      );
-    });
+    await submitRegisterForm();
+    await waitFor(
+      () => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/auth/register",
+          expect.objectContaining({ method: "POST" }),
+        );
+      },
+      { timeout: 300 },
+    );
   });
 
   it("redirects to /login?registered=true on success", async () => {
     render(<RegisterPage />);
-    const user = userEvent.setup();
-    await fillRegisterForm(user);
-    await user.click(screen.getByRole("button", { name: /create account/i }));
-
-    await waitFor(() => {
-      expect(routerMock.pushMock).toHaveBeenCalledWith("/login?registered=true");
-    });
+    await submitRegisterForm();
+    await waitFor(
+      () => {
+        expect(routerMock.pushMock).toHaveBeenCalledWith("/login?registered=true");
+      },
+      { timeout: 300 },
+    );
   });
 
   // -- Server error states --
@@ -117,69 +119,63 @@ describe("RegisterPage", () => {
     fetchSpy.mockResolvedValueOnce(
       mockFetchResponse({ error: "An account with that email already exists." }, 409),
     );
-
     render(<RegisterPage />);
-    const user = userEvent.setup();
-    await fillRegisterForm(user);
-    await user.click(screen.getByRole("button", { name: /create account/i }));
-
-    await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent(/already exists/i);
-    });
+    await submitRegisterForm();
+    await waitFor(
+      () => {
+        expect(screen.getByRole("alert")).toHaveTextContent(/already exists/i);
+      },
+      { timeout: 300 },
+    );
   });
 
-  it("shows a generic server error on non-ok response", async () => {
+  it("shows a generic error on 500 response with error field", async () => {
     fetchSpy.mockResolvedValueOnce(mockFetchResponse({ error: "Unexpected error." }, 500));
-
     render(<RegisterPage />);
-    const user = userEvent.setup();
-    await fillRegisterForm(user);
-    await user.click(screen.getByRole("button", { name: /create account/i }));
-
-    await waitFor(() => {
-      expect(screen.getByRole("alert")).toBeInTheDocument();
-    });
+    await submitRegisterForm();
+    await waitFor(
+      () => {
+        expect(screen.getByRole("alert")).toBeInTheDocument();
+      },
+      { timeout: 300 },
+    );
   });
 
   it("shows a fallback error message when 500 body has no error field", async () => {
     fetchSpy.mockResolvedValueOnce(mockFetchResponse({}, 500));
-
     render(<RegisterPage />);
-    const user = userEvent.setup();
-    await fillRegisterForm(user);
-    await user.click(screen.getByRole("button", { name: /create account/i }));
-
-    await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent(/something went wrong/i);
-    });
+    await submitRegisterForm();
+    await waitFor(
+      () => {
+        expect(screen.getByRole("alert")).toHaveTextContent(/something went wrong/i);
+      },
+      { timeout: 300 },
+    );
   });
 
   // -- Client-side validation --
 
   it("does NOT call fetch when the form has validation errors", async () => {
     render(<RegisterPage />);
-    const user = userEvent.setup();
-
-    // Submit with empty form
-    await user.click(screen.getByRole("button", { name: /create account/i }));
-
-    await waitFor(() => {
-      expect(screen.getAllByRole("alert").length).toBeGreaterThan(0);
-    });
-
+    await userEvent.click(screen.getByRole("button", { name: /create account/i }));
+    await waitFor(
+      () => {
+        expect(screen.getAllByRole("alert").length).toBeGreaterThan(0);
+      },
+      { timeout: 300 },
+    );
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("shows password mismatch error without calling fetch", async () => {
     render(<RegisterPage />);
-    const user = userEvent.setup();
-    await fillRegisterForm(user, { confirmPassword: "different-password" });
-    await user.click(screen.getByRole("button", { name: /create account/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/passwords do not match/i)).toBeInTheDocument();
-    });
-
+    await submitRegisterForm({ confirmPassword: "different-password" });
+    await waitFor(
+      () => {
+        expect(screen.getByText(/passwords do not match/i)).toBeInTheDocument();
+      },
+      { timeout: 300 },
+    );
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -187,17 +183,14 @@ describe("RegisterPage", () => {
 
   it("disables the submit button while the form is submitting", async () => {
     fetchSpy.mockReturnValue(new Promise(() => undefined)); // hangs forever
-
     render(<RegisterPage />);
-    const user = userEvent.setup();
-    await fillRegisterForm(user);
-
-    const button = screen.getByRole("button", { name: /create account/i });
-    await user.click(button);
-
-    await waitFor(() => {
-      expect(button).toBeDisabled();
-    });
+    await submitRegisterForm();
+    await waitFor(
+      () => {
+        expect(screen.getByRole("button", { name: /create account/i })).toBeDisabled();
+      },
+      { timeout: 300 },
+    );
   });
 
   // -- Error clearing --
@@ -210,15 +203,14 @@ describe("RegisterPage", () => {
       .mockResolvedValueOnce(
         mockFetchResponse({ user: { id: "2", email: "new@taskflow.dev" } }, 201),
       );
-
     render(<RegisterPage />);
-    const user = userEvent.setup();
-
-    await fillRegisterForm(user);
-    await user.click(screen.getByRole("button", { name: /create account/i }));
-    await waitFor(() => {
-      expect(screen.getByRole("alert")).toBeInTheDocument();
-    });
+    await submitRegisterForm();
+    await waitFor(
+      () => {
+        expect(screen.getByRole("alert")).toBeInTheDocument();
+      },
+      { timeout: 300 },
+    );
 
     // Clear all fields and try again with a new email
     const fields = [
@@ -228,15 +220,15 @@ describe("RegisterPage", () => {
       screen.getByLabelText(/^confirm password$/i),
     ];
     for (const field of fields) {
-      await user.clear(field);
+      await userEvent.clear(field);
     }
-    await fillRegisterForm(user, { email: "new@taskflow.dev" });
-    await user.click(screen.getByRole("button", { name: /create account/i }));
-
-    await waitFor(() => {
-      expect(routerMock.pushMock).toHaveBeenCalledWith("/login?registered=true");
-    });
-
+    await submitRegisterForm({ email: "new@taskflow.dev" });
+    await waitFor(
+      () => {
+        expect(routerMock.pushMock).toHaveBeenCalledWith("/login?registered=true");
+      },
+      { timeout: 300 },
+    );
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

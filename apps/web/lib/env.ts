@@ -28,6 +28,9 @@ export const publicEnvSchema = z.object({
   NEXT_PUBLIC_SOCKET_URL: z
     .url({ error: "NEXT_PUBLIC_SOCKET_URL must be a valid URL" })
     .default("http://localhost:8000"),
+  NEXT_PUBLIC_WEB_URL: z
+    .url({ error: "NEXT_PUBLIC_WEB_URL mist be a valid URL" })
+    .default("http://localhost:3000"),
 });
 
 /**
@@ -65,6 +68,7 @@ function parseServerEnv(): ServerEnv {
 function parsePublicEnv(): PublicEnv {
   const parsed = publicEnvSchema.safeParse({
     NEXT_PUBLIC_SOCKET_URL: process.env.NEXT_PUBLIC_SOCKET_URL,
+    NEXT_PUBLIC_WEB_URL: process.env.NEXT_PUBLIC_WEB_URL,
   });
 
   if (!parsed.success) {

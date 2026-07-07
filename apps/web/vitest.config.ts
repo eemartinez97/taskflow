@@ -10,6 +10,7 @@ export default mergeConfig(
     resolve: {
       alias: {
         "@": path.resolve(import.meta.dirname, "."),
+        "server-only": path.resolve(import.meta.dirname, "./tests/mocks/server-only.ts"),
       },
     },
     test: {

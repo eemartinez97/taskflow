@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { type JSX } from "react";
 
 import type { Column, Task, Board, OrgWithMembership, Project } from "@taskflow/database";
+import type { SocketTask, SessionUser } from "@taskflow/shared";
 import { type PrismaClient } from "@taskflow/database";
-import { type SessionUser } from "@taskflow/shared";
 
+import { resetHandlerStore, triggerSocketEvent } from "./mocks/socket-io-client";
 import { type WebTRPCContext } from "@/lib/trpc/context";
 import { mockDb } from "@/tests/mocks/taskflow-database";
 import type { TasksMap } from "@/hooks/use-board-dnd";
@@ -616,5 +617,71 @@ export function makeUseQueriesMock(
     }
 
     return returnValues;
+  };
+}
+
+// -- Socket / realtime fixtures --
+
+// Socket / realtime re-exports
+export { triggerSocketEvent, resetHandlerStore };
+
+/**
+ * Converts a local Task fixture to SocketTask shape.
+ * Keeps the Date objects as-is; in production these arrive as ISO strings
+ * over the wire but the types use Date for schema correctness.
+ */
+export function toSocketTask(task: ReturnType<typeof makeTask>): SocketTask {
+  return {
+    id: task.id,
+    columnId: task.columnId,
+    title: task.title,
+    description: task.description,
+    assigneeId: task.assigneeId,
+    priority: task.priority,
+    status: task.status,
+    position: task.position,
+    dueDate: task.dueDate,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+  };
+}
+
+/**
+ * Builds a tRPC utils mock with controllable `setData` and `getData` spies
+ * backed by an in-memory cache.
+ *
+ * `setData` mutates the internal cache so `getData` can return the updated
+ * value in tests that chain multiple events.
+ */
+export interface TRPCUtilsMock {
+  tasks: {
+    list: {
+      setData: ReturnType<typeof vi.fn>;
+      getData: ReturnType<typeof vi.fn>;
+    };
+  };
+}
+
+export function makeTRPCUtilsMock(initialCache: Record<string, SocketTask[]> = {}): TRPCUtilsMock {
+  const cache: Record<string, SocketTask[]> = { ...initialCache };
+
+  return {
+    tasks: {
+      list: {
+        setData: vi.fn(
+          (
+            input: { orgId: string; columnId: string },
+            updater: ((prev: SocketTask[] | undefined) => SocketTask[]) | SocketTask[],
+          ) => {
+            const prev = cache[input.columnId];
+            cache[input.columnId] = typeof updater === "function" ? updater(prev) : updater;
+          },
+        ),
+        getData: vi.fn(
+          (input: { orgId: string; columnId: string }): SocketTask[] | undefined =>
+            cache[input.columnId],
+        ),
+      },
+    },
   };
 }

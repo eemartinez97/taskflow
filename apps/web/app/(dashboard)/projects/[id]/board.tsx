@@ -4,6 +4,7 @@ import type { JSX } from "react";
 
 import type { Column } from "@taskflow/database";
 
+import { useBoardRealtime } from "@/lib/hooks/use-board-realtime";
 import { KanbanBoard } from "@/components/kanban/kanban-board";
 import type { TasksMap } from "@/hooks/use-board-dnd";
 import { api } from "@/lib/trpc/client";
@@ -19,8 +20,11 @@ interface BoardPageClientProps {
 /**
  * Client shell for the project board page.
  *
- * Fetches tasks per column (batched into one HTTP request by tRPC's httpBatchLink).
- * Passes the merged task map down to KanbanBoard which manages DnD state.
+ * Responsibilities:
+ * 1. Fetches live tasks per column (batched via httpBatchLink).
+ * 2. Establishes a Socket.IO subscription via `useBoardRealtime`
+ *    so incoming events update the TanStack Query cache transparently.
+ * 3. Passes the merged task map to `KanbanBoard` for DnD interaction.
  */
 
 export function BoardPageClient({
@@ -30,7 +34,10 @@ export function BoardPageClient({
   initialColumns,
   initialTasks,
 }: BoardPageClientProps): JSX.Element {
-  // Fetch live tasks per column - httpBatchLink sends all requests in one HTTP call
+  // 1. Real-time: connect Socket.IO and wire cache-update handlers
+  useBoardRealtime({ orgId, projectId, columns: initialColumns });
+
+  // 2. Fetch live tasks per column (one batch per request)
   const columnQueries = api.useQueries((t) =>
     initialColumns.map((col) =>
       t.tasks.list(
@@ -45,7 +52,7 @@ export function BoardPageClient({
     ),
   );
 
-  // Merge query results into a TasksMap
+  // 3. Merge query results into a TasksMap
   const liveTasks: TasksMap = Object.fromEntries(
     initialColumns.map((col, i) => [col.id, columnQueries[i]?.data ?? initialTasks[col.id] ?? []]),
   );

@@ -55,6 +55,24 @@ export function useBoardDnD({
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [localTasks, setLocalTasks] = useState<TasksMap>(initialTasks);
 
+  /**
+   * Sync localTasks when the TanStack Query cache changes externally
+   * (e.g. via a Socket.IO event) and no drag is in progress.
+   *
+   * WHY during-render, not useEffect:
+   * Calling setState inside useEffect causes an extra committed render before
+   * React can bail out, producing the "cascading renders" warning.
+   * The "adjusting state when a prop changes" pattern calls setState during
+   * the current render — React immediately discards the half-rendered output,
+   * applies both state updates, and produces a single new render.
+   * @see https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+   */
+  const [prevInitialTasks, setPrevInitialTasks] = useState<TasksMap>(initialTasks);
+  if (prevInitialTasks !== initialTasks && activeTaskId === null) {
+    setPrevInitialTasks(initialTasks);
+    setLocalTasks(initialTasks);
+  }
+
   /** Finds which columnId currently owns a given taskId. */
   function findColumnIdForTask(taskId: string): string | null {
     for (const [colId, tasks] of Object.entries(localTasks)) {

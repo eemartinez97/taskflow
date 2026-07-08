@@ -107,7 +107,7 @@ export interface PaginatedResult<T> {
   totalPages: number;
 }
 
-// Socket events
+// Socket event types - shared between apps/api and apps/web
 export type {
   ClientToServerEvents,
   ServerToClientEvents,

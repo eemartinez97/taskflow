@@ -1,7 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 
-import { type MovePayload, useBoardDnD } from "@/hooks/use-board-dnd";
 import {
   makeColumn,
   makeTask,
@@ -10,6 +9,7 @@ import {
   VALID_COL_B_ID,
   VALID_TASK_1_ID,
 } from "@/tests/helpers";
+import { type MovePayload, type TasksMap, useBoardDnD } from "@/hooks/use-board-dnd";
 
 // -- Fixtures --
 
@@ -217,5 +217,103 @@ describe("useBoardDnD", () => {
     });
 
     expect(onTaskMoved).not.toHaveBeenCalled();
+  });
+});
+
+// -- Sync with incoming socket updates (useEffect on initialTasks) --
+
+describe("useBoardDnD — live-data sync", () => {
+  // onTaskMoved must be scoped to this describe — it is defined in the
+  // outer describe("useBoardDnD") and is not accessible here.
+  let onTaskMoved: (payload: MovePayload) => void;
+
+  beforeEach(() => {
+    onTaskMoved = vi.fn<(payload: MovePayload) => void>();
+  });
+
+  it("syncs localTasks when initialTasks changes while no drag is active", () => {
+    const tasks1 = makeTasksMap({ [VALID_COL_A_ID]: [task1] });
+    const tasks2 = makeTasksMap({ [VALID_COL_A_ID]: [task1, task2] });
+
+    const { result, rerender } = renderHook(
+      ({ it }: { it: TasksMap }) =>
+        useBoardDnD({ columns: [colA, colB], initialTasks: it, onTaskMoved }),
+      { initialProps: { it: tasks1 } },
+    );
+
+    expect(result.current.localTasks[VALID_COL_A_ID]).toHaveLength(1);
+
+    rerender({ it: tasks2 });
+
+    expect(result.current.localTasks[VALID_COL_A_ID]).toHaveLength(2);
+  });
+
+  it("does NOT sync when a drag is active (preserves DnD optimistic state)", () => {
+    const tasks1 = makeTasksMap({ [VALID_COL_A_ID]: [task1] });
+    const tasks2 = makeTasksMap({ [VALID_COL_A_ID]: [task1, task2] });
+
+    const { result, rerender } = renderHook(
+      ({ it }: { it: TasksMap }) =>
+        useBoardDnD({ columns: [colA, colB], initialTasks: it, onTaskMoved }),
+      { initialProps: { it: tasks1 } },
+    );
+
+    // Start a drag — activeTaskId is now set
+    act(() => {
+      result.current.handlers.onDragStart(makeDragStartEvent(task1.id));
+    });
+    expect(result.current.activeTaskId).toBe(task1.id);
+
+    // Parent receives new initialTasks (e.g. from socket event)
+    rerender({ it: tasks2 });
+
+    // localTasks must NOT have changed — drag is in progress
+    expect(result.current.localTasks[VALID_COL_A_ID]).toHaveLength(1);
+  });
+
+  it("syncs again after drag completes (activeTaskId back to null)", () => {
+    const tasks1 = makeTasksMap({ [VALID_COL_A_ID]: [task1] });
+    const tasks2 = makeTasksMap({ [VALID_COL_A_ID]: [task1, task2] });
+
+    const { result, rerender } = renderHook(
+      ({ it }: { it: TasksMap }) =>
+        useBoardDnD({ columns: [colA, colB], initialTasks: it, onTaskMoved }),
+      { initialProps: { it: tasks1 } },
+    );
+
+    // 1. Start drag
+    act(() => {
+      result.current.handlers.onDragStart(makeDragStartEvent(task1.id));
+    });
+
+    // 2. Socket update arrives while dragging (should be ignored)
+    rerender({ it: tasks2 });
+    expect(result.current.localTasks[VALID_COL_A_ID]).toHaveLength(1);
+
+    // 3. Drag ends
+    act(() => {
+      result.current.handlers.onDragEnd(makeDragEndEvent(task1.id, null));
+    });
+    expect(result.current.activeTaskId).toBeNull();
+
+    // 4. Another socket update — now it SHOULD sync
+    const tasks3 = makeTasksMap({ [VALID_COL_A_ID]: [task1, task2], [VALID_COL_B_ID]: [] });
+    rerender({ it: tasks3 });
+    expect(result.current.localTasks[VALID_COL_A_ID]).toHaveLength(2);
+  });
+
+  it("does not sync when initialTasks reference is stable (same object)", () => {
+    const tasks = makeTasksMap({ [VALID_COL_A_ID]: [task1] });
+
+    const { result, rerender } = renderHook(() =>
+      useBoardDnD({ columns: [colA, colB], initialTasks: tasks, onTaskMoved }),
+    );
+
+    const tasksBefore = result.current.localTasks;
+
+    // Re-render with SAME reference — effect dep hasn't changed, no sync
+    rerender();
+
+    expect(result.current.localTasks).toBe(tasksBefore);
   });
 });

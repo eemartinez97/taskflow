@@ -106,3 +106,13 @@ export interface PaginatedResult<T> {
   pageSize: number;
   totalPages: number;
 }
+
+// Socket events
+export type {
+  ClientToServerEvents,
+  ServerToClientEvents,
+  SocketCursor,
+  SocketComment,
+  SocketTask,
+  SocketPresenceUser,
+} from "./socket-events.js";

@@ -1,11 +1,8 @@
 import type { Server, Socket } from "socket.io";
-import type {
-  ClientToServerEvents,
-  InterServerEvents,
-  ServerToClientEvents,
-  SocketData,
-} from "./events.js";
+import type { InterServerEvents, SocketData } from "./events.js";
 import {
+  type ClientToServerEvents,
+  type ServerToClientEvents,
   presenceCursorSchema,
   presenceUserSchema,
   SOCKET_EVENTS,

@@ -1,14 +1,16 @@
 import { render, type RenderResult } from "@testing-library/react";
 import { type QueryClient } from "@tanstack/react-query";
-import { type PrismaClient } from "@taskflow/database";
-import { type SessionUser } from "@taskflow/shared";
 import { type MockInstance, vi } from "vitest";
 import { useRouter } from "next/navigation";
-import { type Session } from "next-auth";
 import { type JSX } from "react";
+
+import type { Column, Task, Board, OrgWithMembership, Project } from "@taskflow/database";
+import { type PrismaClient } from "@taskflow/database";
+import { type SessionUser } from "@taskflow/shared";
 
 import { type WebTRPCContext } from "@/lib/trpc/context";
 import { mockDb } from "@/tests/mocks/taskflow-database";
+import type { TasksMap } from "@/hooks/use-board-dnd";
 import { type Logger } from "@/lib/logger.js";
 
 /**
@@ -85,13 +87,7 @@ export const mockServerSessionUser: SessionUser = {
   ...mockAuthorizedUser,
 };
 
-/** NextAuth v4 Session fixture - used by mocks that return a full Session */
-export const mockSession: Session = {
-  expires: new Date(Date.now() + 1_000 * 60 * 60).toISOString(),
-  user: {
-    ...mockAuthorizedUser,
-  },
-};
+export { mockSession } from "@/tests/mocks/next-auth";
 
 // -- Prisma session row fixture --
 
@@ -273,4 +269,352 @@ export function extractShouldDehydrate(client: QueryClient): ShouldDehydrateFn {
   if (!fn) throw new Error("shouldDehydrateQuery is not configured on this QueryClient");
   // Post-QueryClient-boundary cast: we test only the boolean decision, not the full Query shape.
   return fn as unknown as ShouldDehydrateFn;
+}
+
+// -- Board / Kanban fixtures --
+
+export const VALID_BOARD_ID = "b0000000-0000-4000-8000-000000000001";
+export const VALID_COL_A_ID = "c0000000-0000-4000-8000-000000000001";
+export const VALID_COL_B_ID = "c0000000-0000-4000-8000-000000000002";
+export const VALID_TASK_1_ID = "t0000000-0000-4000-8000-000000000001";
+export const VALID_TASK_2_ID = "t0000000-0000-4000-8000-000000000002";
+export const VALID_PROJECT_ID = "p0000000-0000-4000-8000-000000000001";
+export const VALID_ORG_ID = "o0000000-0000-4000-8000-000000000001";
+
+/** Creates a minimal Column fixture with optional overrides */
+export function makeColumn(overrides: Partial<Column> = {}): Column {
+  const id = overrides.id ?? VALID_COL_A_ID;
+  return {
+    id,
+    boardId: VALID_BOARD_ID,
+    name: "To Do",
+    position: 1000,
+    createdAt: new Date("2026-01-01"),
+    updatedAt: new Date("2026-01-01"),
+    ...overrides,
+  };
+}
+
+/** Creates a minimal Task fixture with optional overrides */
+export function makeTask(overrides: Partial<Task> = {}): Task {
+  return {
+    id: VALID_TASK_1_ID,
+    columnId: VALID_COL_A_ID,
+    title: "Fix login bug",
+    description: null,
+    assigneeId: null,
+    priority: "NONE",
+    status: "TODO",
+    position: 1000,
+    dueDate: null,
+    createdAt: new Date("2026-01-01"),
+    updatedAt: new Date("2026-01-01"),
+    ...overrides,
+  };
+}
+
+/** Creates a minimal Board fixture with columns */
+export function makeBoard(overrides: Partial<Board> = {}): Board {
+  return {
+    id: VALID_BOARD_ID,
+    projectId: VALID_PROJECT_ID,
+    name: "Main Board",
+    createdAt: new Date("2026-01-01"),
+    updatedAt: new Date("2026-01-01"),
+    ...overrides,
+  };
+}
+
+/** Creates a default two-column TasksMap for board tests */
+export function makeTasksMap(overrides: Partial<TasksMap> = {}): TasksMap {
+  return {
+    [VALID_COL_A_ID]: [makeTask()],
+    [VALID_COL_B_ID]: [],
+    ...overrides,
+  };
+}
+
+/** Creates a minimal OrgWithMembership fixture */
+export function makeOrg(overrides: Partial<OrgWithMembership> = {}): OrgWithMembership {
+  return {
+    id: VALID_ORG_ID,
+    name: "Acme Corp",
+    slug: "acme-corp",
+    createdAt: new Date("2026-01-01"),
+    updatedAt: new Date("2026-01-01"),
+    memberships: [
+      {
+        id: "m1",
+        orgId: VALID_ORG_ID,
+        userId: mockAuthorizedUser.id,
+        role: "OWNER",
+        createdAt: new Date("2026-01-01"),
+        updatedAt: new Date("2026-01-01"),
+      },
+    ],
+    ...overrides,
+  } as OrgWithMembership;
+}
+
+/** Creates a minimal Project fixture */
+export function makeProject(
+  overrides: Partial<{
+    id: string;
+    orgId: string;
+    name: string;
+    key: string;
+    slug: string;
+    description: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }> = {},
+): Project {
+  return {
+    id: VALID_PROJECT_ID,
+    orgId: VALID_ORG_ID,
+    name: "Demo Project",
+    key: "DEMO",
+    slug: "demo-project",
+    description: null,
+    createdAt: new Date("2026-01-01"),
+    updatedAt: new Date("2026-01-01"),
+    ...overrides,
+  };
+}
+
+// -- tRPC mock result factories --
+// Used in component tests that call api.*.useQuery / api.*.useMutation
+
+/**
+ * Builds a typed mock useQuery result.
+ *
+ * Usage:
+ *   vi.mocked(api.projects.list.useQuery).mockReturnValue(
+ *     makeMockQueryResult([mockProject])
+ *   );
+ */
+export interface MockQueryResult<T> {
+  data: T | undefined;
+  isLoading: boolean;
+  isPending: boolean;
+  isFetching: boolean;
+  isError: boolean;
+  error: null;
+  refetch: ReturnType<typeof vi.fn>;
+}
+
+export function makeMockQueryResult<T>(
+  data?: T,
+  overrides: Partial<MockQueryResult<T>> = {},
+): MockQueryResult<T> {
+  return {
+    data,
+    isLoading: false,
+    isPending: false,
+    isFetching: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+    ...overrides,
+  };
+}
+
+/**
+ * Builds a typed mock useMutation result.
+ *
+ * Usage:
+ *   vi.mocked(api.tasks.move.useMutation).mockReturnValue(
+ *     makeMockMutationResult()
+ *   );
+ */
+export interface MockMutationResult<T = unknown> {
+  mutate: ReturnType<typeof vi.fn>;
+  mutateAsync: ReturnType<typeof vi.fn>;
+  isPending: boolean;
+  isError: boolean;
+  error: Error | null;
+  data: T | undefined;
+  reset: ReturnType<typeof vi.fn>;
+}
+
+export function makeMockMutationResult<T = unknown>(
+  overrides: Partial<MockMutationResult<T>> = {},
+): MockMutationResult<T> {
+  return {
+    mutate: vi.fn(),
+    mutateAsync: vi.fn().mockResolvedValue(undefined),
+    isPending: false,
+    isError: false,
+    error: null,
+    data: undefined,
+    reset: vi.fn(),
+    ...overrides,
+  };
+}
+
+/** Type alias for the factory function accepted by `api.useQueries`.*/
+export type UseQueriesFactory = (t: { tasks: { list: ReturnType<typeof vi.fn> } }) => unknown;
+
+/** Type alias for the mock returned by makeUseQueriesMock. */
+export type UseQueriesMock = ReturnType<
+  typeof vi.fn<(factory: UseQueriesFactory) => { data: unknown[] | undefined }[]>
+>;
+
+// -- ServerTRPC mock factory --
+
+export interface ServerTRPCMockOverrides {
+  orgs?: { list?: ReturnType<typeof vi.fn> };
+  projects?: {
+    list?: ReturnType<typeof vi.fn>;
+    get?: ReturnType<typeof vi.fn>;
+  };
+  boards?: { getByProject?: ReturnType<typeof vi.fn> };
+  tasks?: { list?: ReturnType<typeof vi.fn> };
+}
+
+/**
+ * Concrete return type — every field required and non-nullable.
+ * Lets tests access `.projects.get` without optional chaining.
+ */
+export interface ServerTRPCMock {
+  orgs: { list: ReturnType<typeof vi.fn> };
+  projects: {
+    list: ReturnType<typeof vi.fn>;
+    get: ReturnType<typeof vi.fn>;
+  };
+  boards: { getByProject: ReturnType<typeof vi.fn> };
+  tasks: { list: ReturnType<typeof vi.fn> };
+}
+
+/**
+ * Builds a typed mock object for `getServerTRPC()`.
+ * Each resource method defaults to returning empty/null and can be
+ * overridden per test via the `overrides` parameter.
+ *
+ * Usage:
+ *   vi.mocked(getServerTRPC).mockResolvedValue(
+ *     buildServerTRPCMock({
+ *       orgs: { list: vi.fn().mockResolvedValue([mockOrg]) },
+ *     }) as never,
+ *   );
+ */
+export function buildServerTRPCMock(overrides: ServerTRPCMockOverrides = {}): ServerTRPCMock {
+  return {
+    orgs: {
+      list: vi.fn().mockResolvedValue([]),
+      ...overrides.orgs,
+    },
+    projects: {
+      list: vi.fn().mockResolvedValue([]),
+      get: vi.fn().mockResolvedValue(makeProject()),
+      ...overrides.projects,
+    },
+    boards: {
+      getByProject: vi.fn().mockResolvedValue(null),
+      ...overrides.boards,
+    },
+    tasks: {
+      list: vi.fn().mockResolvedValue([]),
+      ...overrides.tasks,
+    },
+  };
+}
+
+// -- mutation mock factory --
+
+export interface MutationMockResult {
+  /** The vi.fn() spy that is passed as `mutate` to the component. */
+  mutateMock: ReturnType<typeof vi.fn>;
+  /**
+   * Triggers the captured `onSuccess` callback.
+   * Call this after rendering the component that uses the mutation.
+   */
+  triggerSuccess: () => void;
+  /**
+   * Triggers the captured `onError` callback.
+   * Call this to simulate a server-side mutation error.
+   */
+  triggerError: (err: { message: string }) => void;
+}
+
+/**
+ * Sets up a `useMutation` mock that captures `onSuccess` and `onError`
+ * callbacks so tests can trigger them programmatically.
+ *
+ * @param mutation - The tRPC mock resource that has a `useMutation` spy.
+ */
+export function setupMutationMock(mutation: {
+  useMutation: ReturnType<typeof vi.fn>;
+}): MutationMockResult {
+  let capturedOnSuccess: (() => void) | undefined;
+  let capturedOnError: ((err: { message: string }) => void) | undefined;
+
+  const mutateMock = vi.fn();
+
+  vi.mocked(mutation.useMutation).mockImplementation(
+    (options?: { onSuccess?: () => void; onError?: (err: { message: string }) => void }) => {
+      capturedOnSuccess = options?.onSuccess;
+      capturedOnError = options?.onError;
+
+      return {
+        mutate: mutateMock,
+        mutateAsync: vi.fn().mockResolvedValue(undefined),
+        isPending: false,
+        isError: false,
+        error: null,
+        data: undefined,
+        reset: vi.fn(),
+      };
+    },
+  );
+
+  return {
+    mutateMock,
+    triggerSuccess() {
+      if (!capturedOnSuccess)
+        throw new Error("onSuccess not captured — render the component first");
+      capturedOnSuccess();
+    },
+    triggerError(err) {
+      if (!capturedOnError) throw new Error("onError not captured — render the component first");
+      capturedOnError(err);
+    },
+  };
+}
+
+// -- UseQueries mock factory --
+
+/**
+ * Builds a typed `api.useQueries` mock implementation.
+ * Captures the factory callback call and returns `returnValues`.
+ *
+ * Usage:
+ *   (api.useQueries as unknown as UseQueriesMock).mockImplementation(
+ *     makeUseQueriesMock([{ data: [task1] }, { data: [] }])
+ *   );
+ */
+export function makeUseQueriesMock(
+  returnValues: { data: unknown[] | undefined }[],
+): (factory: UseQueriesFactory) => { data: unknown[] | undefined }[] {
+  return (factory: UseQueriesFactory) => {
+    const builder = {
+      tasks: {
+        list: vi.fn(
+          (_input: { orgId: string; columnId: string }, opts?: { initialData?: unknown[] }) => ({
+            queryKey: ["tasks", "list"],
+            queryFn: (): unknown[] => opts?.initialData ?? [],
+            initialData: opts?.initialData,
+          }),
+        ),
+      },
+    };
+
+    try {
+      factory(builder);
+    } catch {
+      // Builder invocation may throw in some test scenarios — swallow intentionally
+    }
+
+    return returnValues;
+  };
 }

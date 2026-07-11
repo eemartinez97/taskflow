@@ -3,7 +3,7 @@ import { io, type Socket } from "socket.io-client";
 import type { ClientToServerEvents, ServerToClientEvents } from "@taskflow/shared";
 
 import { isServer } from "@/lib/utils/runtime";
-import { publicEnv } from "@/lib/env";
+import { publicEnv } from "../env.client";
 
 /** Typed Socket alias - used everywhere in the web app */
 export type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;

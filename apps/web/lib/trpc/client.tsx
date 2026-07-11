@@ -8,7 +8,7 @@ import superjson from "superjson";
 
 import { isBrowser, isServer } from "../utils/runtime";
 import { getQueryClient } from "./query-client";
-import { publicEnv } from "../env";
+import { publicEnv } from "../env.client";
 
 /**
  * tRPC React instance typed against AppRouter.

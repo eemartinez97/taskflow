@@ -3,7 +3,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@taskflow/database";
 import { authorizeCredentials } from "./lib/auth/credentials";
-import { serverEnv } from "./lib/env";
+import { serverEnv } from "./lib/env.server";
 
 /**
  * NextAuth v4 - `authOptions` configuration.

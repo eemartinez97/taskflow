@@ -13,8 +13,8 @@
   "scripts": {
     "format": "prettier --write \"src/**/*.ts\" \"prisma/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"prisma/**/*.ts\"",
-    "lint": "eslint src tests prisma",
-    "lint:fix": "eslint src tests prisma --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "typecheck": "tsc",
     "build": "tsc",
     "db:generate": "prisma generate",

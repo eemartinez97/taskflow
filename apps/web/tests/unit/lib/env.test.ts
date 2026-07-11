@@ -1,7 +1,7 @@
-import { VALID_FULL_ENV, VALID_PUBLIC_ENV, VALID_SERVER_ENV } from "@/tests/helpers.js";
+import { VALID_FULL_ENV, VALID_PUBLIC_ENV, VALID_SERVER_ENV } from "@/tests/helpers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type * as envModule from "@/lib/env.js";
+import type * as envModule from "@/lib/env";
 
 /**
  * Test for lib/env.ts
@@ -22,7 +22,7 @@ describe("serverEnvSchema", () => {
 
   beforeEach(async () => {
     vi.resetModules();
-    ({ serverEnvSchema } = await import("@/lib/env.js"));
+    ({ serverEnvSchema } = await import("@/lib/env"));
   });
 
   it("parse all valid fields correctly", () => {
@@ -43,14 +43,19 @@ describe("serverEnvSchema", () => {
     }
   });
 
-  it("rejects empty DATABASE_URL", () => {
-    expect(() => serverEnvSchema.parse({ ...VALID_SERVER_ENV, DATABASE_URL: "" })).toThrow();
-  });
-
-  it("rejects NEXTAUTH_SECRET shorter than 16 chars", () => {
-    expect(() =>
-      serverEnvSchema.parse({ ...VALID_SERVER_ENV, NEXTAUTH_SECRET: "short" }),
-    ).toThrow();
+  it.each([
+    { desc: "empty DATABASE_URL", data: { ...VALID_SERVER_ENV, DATABASE_URL: "" } },
+    {
+      desc: "NEXTAUTH_SECRET shorter than 16 chars",
+      data: { ...VALID_SERVER_ENV, NEXTAUTH_SECRET: "short" },
+    },
+    { desc: "unknown NODE_ENV value", data: { ...VALID_SERVER_ENV, NODE_ENV: "staging" } },
+    {
+      desc: "missing DATABASE_URL",
+      data: (({ DATABASE_URL: _, ...rest }) => rest)(VALID_SERVER_ENV),
+    },
+  ])("rejects: $desc", ({ data }) => {
+    expect(serverEnvSchema.safeParse(data).success).toBe(false);
   });
 
   it("rejects invalid NEXTAUTH_URL", () => {
@@ -68,15 +73,6 @@ describe("serverEnvSchema", () => {
       ]]
     `);
   });
-
-  it("rejects unknown NODE_ENV value", () => {
-    expect(() => serverEnvSchema.parse({ ...VALID_SERVER_ENV, NODE_ENV: "staging" })).toThrow();
-  });
-
-  it("rejects missing DATABASE_URL", () => {
-    const { DATABASE_URL: _, ...without } = VALID_SERVER_ENV;
-    expect(() => serverEnvSchema.parse(without)).toThrow();
-  });
 });
 
 describe("publicEnvSchema", () => {
@@ -84,7 +80,7 @@ describe("publicEnvSchema", () => {
 
   beforeEach(async () => {
     vi.resetModules();
-    ({ publicEnvSchema } = await import("@/lib/env.js"));
+    ({ publicEnvSchema } = await import("@/lib/env"));
   });
 
   it("parses a valid a NEXT_PUBLIC_SOCKET_URL", () => {
@@ -109,16 +105,17 @@ describe("publicEnvSchema", () => {
     expect(result.NEXT_PUBLIC_WEB_URL).toBe("http://localhost:3000");
   });
 
-  it("rejects invalid NEXT_PUBLIC_SOCKET_URL", () => {
-    expect(() =>
-      publicEnvSchema.parse({ ...VALID_PUBLIC_ENV, NEXT_PUBLIC_SOCKET_URL: "bad" }),
-    ).toThrow();
-  });
-
-  it("rejects invalid NEXT_PUBLIC_WEB_URL", () => {
-    expect(() =>
-      publicEnvSchema.parse({ ...VALID_PUBLIC_ENV, NEXT_PUBLIC_WEB_URL: "not-a-url" }),
-    ).toThrow();
+  it.each([
+    {
+      desc: "invalid NEXT_PUBLIC_SOCKET_URL",
+      data: { ...VALID_PUBLIC_ENV, NEXT_PUBLIC_SOCKET_URL: "bad" },
+    },
+    {
+      desc: "invalid NEXT_PUBLIC_WEB_URL",
+      data: { ...VALID_PUBLIC_ENV, NEXT_PUBLIC_WEB_URL: "not-a-url" },
+    },
+  ])("rejects: $desc", ({ data }) => {
+    expect(publicEnvSchema.safeParse(data).success).toBe(false);
   });
 });
 
@@ -127,7 +124,7 @@ describe("fullEnvSchema", () => {
 
   beforeEach(async () => {
     vi.resetModules();
-    ({ fullEnvSchema } = await import("@/lib/env.js"));
+    ({ fullEnvSchema } = await import("@/lib/env"));
   });
 
   it("is the merge of serverEnvSchema and publicEnvSchema", () => {
@@ -150,19 +147,24 @@ describe("serverEnv singleton - parseServerEnv()", () => {
     vi.resetModules();
   });
 
-  it("throws with a readable message when DATABASE_URL is missing", async () => {
-    vi.stubEnv("DATABASE_URL", "");
-    await expect(import("@/lib/env.js")).rejects.toThrow("Invalid server environment variables");
-  });
-
-  it("throws when NEXTAUTH_SECRET is too short", async () => {
-    vi.stubEnv("NEXTAUTH_SECRET", "short");
-    await expect(import("@/lib/env.js")).rejects.toThrow("Invalid server environment variables");
-  });
-
-  it("throws when NEXTAUTH_URL is not a valid URL", async () => {
-    vi.stubEnv("NEXTAUTH_URL", "not-a-url");
-    await expect(import("@/lib/env.js")).rejects.toThrow("Invalid server environment variables");
+  it.each([
+    {
+      desc: "with a readable message when DATABASE_URL is missing",
+      stubEnv: () => vi.stubEnv("DATABASE_URL", ""),
+    },
+    {
+      desc: "when NEXTAUTH_SECRET is too short",
+      stubEnv: () => vi.stubEnv("NEXTAUTH_SECRET", "short"),
+    },
+    {
+      desc: "when NEXTAUTH_URL is not a valid URL",
+      stubEnv: () => vi.stubEnv("NEXTAUTH_URL", "not-a-url"),
+    },
+  ])("throws: $desc", async ({ stubEnv }) => {
+    stubEnv();
+    await expect(import("@/lib/env.server")).rejects.toThrow(
+      "Invalid server environment variables",
+    );
   });
 });
 
@@ -172,13 +174,19 @@ describe("publicEnv singleton - parsePublicEnv()", () => {
     vi.resetModules();
   });
 
-  it("throws when NEXT_PUBLIC_SOCKET_URL is invalid", async () => {
-    vi.stubEnv("NEXT_PUBLIC_SOCKET_URL", "not-a-url");
-    await expect(import("@/lib/env")).rejects.toThrow("Invalid public environment variables");
-  });
-
-  it("throws when NEXT_PUBLIC_WEB_URL is invalid", async () => {
-    vi.stubEnv("NEXT_PUBLIC_WEB_URL", "not-a-url");
-    await expect(import("@/lib/env")).rejects.toThrow("Invalid public environment variables");
+  it.each([
+    {
+      desc: "when NEXT_PUBLIC_SOCKET_URL is invalid",
+      stubEnv: () => vi.stubEnv("NEXT_PUBLIC_SOCKET_URL", "not-a-url"),
+    },
+    {
+      desc: "when NEXT_PUBLIC_WEB_URL is invalid",
+      stubEnv: () => vi.stubEnv("NEXT_PUBLIC_WEB_URL", "not-a-url"),
+    },
+  ])("throws: $desc", async ({ stubEnv }) => {
+    stubEnv();
+    await expect(import("@/lib/env.client")).rejects.toThrow(
+      "Invalid public environment variables",
+    );
   });
 });

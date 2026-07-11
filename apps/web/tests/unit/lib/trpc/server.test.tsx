@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { JSX } from "react";
 
-vi.mock("@taskflow/database", () => import("@/tests/mocks/taskflow-database.js"));
-vi.mock("@taskflow/api/trpc", () => import("@/tests/mocks/taskflow-api.js"));
-vi.mock("next/headers", () => import("@/tests/mocks/next-headers.js"));
-vi.mock("pino", () => import("@/tests/mocks/pino.js"));
+vi.mock("@taskflow/database", () => import("@/tests/mocks/taskflow-database"));
+vi.mock("@taskflow/api/trpc", () => import("@/tests/mocks/taskflow-api"));
+vi.mock("next/headers", () => import("@/tests/mocks/next-headers"));
+vi.mock("pino", () => import("@/tests/mocks/pino"));
 vi.mock("server-only");
 vi.mock("@/lib/auth/server-session", () => ({
   getServerSessionFromHeaders: vi.fn().mockResolvedValue(null),
@@ -26,9 +26,9 @@ vi.mock("react", async () => {
 import { render, screen } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 
-import { makeHeaders, makeSessionHeaders, mockServerSessionUser } from "@/tests/helpers.js";
+import { makeHeaders, makeSessionHeaders, mockServerSessionUser } from "@/tests/helpers";
 import { getServerSessionFromHeaders } from "@/lib/auth/server-session";
-import { headers } from "@/tests/mocks/next-headers.js";
+import { headers } from "@/tests/mocks/next-headers";
 import { getQueryClient, getServerTRPC, TRPCHydrationBoundary } from "@/lib/trpc/server";
 
 describe("getQueryClient", () => {

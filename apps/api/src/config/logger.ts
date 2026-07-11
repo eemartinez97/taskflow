@@ -1,5 +1,5 @@
 import pino from "pino";
-import { env, isProduction } from "./env.js";
+import { env, isProduction } from "./env";
 
 /**
  * Pino 10 structured logger.

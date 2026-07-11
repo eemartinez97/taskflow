@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCookieToken } from "../../src";
+import { parseCookieToken } from "@taskflow/shared";
 
 describe("parseCookieToken", () => {
   // -- Happy paths --

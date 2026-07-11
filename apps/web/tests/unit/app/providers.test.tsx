@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("next-auth/react", () => import("@/tests/mocks/next-auth.js"));
+vi.mock("next-auth/react", () => import("@/tests/mocks/next-auth"));
 
 import { Providers } from "@/app/providers";
 

@@ -7,7 +7,7 @@ import type {
 } from "@taskflow/database";
 import { membershipWithUser, orgWithMembership } from "@taskflow/database";
 import type { CreateOrg, InviteMember, UpdateOrg } from "@taskflow/shared";
-import { stripUndefined } from "../../utils/prisma.js";
+import { stripUndefined } from "../../utils/prisma";
 
 export async function findOrgsByUser(
   db: PrismaClient,

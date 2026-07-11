@@ -1,9 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../../src/config/env.js");
+vi.mock("../../../src/config/env");
 
-import { createCallerFactory, createTRPCRouter } from "../../../src/trpc/init.js";
-import { boardsRouter } from "../../../src/modules/boards/router.js";
 import {
   FIXED_DATE,
   makeCtx,
@@ -12,8 +10,11 @@ import {
   VALID_ORG_ID,
   VALID_PROJECT_ID,
   VALID_USER,
-} from "../../helpers.js";
-import { mockDb } from "../../mocks/database-mock.js";
+} from "../../helpers";
+
+import { createCallerFactory, createTRPCRouter } from "../../../src/trpc/init";
+import { boardsRouter } from "../../../src/modules/boards/router";
+import { mockDb } from "../../mocks/database-mock";
 
 const caller = createCallerFactory(createTRPCRouter({ boards: boardsRouter }));
 const authed = () => caller(makeCtx(VALID_USER));

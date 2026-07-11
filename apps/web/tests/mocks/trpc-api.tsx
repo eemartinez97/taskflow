@@ -8,7 +8,7 @@
  *   });
  *
  * Activate per test file:
- *   vi.mock("@/lib/trpc/client", () => import("@/tests/mocks/trpc-api.js"));
+ *   vi.mock("@/lib/trpc/client", () => import("@/tests/mocks/trpc-api"));
  */
 
 import type { JSX } from "react";

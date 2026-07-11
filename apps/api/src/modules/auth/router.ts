@@ -1,6 +1,6 @@
-import { createTRPCRouter } from "../../trpc/init.js";
-import { protectedProcedure } from "../../trpc/procedures.js";
-import { getMe, signOutUser } from "./service.js";
+import { createTRPCRouter } from "../../trpc/init";
+import { protectedProcedure } from "../../trpc/procedures";
+import { getMe, signOutUser } from "./service";
 
 export const authRouter = createTRPCRouter({
   /** Returns the current authenticated user's profile */

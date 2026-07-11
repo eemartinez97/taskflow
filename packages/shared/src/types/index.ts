@@ -1,5 +1,6 @@
 import type z from "zod";
 import type {
+  paginationSchema,
   boardSchema,
   columnSchema,
   commentSchema,
@@ -37,8 +38,7 @@ import type {
   notificationSchema,
   notificationTypeSchema,
   sessionUserSchema,
-} from "../schemas/index.js";
-import { type paginationSchema } from "../schemas/common.js";
+} from "../schemas";
 
 // User
 export type User = z.infer<typeof userSchema>;
@@ -115,4 +115,4 @@ export type {
   SocketComment,
   SocketTask,
   SocketPresenceUser,
-} from "./socket-events.js";
+} from "./socket-events";

@@ -6,8 +6,8 @@ import {
   taskSchema,
   taskStatusSchema,
   updateTaskSchema,
-} from "../../src";
-import { ANOTHER_UUID, VALID_UUID, validTaskPayload } from "./fixtures.js";
+} from "@taskflow/shared";
+import { expectSchema, ANOTHER_UUID, VALID_UUID, validTaskPayload } from "./fixtures";
 
 describe("taskPrioritySchema", () => {
   it("accepts all valid priorities", () => {

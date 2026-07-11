@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-vi.mock("next-auth/react", () => import("@/tests/mocks/next-auth.js"));
-vi.mock("@taskflow/ui", () => import("@/tests/mocks/taskflow-ui.js"));
+vi.mock("next-auth/react", () => import("@/tests/mocks/next-auth"));
+vi.mock("@taskflow/ui", () => import("@/tests/mocks/taskflow-ui"));
 
 import { signOut, useSession } from "@/tests/mocks/next-auth";
 import { mockSession } from "@/tests/mocks/next-auth";

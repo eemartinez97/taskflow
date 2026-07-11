@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { type AppCollectors } from "./collectors.js";
+import { type AppCollectors } from "./collectors";
 
 /**
  * Safely extracts the matched Express route path from req.route

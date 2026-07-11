@@ -1,6 +1,6 @@
 import { type PrismaClient } from "@taskflow/database";
 import type { SessionUser } from "@taskflow/shared";
-import { verifyPassword } from "./password.js";
+import { verifyPassword } from "./password";
 
 /**
  * Core credentials authorization logic - fully injectable.

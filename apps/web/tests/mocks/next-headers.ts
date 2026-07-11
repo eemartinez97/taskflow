@@ -2,7 +2,7 @@
  * Mock for `next/headers` - provides a controllable `headers()` function.
  *
  * Activate per test file:
- *   vi.mock("next/headers", () => import("@/tests/mocks/next-header.js"))
+ *   vi.mock("next/headers", () => import("@/tests/mocks/next-header))
  *
  * Override per test:
  *   vi.mocked(headers).mockResolvedValueOnce(makeHeaders({ cookie: "..." }))

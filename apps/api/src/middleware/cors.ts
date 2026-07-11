@@ -1,5 +1,5 @@
 import cors from "cors";
-import { env } from "../config/env.js";
+import { env } from "../config/env";
 
 /**
  * CORS middleware — allows only the configured web origin.

@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../../src/config/env.js");
+vi.mock("../../../src/config/env");
 
-import { createCallerFactory, createTRPCRouter, TRPCError } from "../../../src/trpc/init.js";
-import { protectedProcedure, publicProcedure, roleGuard } from "../../../src/trpc/procedures.js";
 import { type Role } from "@taskflow/shared";
-import { makeCtx, VALID_ORG_ID, VALID_USER } from "../../helpers.js";
-import { mockDb } from "../../mocks/database-mock.js";
+
+import { protectedProcedure, publicProcedure, roleGuard } from "../../../src/trpc/procedures";
+import { createCallerFactory, createTRPCRouter, TRPCError } from "../../../src/trpc/init";
+import { makeCtx, VALID_ORG_ID, VALID_USER } from "../../helpers";
+import { mockDb } from "../../mocks/database-mock";
 
 // Test routers
 

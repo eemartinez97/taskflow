@@ -7,7 +7,7 @@
  *   3. Trigger incoming events via `triggerSocketEvent(event, payload)`.
  *
  * Activate per test file:
- *   vi.mock("socket.io-client", () => import("@/tests/mocks/socket-io-client.js"));
+ *   vi.mock("socket.io-client", () => import("@/tests/mocks/socket-io-client"));
  */
 
 import { vi } from "vitest";

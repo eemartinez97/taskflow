@@ -1,1 +1,1 @@
-export { parseCookieToken } from "./cookies.js";
+export { parseCookieToken } from "./cookies";

@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-vi.mock("@/lib/trpc/client", () => import("@/tests/mocks/trpc-api.js"));
-vi.mock("@taskflow/ui", () => import("@/tests/mocks/taskflow-ui.js"));
+vi.mock("@/lib/trpc/client", () => import("@/tests/mocks/trpc-api"));
+vi.mock("@taskflow/ui", () => import("@/tests/mocks/taskflow-ui"));
 
 import { CreateProjectDialog } from "@/app/(dashboard)/projects/_components/create-project-dialog";
 import { setupMutationMock, VALID_ORG_ID } from "@/tests/helpers";
-import { api } from "@/tests/mocks/trpc-api.js";
+import { api } from "@/tests/mocks/trpc-api";
 
 // -- Fixtures --
 

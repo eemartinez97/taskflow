@@ -1,14 +1,15 @@
 import type { NextFunction, Request, Response } from "express";
-import type { Prisma, PrismaClient } from "@taskflow/database";
-import type { SessionUser } from "@taskflow/shared";
 import EventEmitter from "node:events";
 import { Registry } from "prom-client";
 import { vi } from "vitest";
 
-import { type AppCollectors, createCollectors } from "../src/metrics/index.js";
-import { mockDb, validateSessionToken } from "./mocks/database-mock.js";
-import type { TRPCContext } from "../src/trpc/init.js";
-import { mockLogger } from "./mocks/logger.js";
+import type { Prisma, PrismaClient } from "@taskflow/database";
+import type { SessionUser } from "@taskflow/shared";
+
+import { type AppCollectors, createCollectors } from "../src/metrics";
+import { mockDb, validateSessionToken } from "./mocks/database-mock";
+import type { TRPCContext } from "../src/trpc/init";
+import { mockLogger } from "./mocks/logger";
 
 // Id fixtures
 
@@ -119,7 +120,7 @@ export function getNextError(
  *   mockDb.session.findUnique.mockResolvedValueOnce(...)
  *
  * For passing to functions that expect a real PrismaClient:
- *   import { db } from "../../helpers.js"
+ *   import { db } from "../../helpers
  *   import { validateSessionToken } from './mocks/database-mock';
  *   await validateSessionToken(db, token)
  */

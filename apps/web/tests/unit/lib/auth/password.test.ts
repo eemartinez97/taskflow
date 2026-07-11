@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock bcrypt before importing the module under
-vi.mock("bcrypt", () => import("@/tests/mocks/bcrypt.js"));
+vi.mock("bcrypt", () => import("@/tests/mocks/bcrypt"));
 
-import { hashPassword, verifyPassword } from "@/lib/auth/password.js";
+import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { HASH_PASSWORD, HASHED_PASSWORD } from "@/tests/helpers";
-import bcrypt from "@/tests/mocks/bcrypt.js";
+import bcrypt from "@/tests/mocks/bcrypt";
 
 describe("hashPassword", () => {
   beforeEach(() => vi.clearAllMocks());

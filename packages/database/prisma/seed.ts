@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-import { PrismaClient } from "../src/index.js";
+import { PrismaClient } from "../src";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 // dotenv 17 - pass quiet:true to suppress the startup log line

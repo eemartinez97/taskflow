@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 
-vi.mock("socket.io-client", () => import("@/tests/mocks/socket-io-client.js"));
-vi.mock("@/lib/trpc/client", () => import("@/tests/mocks/trpc-api.js"));
+vi.mock("socket.io-client", () => import("@/tests/mocks/socket-io-client"));
+vi.mock("@/lib/trpc/client", () => import("@/tests/mocks/trpc-api"));
 
 import { SOCKET_EVENTS, type SocketTask } from "@taskflow/shared";
 
@@ -23,9 +23,9 @@ import {
   getHandlerStore,
   mockSocket,
   io,
-} from "@/tests/mocks/socket-io-client.js";
+} from "@/tests/mocks/socket-io-client";
 import { useBoardRealtime } from "@/lib/hooks/use-board-realtime";
-import { api } from "@/tests/mocks/trpc-api.js";
+import { api } from "@/tests/mocks/trpc-api";
 
 // -- Fixtures --
 

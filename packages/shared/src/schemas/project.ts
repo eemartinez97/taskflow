@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { idSchema, slugSchema } from "./common.js";
+import { idSchema, slugSchema } from "./common";
 
 const projectKeySchema = z
   .string()

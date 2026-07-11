@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { colorSchema, idSchema, paginationSchema, slugSchema } from "../../src";
-import { VALID_UUID } from "./fixtures.js";
+
+import {
+  colorSchema,
+  HEX_COLOR_REGEX,
+  idSchema,
+  paginationSchema,
+  slugSchema,
+} from "@taskflow/shared";
+import { VALID_UUID, expectSchema } from "./fixtures";
 
 describe("idSchema", () => {
   it("accepts a valid UUID", () => {

@@ -1,10 +1,11 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { createApp } from "../../../src/app.js";
 import request from "supertest";
-import { type ErrorBody } from "../../helpers.js";
-import { mockIo } from "../../mocks/socket.js";
 
-vi.mock("../../../src/config/env.js");
+import { type ErrorBody } from "../../helpers";
+import { createApp } from "../../../src/app";
+import { mockIo } from "../../mocks/socket";
+
+vi.mock("../../../src/config/env");
 
 describe("tRPC HTTP adapter (Express)", () => {
   let app: ReturnType<typeof createApp>;

@@ -14,7 +14,7 @@
  *   type MembershipWithUser = Prisma.MembershipGetPayload<typeof membershipWithUser>
  */
 
-import { Prisma } from "./generated/index.js";
+import { Prisma } from "./generated";
 
 // User fragments
 

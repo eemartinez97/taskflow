@@ -14,9 +14,9 @@ import {
   inviteMember,
   removeMember,
   updateOrg,
-} from "./repo.js";
+} from "./repo";
 import type { CreateOrg, InviteMember, UpdateOrg } from "@taskflow/shared";
-import { TRPCError } from "../../trpc/init.js";
+import { TRPCError } from "../../trpc/init";
 
 export async function listOrgs(db: PrismaClient, userId: string): Promise<OrgWithMembership[]> {
   return findOrgsByUser(db, userId);

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { Server } from "socket.io";
 import { createTaskSchema, idSchema, moveTaskSchema, updateTaskSchema } from "@taskflow/shared";
-import { createTRPCRouter, protectedProcedure, roleGuard } from "../../trpc/procedures.js";
+import { createTRPCRouter, protectedProcedure, roleGuard } from "../../trpc/procedures";
 import {
   createTaskInColumn,
   deleteTaskById,
@@ -9,7 +9,7 @@ import {
   listTasks,
   moveTaskToColumn,
   updateTaskById,
-} from "./service.js";
+} from "./service";
 
 const memberProcedure = protectedProcedure.use(roleGuard(["OWNER", "ADMIN", "MEMBER"]));
 

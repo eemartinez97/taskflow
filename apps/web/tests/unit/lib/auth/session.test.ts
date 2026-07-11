@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth/server-session", () => ({ getServerSessionFromHeaders: vi.fn() }));
-vi.mock("next/navigation", () => import("@/tests/mocks/next-navigation.js"));
+vi.mock("next/navigation", () => import("@/tests/mocks/next-navigation"));
 vi.mock("next/headers", () => ({ headers: vi.fn() }));
 vi.mock("server-only");
 
 import { headers } from "next/headers";
 
 import { getServerSessionFromHeaders } from "@/lib/auth/server-session";
-import { getSession, requireSession } from "@/lib/auth/session.js";
+import { getSession, requireSession } from "@/lib/auth/session";
 import { makeHeaders, makeSessionHeaders, mockServerSessionUser } from "@/tests/helpers";
 import { redirect } from "@/tests/mocks/next-navigation";
 

@@ -1,16 +1,16 @@
 import * as trpcExpress from "@trpc/server/adapters/express";
-import { corsMiddleware } from "./middleware/cors.js";
-import { helmetMiddleware } from "./middleware/helmet.js";
+import { corsMiddleware } from "./middleware/cors";
+import { helmetMiddleware } from "./middleware/helmet";
 import express, { type Express } from "express";
 import cookieParser from "cookie-parser";
 import { pinoHttp } from "pino-http";
-import { logger } from "./config/logger.js";
-import { defaultRateLimiter } from "./middleware/rate-limit.js";
-import { errorHandler } from "./middleware/error-handler.js";
-import { createAppRouter } from "./trpc/router.js";
-import { createTRPCContext, TRPCError } from "./trpc/init.js";
+import { logger } from "./config/logger";
+import { defaultRateLimiter } from "./middleware/rate-limit";
+import { errorHandler } from "./middleware/error-handler";
+import { createAppRouter } from "./trpc/router";
+import { createTRPCContext, TRPCError } from "./trpc/init";
 import { type Server } from "socket.io";
-import { appCollectors, appRegistry, createMetricsMiddleware } from "./metrics/index.js";
+import { appCollectors, appRegistry, createMetricsMiddleware } from "./metrics";
 
 export function isHealthCheckUrl(url: string | undefined): boolean {
   return url === "/healthz" || url === "/readyz";

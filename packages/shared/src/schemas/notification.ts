@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { NOTIFICATION_TYPES } from "../constants/index.js";
-import { userSchema } from "./user.js";
-import { idSchema } from "./common.js";
+import { NOTIFICATION_TYPES } from "../constants";
+import { userSchema } from "./user";
+import { idSchema } from "./common";
 
 export const notificationTypeSchema = z.enum(NOTIFICATION_TYPES);
 

@@ -21,10 +21,10 @@ process.env.API_PORT = "8001";
 process.env.API_LOG_LEVEL = "silent";
 
 import { vi } from "vitest";
-import { mockLogger } from "./mocks/logger.js";
+import { mockLogger } from "./mocks/logger";
 
 // Global mocks
 
-vi.mock("../src/config/logger.js", () => ({ logger: mockLogger }));
+vi.mock("../src/config/logger", () => ({ logger: mockLogger }));
 
-vi.mock("pino-http", () => import("./mocks/http.js"));
+vi.mock("pino-http", () => import("./mocks/http"));

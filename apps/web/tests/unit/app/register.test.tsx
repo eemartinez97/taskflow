@@ -1,10 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
 
-vi.mock("next/navigation", () => import("@/tests/mocks/next-navigation.js"));
-vi.mock("@taskflow/ui", () => import("@/tests/mocks/taskflow-ui.js"));
-vi.mock("next/link", () => import("@/tests/mocks/next-link.js"));
+vi.mock("next/navigation", () => import("@/tests/mocks/next-navigation"));
+vi.mock("@taskflow/ui", () => import("@/tests/mocks/taskflow-ui"));
+vi.mock("next/link", () => import("@/tests/mocks/next-link"));
 
 import {
   type FetchSpy,
@@ -14,7 +14,7 @@ import {
   setupRouterMock,
   teardownFetchSpy,
   validRegisterPayload,
-} from "@/tests/helpers.js";
+} from "@/tests/helpers";
 import RegisterPage from "@/app/(auth)/register/page";
 
 // -- Fixtures --

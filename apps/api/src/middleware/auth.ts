@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
-import { createError } from "./error-handler.js";
+import { createError } from "./error-handler";
 import { prisma, validateSessionToken } from "@taskflow/database";
-import { type SessionUser } from "../trpc/init.js";
+import { type SessionUser } from "../trpc/init";
 import { parseCookieToken } from "@taskflow/shared";
 
 /**

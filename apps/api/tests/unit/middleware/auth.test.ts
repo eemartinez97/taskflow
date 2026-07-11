@@ -1,8 +1,7 @@
 import { vi, describe, it, expect, beforeEach } from "vitest";
 
-vi.mock("../../../src/config/env.js");
+vi.mock("../../../src/config/env");
 
-import { validateSession } from "../../../src/middleware/auth.js";
 import {
   getNextError,
   makeMockNext,
@@ -11,7 +10,8 @@ import {
   validateSessionToken,
   VALID_USER,
   makeSessionUser,
-} from "../../helpers.js";
+} from "../../helpers";
+import { validateSession } from "../../../src/middleware/auth";
 
 /**
  * Builds a request with a Cookie header containing the given token.

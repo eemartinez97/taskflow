@@ -1,7 +1,7 @@
 import type { PrismaClient, Task } from "@taskflow/database";
 import type { CreateTask, MoveTask, UpdateTask } from "@taskflow/shared";
 import { POSITION_STEP } from "@taskflow/shared";
-import { stripUndefined } from "../../utils/prisma.js";
+import { stripUndefined } from "../../utils/prisma";
 
 export async function findTasksByColumn(db: PrismaClient, columnId: string): Promise<Task[]> {
   return db.task.findMany({

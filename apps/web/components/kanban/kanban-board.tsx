@@ -70,7 +70,7 @@ export function KanbanBoard({
 
   /** Finds the active task from localTasks for DragOverlay rendering */
   function findActiveTask(): Task | null {
-    // TODO: al parecer esta logica se repite
+    // TODO: Apparently, this logic is repeated.
     if (!activeTaskId) return null;
     for (const tasks of Object.values(localTasks)) {
       const found = tasks.find((t) => t.id === activeTaskId);

@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-vi.mock("@dnd-kit/utilities", () => import("@/tests/mocks/dnd-kit-utilities.js"));
-vi.mock("socket.io-client", () => import("@/tests/mocks/socket-io-client.js"));
-vi.mock("@/lib/trpc/client", () => import("@/tests/mocks/trpc-api.js"));
-vi.mock("@dnd-kit/sortable", () => import("@/tests/mocks/dnd-kit.js"));
-vi.mock("@taskflow/ui", () => import("@/tests/mocks/taskflow-ui.js"));
-vi.mock("@dnd-kit/core", () => import("@/tests/mocks/dnd-kit.js"));
+vi.mock("@dnd-kit/utilities", () => import("@/tests/mocks/dnd-kit-utilities"));
+vi.mock("socket.io-client", () => import("@/tests/mocks/socket-io-client"));
+vi.mock("@/lib/trpc/client", () => import("@/tests/mocks/trpc-api"));
+vi.mock("@dnd-kit/sortable", () => import("@/tests/mocks/dnd-kit"));
+vi.mock("@taskflow/ui", () => import("@/tests/mocks/taskflow-ui"));
+vi.mock("@dnd-kit/core", () => import("@/tests/mocks/dnd-kit"));
 
 import { SOCKET_EVENTS } from "@taskflow/shared";
 
@@ -24,13 +24,9 @@ import {
   makeColumn,
   makeTask,
 } from "@/tests/helpers";
-import {
-  mockSocket,
-  resetHandlerStore,
-  triggerSocketEvent,
-} from "@/tests/mocks/socket-io-client.js";
+import { mockSocket, resetHandlerStore, triggerSocketEvent } from "@/tests/mocks/socket-io-client";
 import { BoardPageClient } from "@/app/(dashboard)/projects/[id]/board";
-import { api } from "@/tests/mocks/trpc-api.js";
+import { api } from "@/tests/mocks/trpc-api";
 
 // -- Fixtures --
 

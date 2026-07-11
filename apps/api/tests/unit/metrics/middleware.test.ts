@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createMetricsMiddleware, normalizeRoute } from "../../../src/metrics/index.js";
+
 import {
   type TestCollectors,
   makeMockNext,
   makeMockReq,
   makeMockResEE,
   makeTestCollectors,
-} from "../../helpers.js";
+} from "../../helpers";
+import { createMetricsMiddleware, normalizeRoute } from "../../../src/metrics";
 
 describe("normalizeRoute", () => {
   it("returns req.route.path when the Express route was matched", () => {

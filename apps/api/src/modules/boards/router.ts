@@ -5,7 +5,7 @@ import {
   reorderColumnsSchema,
   updateBoardSchema,
 } from "@taskflow/shared";
-import { createTRPCRouter, protectedProcedure, roleGuard } from "../../trpc/procedures.js";
+import { createTRPCRouter, protectedProcedure, roleGuard } from "../../trpc/procedures";
 import {
   addColumn,
   createBoardInProject,
@@ -13,7 +13,7 @@ import {
   listBoards,
   reorderBoardColumn,
   updateBoardById,
-} from "./service.js";
+} from "./service";
 
 const memberProcedure = protectedProcedure.use(roleGuard(["OWNER", "ADMIN", "MEMBER"]));
 

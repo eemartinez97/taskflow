@@ -6,8 +6,8 @@
  * in jsdom without requiring pointer events or a real drag context.
  *
  * Activate per test file:
- *   vi.mock("@dnd-kit/core",     () => import("@/tests/mocks/dnd-kit.js"));
- *   vi.mock("@dnd-kit/sortable", () => import("@/tests/mocks/dnd-kit.js"));
+ *   vi.mock("@dnd-kit/core",     () => import("@/tests/mocks/dnd-kit"));
+ *   vi.mock("@dnd-kit/sortable", () => import("@/tests/mocks/dnd-kit"));
  */
 
 import type { JSX } from "react";

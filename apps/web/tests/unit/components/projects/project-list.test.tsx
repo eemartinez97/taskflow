@@ -3,9 +3,9 @@ import { render, screen } from "@testing-library/react";
 import { act, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-vi.mock("@/lib/trpc/client", () => import("@/tests/mocks/trpc-api.js"));
-vi.mock("@taskflow/ui", () => import("@/tests/mocks/taskflow-ui.js"));
-vi.mock("next/link", () => import("@/tests/mocks/next-link.js"));
+vi.mock("@/lib/trpc/client", () => import("@/tests/mocks/trpc-api"));
+vi.mock("@taskflow/ui", () => import("@/tests/mocks/taskflow-ui"));
+vi.mock("next/link", () => import("@/tests/mocks/next-link"));
 
 import { makeMockQueryResult, setupMutationMock } from "@/tests/helpers";
 import { ProjectList } from "@/app/(dashboard)/projects/_components/project-list";

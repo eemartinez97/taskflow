@@ -4,8 +4,8 @@ import superjson from "superjson";
 
 import { prisma, type PrismaClient } from "@taskflow/database";
 import { type Role } from "@taskflow/shared";
-import { isProduction } from "../config/env.js";
-import { type Logger, logger } from "../config/logger.js";
+import { isProduction } from "../config/env";
+import { type Logger, logger } from "../config/logger";
 
 // Context
 

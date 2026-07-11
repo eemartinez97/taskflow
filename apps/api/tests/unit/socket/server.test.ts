@@ -1,20 +1,21 @@
 import { beforeEach, describe, expect, vi, it, afterEach } from "vitest";
 
-vi.mock("../../../src/config/env.js");
-vi.mock("socket.io", () => import("../../mocks/socket-io-module.js"));
+vi.mock("socket.io", () => import("../../mocks/socket-io-module"));
+vi.mock("../../../src/config/env");
+
+import type { Server as HttpServer } from "node:http";
 
 import { HEX_COLOR_REGEX, SOCKET_EVENTS, SOCKET_ROOM_PREFIX } from "@taskflow/shared";
-import type { Server as HttpServer } from "node:http";
 
 import {
   authenticateSocket,
   createSocketServer,
   getConnectedCount,
-} from "../../../src/socket/server.js";
-import { validateSessionToken, makeMockNext, VALID_USER, makeSessionUser } from "../../helpers.js";
-import { getMockIoInstance, Server } from "../../mocks/socket-io-module.js";
-import { makeIoMock, makeSocketMock } from "../../mocks/socket.js";
-import { appCollectors } from "../../../src/metrics/index.js";
+} from "../../../src/socket/server";
+import { validateSessionToken, makeMockNext, VALID_USER, makeSessionUser } from "../../helpers";
+import { getMockIoInstance, Server } from "../../mocks/socket-io-module";
+import { makeIoMock, makeSocketMock } from "../../mocks/socket";
+import { appCollectors } from "../../../src/metrics";
 
 const fakeHttpServer = {} as HttpServer;
 

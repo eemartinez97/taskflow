@@ -3,7 +3,7 @@
  * that call useSession() or signIn() / signOut().
  *
  * Activate per test file:
- *   vi.mock("next-auth/react", () => import("../mocks/next-auth.js"));
+ *   vi.mock("next-auth/react", () => import("../mocks/next-auth"));
  *
  * Override per test:
  *   vi.mocked(useSession).mockReturnValue({ data: mockSession, status: "authenticated" })

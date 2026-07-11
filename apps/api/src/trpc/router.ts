@@ -1,17 +1,17 @@
 import { type Server } from "socket.io";
-import { authRouter } from "../modules/auth/router.js";
-import { boardsRouter } from "../modules/boards/router.js";
-import { labelsRouter } from "../modules/labels/router.js";
-import { notificationsRouter } from "../modules/notifications/router.js";
-import { orgsRouter } from "../modules/orgs/router.js";
-import { projectsRouter } from "../modules/projects/router.js";
-import { createTasksRouter } from "../modules/tasks/router.js";
-import { createTRPCRouter } from "./init.js";
-import { createCommentsRouter } from "../modules/comments/router.js";
+import { authRouter } from "../modules/auth/router";
+import { boardsRouter } from "../modules/boards/router";
+import { labelsRouter } from "../modules/labels/router";
+import { notificationsRouter } from "../modules/notifications/router";
+import { orgsRouter } from "../modules/orgs/router";
+import { projectsRouter } from "../modules/projects/router";
+import { createTasksRouter } from "../modules/tasks/router";
+import { createTRPCRouter } from "./init";
+import { createCommentsRouter } from "../modules/comments/router";
 
 // Re-export for consumers (apps/web imports these via @taskflow/api/trpc)
-export { createCallerFactory } from "./init.js";
-export type { TRPCContext } from "./init.js";
+export { createCallerFactory } from "./init";
+export type { TRPCContext } from "./init";
 
 /**
  * Private builder — captures the full inferred AppRouter type.

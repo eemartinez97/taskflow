@@ -7,8 +7,8 @@ import {
   reorderColumnsSchema,
   updateBoardSchema,
   updateColumnSchema,
-} from "../../src";
-import { VALID_UUID, validBoardPayload, validColumnPayload } from "./fixtures.js";
+} from "@taskflow/shared";
+import { expectSchema, VALID_UUID, validBoardPayload, validColumnPayload } from "./fixtures";
 
 describe("boardSchema", () => {
   it("parses a valid board", () => {

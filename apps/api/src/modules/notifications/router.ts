@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { createTRPCRouter } from "../../trpc/init.js";
-import { protectedProcedure } from "../../trpc/procedures.js";
-import { deleteNotificationById, listNotifications, markAllRead, markReadById } from "./service.js";
+import { createTRPCRouter } from "../../trpc/init";
+import { protectedProcedure } from "../../trpc/procedures";
+import { deleteNotificationById, listNotifications, markAllRead, markReadById } from "./service";
 import { idSchema } from "@taskflow/shared";
 
 export const notificationsRouter = createTRPCRouter({

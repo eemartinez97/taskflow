@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { stripUndefined } from "../../../src/utils/prisma.js";
+
+import { stripUndefined } from "../../../src/utils/prisma";
 
 describe("stripUndefined", () => {
   it("keeps all defined values unchanged", () => {

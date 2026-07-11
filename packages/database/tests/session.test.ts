@@ -1,4 +1,4 @@
-import type { PrismaClient } from "../src/generated/index.js";
+import type { PrismaClient } from "../src/generated";
 import { assert, beforeEach, describe, expect, it, vi } from "vitest";
 import { validateSessionToken } from "@taskflow/database";
 

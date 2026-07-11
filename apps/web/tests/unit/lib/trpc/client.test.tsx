@@ -4,8 +4,8 @@ import type * as TRPCReactQuery from "@trpc/react-query";
 import { render, screen } from "@testing-library/react";
 import type { JSX } from "react";
 
-vi.mock("@taskflow/api/trpc", () => import("@/tests/mocks/taskflow-api.js"));
-vi.mock("pino", () => import("@/tests/mocks/pino.js"));
+vi.mock("@taskflow/api/trpc", () => import("@/tests/mocks/taskflow-api"));
+vi.mock("pino", () => import("@/tests/mocks/pino"));
 vi.mock("@/lib/auth/server-session", () => ({
   getServerSessionFromHeaders: vi.fn().mockResolvedValue(null),
 }));

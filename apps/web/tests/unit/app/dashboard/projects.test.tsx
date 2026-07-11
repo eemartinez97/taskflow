@@ -7,16 +7,16 @@ vi.mock("@/lib/trpc/server", () => ({
   TRPCHydrationBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 vi.mock("@/lib/auth/session", () => ({ requireSession: vi.fn().mockResolvedValue({ id: "u1" }) }));
-vi.mock("next/navigation", () => import("@/tests/mocks/next-navigation.js"));
-vi.mock("@/lib/trpc/client", () => import("@/tests/mocks/trpc-api.js"));
-vi.mock("next-auth/react", () => import("@/tests/mocks/next-auth.js"));
-vi.mock("@taskflow/ui", () => import("@/tests/mocks/taskflow-ui.js"));
-vi.mock("next/link", () => import("@/tests/mocks/next-link.js"));
+vi.mock("next/navigation", () => import("@/tests/mocks/next-navigation"));
+vi.mock("@/lib/trpc/client", () => import("@/tests/mocks/trpc-api"));
+vi.mock("next-auth/react", () => import("@/tests/mocks/next-auth"));
+vi.mock("@taskflow/ui", () => import("@/tests/mocks/taskflow-ui"));
+vi.mock("next/link", () => import("@/tests/mocks/next-link"));
 
 import ProjectsPage from "@/app/(dashboard)/projects/page";
 import { buildServerTRPCMock, makeMockQueryResult, makeOrg, makeProject } from "@/tests/helpers";
 import { getServerTRPC } from "@/lib/trpc/server";
-import { api } from "@/tests/mocks/trpc-api.js";
+import { api } from "@/tests/mocks/trpc-api";
 
 const mockOrg = makeOrg();
 const mockProject = makeProject();

@@ -2,10 +2,10 @@
  * Manual mock for the "socket.io" module.
  *
  * Activated in test via:
- *  vi.mock("socket.io", () => import("../mocks/socket-io-module.js"));
+ *  vi.mock("socket.io", () => import("../mocks/socket-io-module));
  *
  * HOW to access the captured handlers in tests:
- *  import { getMockIoInstance } from "../mocks/socket-io-module.js"
+ *  import { getMockIoInstance } from "../mocks/socket-io-module
  *  const inst = getMockIoInstance();
  *  inst._useHandlers[0]?.(socket, next)
  */

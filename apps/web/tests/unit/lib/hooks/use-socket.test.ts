@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 
-vi.mock("socket.io-client", () => import("@/tests/mocks/socket-io-client.js"));
+vi.mock("socket.io-client", () => import("@/tests/mocks/socket-io-client"));
 
-import { mockSocket, resetHandlerStore } from "@/tests/mocks/socket-io-client.js";
+import { mockSocket, resetHandlerStore } from "@/tests/mocks/socket-io-client";
 import { useSocket } from "@/lib/hooks/use-socket";
 
 beforeEach(() => {

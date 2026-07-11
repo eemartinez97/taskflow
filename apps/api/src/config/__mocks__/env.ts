@@ -1,8 +1,8 @@
 import { vi } from "vitest";
-import { type Env } from "../env.js";
+import { type Env } from "../env";
 
 // Single source of truth for env mock values across ALL test files.
-// Vitest picks this up automatically when vi.mock("...config/env.js")
+// Vitest picks this up automatically when vi.mock("...config/env)
 // is called without a factory function.
 
 export const env: Env = {

@@ -4,7 +4,7 @@
  * Next.js router context.
  *
  * Activate per test file:
- *   vi.mock("next/link", () => import("../mocks/next-link.js"))
+ *   vi.mock("next/link", () => import("../mocks/next-link))
  */
 
 import type { JSX } from "react";

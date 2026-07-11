@@ -1,8 +1,8 @@
 import type { PrismaClient } from "@taskflow/database";
 import type { SessionUser } from "@taskflow/shared";
 
-import { deleteUserSessions, findUserById } from "./repo.js";
-import { TRPCError } from "../../trpc/init.js";
+import { deleteUserSessions, findUserById } from "./repo";
+import { TRPCError } from "../../trpc/init";
 
 export async function getMe(db: PrismaClient, userId: string): Promise<SessionUser> {
   const user = await findUserById(db, userId);

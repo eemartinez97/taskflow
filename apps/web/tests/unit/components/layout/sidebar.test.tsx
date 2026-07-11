@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-vi.mock("next/navigation", () => import("@/tests/mocks/next-navigation.js"));
-vi.mock("next/link", () => import("@/tests/mocks/next-link.js"));
+vi.mock("next/navigation", () => import("@/tests/mocks/next-navigation"));
+vi.mock("next/link", () => import("@/tests/mocks/next-link"));
 
 import { usePathname } from "@/tests/mocks/next-navigation";
 import { Sidebar } from "@/components/layout/sidebar";

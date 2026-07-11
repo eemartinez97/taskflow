@@ -1,6 +1,6 @@
 import type { Label, PrismaClient } from "@taskflow/database";
 import { type CreateLabel } from "@taskflow/shared";
-import { createLabel, deleteLabel, findLabelsByOrg } from "./repo.js";
+import { createLabel, deleteLabel, findLabelsByOrg } from "./repo";
 
 export async function listLabels(db: PrismaClient, orgId: string): Promise<Label[]> {
   return findLabelsByOrg(db, orgId);

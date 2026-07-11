@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure, roleGuard } from "../../trpc/procedures.js";
+import { createTRPCRouter, protectedProcedure, roleGuard } from "../../trpc/procedures";
 import { createLabelSchema, idSchema } from "@taskflow/shared";
-import { createLabelInOrg, deleteLabelById, listLabels } from "./service.js";
+import { createLabelInOrg, deleteLabelById, listLabels } from "./service";
 
 const memberProcedure = protectedProcedure.use(roleGuard(["OWNER", "ADMIN", "MEMBER"]));
 const adminProcedure = protectedProcedure.use(roleGuard(["OWNER", "ADMIN"]));

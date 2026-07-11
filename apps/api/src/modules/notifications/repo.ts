@@ -1,7 +1,7 @@
 import { notificationWithActor } from "@taskflow/database";
 import { type CreateNotification } from "@taskflow/shared";
 import type { Notification, NotificationWithActor, PrismaClient } from "@taskflow/database";
-import { stripUndefined } from "../../utils/prisma.js";
+import { stripUndefined } from "../../utils/prisma";
 
 export async function findNotificationsForUser(
   db: PrismaClient,

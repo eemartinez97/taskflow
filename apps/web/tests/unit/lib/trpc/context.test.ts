@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth/server-session", () => ({ getServerSessionFromHeaders: vi.fn() }));
-vi.mock("@taskflow/database", () => import("@/tests/mocks/taskflow-database.js"));
-vi.mock("pino", () => import("@/tests/mocks/pino.js"));
+vi.mock("@taskflow/database", () => import("@/tests/mocks/taskflow-database"));
+vi.mock("pino", () => import("@/tests/mocks/pino"));
 
 import { createWebTRPCContext } from "@/lib/trpc/context";
 import { makeHeaders, makeSessionHeaders, mockServerSessionUser } from "@/tests/helpers";

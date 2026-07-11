@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@taskflow/database", () => import("@/tests/mocks/taskflow-database.js"));
+vi.mock("@taskflow/database", () => import("@/tests/mocks/taskflow-database"));
 
 import { makeHeaders, makeSessionHeaders, mockServerSessionUser } from "@/tests/helpers";
-import { validateSessionToken } from "@/tests/mocks/taskflow-database.js";
+import { validateSessionToken } from "@/tests/mocks/taskflow-database";
 import { getServerSessionFromHeaders } from "@/lib/auth/server-session";
 
 describe("getServerSessionFromHeaders", () => {

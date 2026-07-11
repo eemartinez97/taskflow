@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("bcrypt", () => import("@/tests/mocks/bcrypt.js"));
 vi.mock("@taskflow/database", () => import("@/tests/mocks/taskflow-database"));
+vi.mock("bcrypt", () => import("@/tests/mocks/bcrypt"));
 
 import {
   mockDbUser,
@@ -14,9 +14,9 @@ import {
   makeJsonThrowRequest,
   validRegisterPayload,
 } from "@/tests/helpers";
-import { POST } from "@/app/api/auth/register/route.js";
 import { webMockDb } from "@/tests/mocks/taskflow-database";
-import bcrypt from "@/tests/mocks/bcrypt.js";
+import { POST } from "@/app/api/auth/register/route";
+import bcrypt from "@/tests/mocks/bcrypt";
 
 // Typed success response fixture - used as the default mock return value
 const successResponse = mockFetchResponse(

@@ -6,13 +6,13 @@ vi.mock("@/lib/trpc/server", () => ({
   getQueryClient: vi.fn(),
   TRPCHydrationBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
-vi.mock("@dnd-kit/utilities", () => import("@/tests/mocks/dnd-kit-utilities.js"));
-vi.mock("next/navigation", () => import("@/tests/mocks/next-navigation.js"));
-vi.mock("@/lib/trpc/client", () => import("@/tests/mocks/trpc-api.js"));
-vi.mock("@dnd-kit/sortable", () => import("@/tests/mocks/dnd-kit.js"));
-vi.mock("@taskflow/ui", () => import("@/tests/mocks/taskflow-ui.js"));
+vi.mock("@dnd-kit/utilities", () => import("@/tests/mocks/dnd-kit-utilities"));
+vi.mock("next/navigation", () => import("@/tests/mocks/next-navigation"));
+vi.mock("@/lib/trpc/client", () => import("@/tests/mocks/trpc-api"));
+vi.mock("@dnd-kit/sortable", () => import("@/tests/mocks/dnd-kit"));
+vi.mock("@taskflow/ui", () => import("@/tests/mocks/taskflow-ui"));
 vi.mock("@/lib/auth/session", () => ({ requireSession: vi.fn() }));
-vi.mock("@dnd-kit/core", () => import("@/tests/mocks/dnd-kit.js"));
+vi.mock("@dnd-kit/core", () => import("@/tests/mocks/dnd-kit"));
 
 import {
   type ServerTRPCMock,
@@ -29,7 +29,7 @@ import ProjectBoardPage, { generateMetadata } from "@/app/(dashboard)/projects/[
 import { notFound } from "@/tests/mocks/next-navigation";
 import { requireSession } from "@/lib/auth/session";
 import { getServerTRPC } from "@/lib/trpc/server";
-import { api } from "@/tests/mocks/trpc-api.js";
+import { api } from "@/tests/mocks/trpc-api";
 
 // -- Fixtures --
 

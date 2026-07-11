@@ -6,8 +6,8 @@ import {
   notificationActorSchema,
   notificationSchema,
   notificationTypeSchema,
-} from "../../src";
-import { ANOTHER_UUID, VALID_UUID, validNotification } from "./fixtures";
+} from "@taskflow/shared";
+import { ANOTHER_UUID, expectSchema, VALID_UUID, validNotification } from "./fixtures";
 
 describe("notificationTypeSchema", () => {
   it("is derived from the NOTIFICATION_TYPES constant (single source of truth)", () => {

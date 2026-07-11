@@ -1,5 +1,6 @@
 import { expect, it, describe } from "vitest";
-import { METRIC_NAMES, METRICS_PREFIX } from "../../../src/metrics/constants.js";
+
+import { METRIC_NAMES, METRICS_PREFIX } from "../../../src/metrics/constants";
 
 describe("METRICS_PREFIX", () => {
   it("is 'taskflow_'", () => {
@@ -61,7 +62,7 @@ describe("METRIC_NAMES", () => {
 describe("collectors.ts uses METRIC_NAMES (integration guard)", () => {
   it("registered metric names in collectors match METRIC_NAMES exactly", async () => {
     const { Registry } = await import("prom-client");
-    const { createCollectors } = await import("../../../src/metrics/collectors.js");
+    const { createCollectors } = await import("../../../src/metrics/collectors");
 
     const registry = new Registry();
     createCollectors(registry);

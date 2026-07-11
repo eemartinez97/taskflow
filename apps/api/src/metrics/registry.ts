@@ -1,5 +1,5 @@
 import { Registry, collectDefaultMetrics } from "prom-client";
-import { METRICS_PREFIX } from "./constants.js";
+import { METRICS_PREFIX } from "./constants";
 
 /**
  * Application-wide Prometheus registry

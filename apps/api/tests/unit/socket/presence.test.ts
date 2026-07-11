@@ -1,13 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { HEX_COLOR_REGEX, SOCKET_EVENTS, SOCKET_ROOM_PREFIX } from "@taskflow/shared";
+
 import {
   createPresenceHelpers,
   registerPresenceHandlers,
   resolveColor,
-} from "../../../src/socket/presence.js";
-import { HEX_COLOR_REGEX, SOCKET_EVENTS, SOCKET_ROOM_PREFIX } from "@taskflow/shared";
-import { makeSocketMock, mockAppServer, mockTo } from "../../mocks/socket.js";
-import { mockEmit } from "../../mocks/socket.js";
-import { VALID_USER } from "../../helpers.js";
+} from "../../../src/socket/presence";
+
+import { makeSocketMock, mockAppServer, mockTo } from "../../mocks/socket";
+import { mockEmit } from "../../mocks/socket";
+import { VALID_USER } from "../../helpers";
 
 const MOCK_CURSOR_PAYLOAD = { userId: VALID_USER.id, x: 100, y: 200 };
 

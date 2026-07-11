@@ -11,8 +11,8 @@ import type {
   presenceCursorSchema,
   presenceUserSchema,
   taskSchema,
-} from "../schemas/index.js";
-import type { SOCKET_EVENTS } from "../constants/index.js";
+} from "../schemas";
+import type { SOCKET_EVENTS } from "../constants";
 
 export type SocketTask = z.infer<typeof taskSchema>;
 export type SocketComment = z.infer<typeof commentSchema>;

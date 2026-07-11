@@ -1,11 +1,12 @@
 import { describe, expect, vi, it, afterEach } from "vitest";
 
-vi.mock("../../../src/config/env.js");
+vi.mock("../../../src/config/env");
 
 import type { Response } from "express";
-import { type AppError, createError, errorHandler } from "../../../src/middleware/error-handler.js";
-import { type ErrorBody, makeMockNext, makeMockReq } from "../../helpers.js";
-import { isProduction } from "../../../src/config/env.js";
+
+import { type AppError, createError, errorHandler } from "../../../src/middleware/error-handler";
+import { type ErrorBody, makeMockNext, makeMockReq } from "../../helpers";
+import { isProduction } from "../../../src/config/env";
 
 function call(err: AppError | Error): { status: number; body: ErrorBody } {
   const jsonMock = vi.fn();

@@ -6,7 +6,7 @@
  * so tests remain fast and don't pollute stdout.
  *
  * Active per test file:
- *   vi.mock("pino", () => import("@/tests/mocks/pino.js"));
+ *   vi.mock("pino", () => import("@/tests/mocks/pino"));
  */
 import type { Logger } from "pino";
 import { vi } from "vitest";

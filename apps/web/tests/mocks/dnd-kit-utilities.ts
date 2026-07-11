@@ -5,7 +5,7 @@
  *   vi.mock("@dnd-kit/utilities", () => ({ CSS: { Transform: { toString: vi.fn(() => "") } } }))
  *
  * Activate per test file:
- *   vi.mock("@dnd-kit/utilities", () => import("@/tests/mocks/dnd-kit-utilities.js"));
+ *   vi.mock("@dnd-kit/utilities", () => import("@/tests/mocks/dnd-kit-utilities"));
  */
 
 import { vi } from "vitest";

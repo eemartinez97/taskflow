@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("socket.io-client", () => import("@/tests/mocks/socket-io-client.js"));
+vi.mock("socket.io-client", () => import("@/tests/mocks/socket-io-client"));
 
-import { io } from "@/tests/mocks/socket-io-client.js";
+import { io } from "@/tests/mocks/socket-io-client";
 import { createSocket } from "@/lib/socket/client";
 
 afterEach(() => vi.unstubAllGlobals());

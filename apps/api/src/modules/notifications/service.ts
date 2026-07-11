@@ -12,8 +12,8 @@ import {
   findNotificationsForUser,
   markAllNotificationsAsRead,
   markNotificationsAsRead,
-} from "./repo.js";
-import { TRPCError } from "../../trpc/init.js";
+} from "./repo";
+import { TRPCError } from "../../trpc/init";
 
 /**
  * Shared options for task-related notification helpers.

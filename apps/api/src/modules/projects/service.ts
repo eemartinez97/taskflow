@@ -6,8 +6,8 @@ import {
   findProjectById,
   findProjectsByOrg,
   updateProject,
-} from "./repo.js";
-import { TRPCError } from "../../trpc/init.js";
+} from "./repo";
+import { TRPCError } from "../../trpc/init";
 
 export async function listProjects(db: PrismaClient, orgId: string): Promise<Project[]> {
   return findProjectsByOrg(db, orgId);

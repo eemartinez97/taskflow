@@ -1,5 +1,5 @@
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "./generated/index.js";
+import { PrismaClient } from "./generated";
 
 // PrismaClient singleton - prevents exhausting DB connections in dev (Next.js HMR)
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
@@ -22,9 +22,9 @@ if (!isProduction) {
 
 // Re-export all generated types - consumers import from "@taskflow/database"
 // PrismaClient is already exported as a value above via the import
-export { PrismaClient } from "./generated/index.js";
-export type * from "./generated/index.js";
-export type { DefaultArgs } from "./generated/runtime/client.js";
+export { PrismaClient } from "./generated";
+export type * from "./generated";
+export type { DefaultArgs } from "./generated/runtime/client";
 
 // Shared types derived from query fragments
 export type {
@@ -32,7 +32,7 @@ export type {
   BoardWithColumns,
   MembershipWithUser,
   NotificationWithActor,
-} from "./types.js";
+} from "./types";
 
 // Query fragments - consumed by repo files in apps/api
 export {
@@ -42,6 +42,6 @@ export {
   orgWithMembership,
   boardWithColumns,
   notificationWithActor,
-} from "./selects.js";
+} from "./selects";
 
-export { validateSessionToken } from "./session.js";
+export { validateSessionToken } from "./session";

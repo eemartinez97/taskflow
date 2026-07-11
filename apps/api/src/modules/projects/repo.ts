@@ -1,6 +1,6 @@
 import type { PrismaClient, Project } from "@taskflow/database";
 import type { CreateProject, UpdateProject } from "@taskflow/shared";
-import { stripUndefined } from "../../utils/prisma.js";
+import { stripUndefined } from "../../utils/prisma";
 
 export async function findProjectsByOrg(db: PrismaClient, orgId: string): Promise<Project[]> {
   return db.project.findMany({

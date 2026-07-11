@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { makeTestCollectors, type TestCollectors, type TestRegistry } from "../../helpers.js";
-import { METRIC_NAMES } from "../../../src/metrics/constants.js";
+
+import { makeTestCollectors, type TestCollectors, type TestRegistry } from "../../helpers";
+import { METRIC_NAMES } from "../../../src/metrics/constants";
 
 // Each test uses its own registry - avoids duplicate-metric registration errors
 let registry: TestRegistry;

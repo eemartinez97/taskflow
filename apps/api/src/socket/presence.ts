@@ -1,5 +1,5 @@
 import type { Server, Socket } from "socket.io";
-import type { InterServerEvents, SocketData } from "./events.js";
+import type { InterServerEvents, SocketData } from "./events";
 import {
   type ClientToServerEvents,
   type ServerToClientEvents,
@@ -8,8 +8,8 @@ import {
   SOCKET_EVENTS,
   SOCKET_ROOM_PREFIX,
 } from "@taskflow/shared";
-import { logger } from "../config/logger.js";
-import { shouldDropPresencePacket } from "./rate-limit.js";
+import { logger } from "../config/logger";
+import { shouldDropPresencePacket } from "./rate-limit";
 
 // Typed aliases
 

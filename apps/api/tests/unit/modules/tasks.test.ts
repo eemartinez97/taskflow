@@ -1,10 +1,9 @@
 import { beforeEach, describe, vi, it, expect } from "vitest";
 
-vi.mock("../../../src/config/env.js");
+vi.mock("../../../src/config/env");
 
-import { createCallerFactory, createTRPCRouter } from "../../../src/trpc/init.js";
-import { createTasksRouter } from "../../../src/modules/tasks/router.js";
-import { mockEmit, mockIo, mockTo } from "../../mocks/socket.js";
+import { SOCKET_EVENTS } from "@taskflow/shared";
+
 import {
   ANOTHER_UUID,
   FIXED_DATE,
@@ -14,9 +13,12 @@ import {
   VALID_PROJECT_ID,
   VALID_TASK_ID,
   VALID_USER,
-} from "../../helpers.js";
-import { mockDb } from "../../mocks/database-mock.js";
-import { SOCKET_EVENTS } from "@taskflow/shared";
+} from "../../helpers";
+
+import { createCallerFactory, createTRPCRouter } from "../../../src/trpc/init";
+import { createTasksRouter } from "../../../src/modules/tasks/router";
+import { mockEmit, mockIo, mockTo } from "../../mocks/socket";
+import { mockDb } from "../../mocks/database-mock";
 
 const caller = createCallerFactory(createTRPCRouter({ tasks: createTasksRouter(mockIo) }));
 const authed = () => caller(makeCtx(VALID_USER));

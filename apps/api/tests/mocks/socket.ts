@@ -1,8 +1,8 @@
 import { type Server } from "socket.io";
 import { vi, type MockInstance } from "vitest";
-import type { AppServer, AppSocket } from "../../src/socket/presence.js";
-import { type SocketData } from "../../src/socket/events.js";
-import { VALID_USER } from "../helpers.js";
+import type { AppServer, AppSocket } from "../../src/socket/presence";
+import { type SocketData } from "../../src/socket/events";
+import { VALID_USER } from "../helpers";
 
 /**
  * Minimal Socket.IO server mock.
@@ -15,7 +15,7 @@ import { VALID_USER } from "../helpers.js";
  * under `declaration: true` + `isolatedModules: true`.
  *
  * Usage in test files:
- *   import { mockIo, mockEmit } from "../../mocks/socket.js";
+ *   import { mockIo, mockEmit } from "../../mocks/socket";
  *
  *   beforeEach(() => vi.clearAllMocks());
  *

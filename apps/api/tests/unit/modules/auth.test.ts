@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../../src/config/env.js");
+vi.mock("../../../src/config/env");
 
-import { createCallerFactory, createTRPCRouter } from "../../../src/trpc/init.js";
-import { authRouter } from "../../../src/modules/auth/router.js";
-import { makeCtx, VALID_USER } from "../../helpers.js";
-import { mockDb } from "../../mocks/database-mock.js";
+import { createCallerFactory, createTRPCRouter } from "../../../src/trpc/init";
+import { authRouter } from "../../../src/modules/auth/router";
+import { makeCtx, VALID_USER } from "../../helpers";
+import { mockDb } from "../../mocks/database-mock";
 
 const caller = createCallerFactory(createTRPCRouter({ auth: authRouter }));
 

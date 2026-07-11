@@ -1,22 +1,24 @@
-import { vi, describe, it, expect, beforeEach } from "vitest";
 import { type CreateExpressContextOptions } from "@trpc/server/adapters/express";
-import type { Request, Response } from "express";
-import express from "express";
-import request from "supertest";
+import { vi, describe, it, expect, beforeEach } from "vitest";
 import * as trpcExpress from "@trpc/server/adapters/express";
+import type { Request, Response } from "express";
+import request from "supertest";
+import express from "express";
+
+import { prisma } from "@taskflow/database";
 
 import {
   baseProcedure,
   createTRPCContext,
   createTRPCRouter,
   TRPCError,
-} from "../../../src/trpc/init.js";
-import { prisma } from "@taskflow/database";
-import { logger } from "../../../src/config/logger.js";
-import { VALID_USER } from "../../helpers.js";
-import { isProduction } from "../../../src/config/env.js";
+} from "../../../src/trpc/init";
 
-vi.mock("../../../src/config/env.js");
+import { isProduction } from "../../../src/config/env";
+import { logger } from "../../../src/config/logger";
+import { VALID_USER } from "../../helpers";
+
+vi.mock("../../../src/config/env");
 
 function makeOpts(user?: { id: string; email: string }): CreateExpressContextOptions {
   return {

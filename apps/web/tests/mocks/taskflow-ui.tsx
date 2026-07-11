@@ -3,7 +3,7 @@
  * HTML equivalent so pages render in jsdom without Tailwind/CSS.
  *
  * Activate per test file:
- *   vi.mock("@taskflow/ui", () => import("../mocks/taskflow-ui.js"));
+ *   vi.mock("@taskflow/ui", () => import("../mocks/taskflow-ui"));
  */
 
 import type { JSX } from "react";

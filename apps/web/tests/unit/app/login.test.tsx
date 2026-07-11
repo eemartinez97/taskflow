@@ -1,16 +1,16 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("next/navigation", () => import("@/tests/mocks/next-navigation.js"));
-vi.mock("next-auth/react", () => import("@/tests/mocks/next-auth.js"));
-vi.mock("@taskflow/ui", () => import("@/tests/mocks/taskflow-ui.js"));
-vi.mock("next/link", () => import("@/tests/mocks/next-link.js"));
+vi.mock("next/navigation", () => import("@/tests/mocks/next-navigation"));
+vi.mock("next-auth/react", () => import("@/tests/mocks/next-auth"));
+vi.mock("@taskflow/ui", () => import("@/tests/mocks/taskflow-ui"));
+vi.mock("next/link", () => import("@/tests/mocks/next-link"));
 
 import { signIn } from "next-auth/react";
 
-import { type RouterMock, setupRouterMock, validLoginCredentials } from "@/tests/helpers.js";
-import LoginPage from "@/app/(auth)/login/page.js";
+import { type RouterMock, setupRouterMock, validLoginCredentials } from "@/tests/helpers";
+import LoginPage from "@/app/(auth)/login/page";
 
 // -- Fixtures --
 const SUCCESS_RESULT = { error: null, ok: true, status: 200, url: null } as const;

@@ -9,8 +9,8 @@ import {
   getMaxColumnPosition,
   reorderColumns,
   updateBoard,
-} from "./repo.js";
-import { TRPCError } from "../../trpc/init.js";
+} from "./repo";
+import { TRPCError } from "../../trpc/init";
 
 export async function listBoards(db: PrismaClient, projectId: string): Promise<Board[]> {
   return findBoardsByProject(db, projectId);

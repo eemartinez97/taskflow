@@ -1,9 +1,9 @@
 import type { Server } from "socket.io";
 import type { Comment, PrismaClient } from "@taskflow/database";
 import { SOCKET_EVENTS, SOCKET_ROOM_PREFIX } from "@taskflow/shared";
-import { TRPCError } from "../../trpc/init.js";
-import { createComment, deleteComment, findCommentById, findCommentsByTask } from "./repo.js";
-import { notifyCommentCreated } from "../notifications/service.js";
+import { TRPCError } from "../../trpc/init";
+import { createComment, deleteComment, findCommentById, findCommentsByTask } from "./repo";
+import { notifyCommentCreated } from "../notifications/service";
 
 export async function listComments(db: PrismaClient, taskId: string): Promise<Comment[]> {
   return findCommentsByTask(db, taskId);

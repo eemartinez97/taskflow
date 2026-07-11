@@ -1,5 +1,5 @@
 import { createOrgSchema, idSchema, inviteMemberSchema, updateOrgSchema } from "@taskflow/shared";
-import { createTRPCRouter, protectedProcedure, roleGuard } from "../../trpc/procedures.js";
+import { createTRPCRouter, protectedProcedure, roleGuard } from "../../trpc/procedures";
 import {
   createOrgForUser,
   deleteOrgById,
@@ -8,7 +8,7 @@ import {
   listOrgs,
   removeMemberFromOrg,
   updateOrgById,
-} from "./service.js";
+} from "./service";
 import { z } from "zod";
 
 // Role guards - composed once, reused across procedures

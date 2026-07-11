@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { envSchema, isDevelopment, isProduction, isTest } from "../../../src/config/env.js";
+
+import { envSchema, isDevelopment, isProduction, isTest } from "../../../src/config/env";
 
 /** Minimal valid env payload reused across all cases */
 const validBase = {

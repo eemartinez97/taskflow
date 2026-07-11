@@ -1,12 +1,13 @@
-import request from "supertest";
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { createApp, handleTRPCError, isHealthCheckUrl } from "../../src/app.js";
-import type { ErrorBody } from "../helpers.js";
-import { TRPCError } from "../../src/trpc/init.js";
-import { mockLogger } from "../mocks/logger.js";
-import { mockIo } from "../mocks/socket.js";
+import request from "supertest";
 
-vi.mock("../../src/config/env.js");
+import { createApp, handleTRPCError, isHealthCheckUrl } from "../../src/app";
+import { TRPCError } from "../../src/trpc/init";
+import { mockLogger } from "../mocks/logger";
+import type { ErrorBody } from "../helpers";
+import { mockIo } from "../mocks/socket";
+
+vi.mock("../../src/config/env");
 
 describe("Health endpoints", () => {
   // Import createApp, not the server - avoids binding to a port during tests

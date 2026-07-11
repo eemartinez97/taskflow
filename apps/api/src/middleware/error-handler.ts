@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 
-import { isProduction } from "../config/env.js";
-import { logger } from "../config/logger.js";
+import { isProduction } from "../config/env";
+import { logger } from "../config/logger";
 
 export interface AppError extends Error {
   statusCode?: number;

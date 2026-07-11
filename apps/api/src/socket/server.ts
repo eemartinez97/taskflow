@@ -2,12 +2,12 @@ import { Server } from "socket.io";
 import type { Server as HttpServer } from "node:http";
 import { prisma, validateSessionToken } from "@taskflow/database";
 
-import type { AppSocket, AppServer } from "./presence.js";
-import { createPresenceHelpers, registerPresenceHandlers, resolveColor } from "./presence.js";
-import { env } from "../config/env.js";
-import { logger } from "../config/logger.js";
+import type { AppSocket, AppServer } from "./presence";
+import { createPresenceHelpers, registerPresenceHandlers, resolveColor } from "./presence";
+import { env } from "../config/env";
+import { logger } from "../config/logger";
 import { parseCookieToken } from "@taskflow/shared";
-import { appCollectors } from "../metrics/index.js";
+import { appCollectors } from "../metrics";
 
 /**
  * Extracted for two reasons:

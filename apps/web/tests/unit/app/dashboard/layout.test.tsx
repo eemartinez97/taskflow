@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-vi.mock("next/navigation", () => import("@/tests/mocks/next-navigation.js"));
-vi.mock("next-auth/react", () => import("@/tests/mocks/next-auth.js"));
-vi.mock("@taskflow/ui", () => import("@/tests/mocks/taskflow-ui.js"));
+vi.mock("next/navigation", () => import("@/tests/mocks/next-navigation"));
+vi.mock("next-auth/react", () => import("@/tests/mocks/next-auth"));
+vi.mock("@taskflow/ui", () => import("@/tests/mocks/taskflow-ui"));
 vi.mock("@/lib/auth/session", () => ({ requireSession: vi.fn() }));
-vi.mock("next/link", () => import("@/tests/mocks/next-link.js"));
+vi.mock("next/link", () => import("@/tests/mocks/next-link"));
 
 import { redirect } from "@/tests/mocks/next-navigation";
 import DashboardLayout from "@/app/(dashboard)/layout";

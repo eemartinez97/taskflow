@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
 import express, { type RequestHandler } from "express";
+import { describe, expect, it } from "vitest";
 import request from "supertest";
-import { authRateLimiter, createRateLimiter } from "../../../src/middleware/rate-limit.js";
-import type { ErrorBody } from "../../helpers.js";
+
+import { authRateLimiter, createRateLimiter } from "../../../src/middleware/rate-limit";
+import type { ErrorBody } from "../../helpers";
 
 /** Creates a fresh limiter instance per test - guarantees store isolation. */
 function makeLimiter({ maxRequests, message }: { maxRequests: number; message?: string }) {

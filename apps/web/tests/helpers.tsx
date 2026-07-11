@@ -12,7 +12,7 @@ import { resetHandlerStore, triggerSocketEvent } from "./mocks/socket-io-client"
 import { type WebTRPCContext } from "@/lib/trpc/context";
 import { mockDb } from "@/tests/mocks/taskflow-database";
 import type { TasksMap } from "@/hooks/use-board-dnd";
-import { type Logger } from "@/lib/logger.js";
+import { type Logger } from "@/lib/logger";
 
 /**
  * Minimal render wrapper for unit tests.

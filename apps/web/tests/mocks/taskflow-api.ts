@@ -3,7 +3,7 @@
  * Socket.IO/pino chain into the Next.js test bundle.
  *
  * Active per test file:
- *   vi.mock("@taskflow/api/trpc", () => import("@/mocks/taskflow-api.js"));
+ *   vi.mock("@taskflow/api/trpc", () => import("@/mocks/taskflow-api"));
  */
 import type { Server } from "socket.io";
 import { vi } from "vitest";

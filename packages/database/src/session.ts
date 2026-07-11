@@ -1,4 +1,4 @@
-import { type PrismaClient } from "./generated/index.js";
+import { type PrismaClient } from "./generated";
 import { type SessionUser } from "@taskflow/shared";
 
 /**

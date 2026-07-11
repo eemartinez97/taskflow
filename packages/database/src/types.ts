@@ -1,10 +1,10 @@
-import { type Prisma } from "./generated/index.js";
+import { type Prisma } from "./generated";
 import type {
   boardWithColumns,
   membershipWithUser,
   notificationWithActor,
   orgWithMembership,
-} from "./selects.js";
+} from "./selects";
 
 /**
  * GetPayload types derived from the reusable query fragments in selects.ts

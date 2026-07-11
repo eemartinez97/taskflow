@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, vi, it } from "vitest";
 
-vi.mock("../../../src/config/env.js");
+vi.mock("../../../src/config/env");
 
-import { createCallerFactory, createTRPCRouter } from "../../../src/trpc/init.js";
-import { notificationsRouter } from "../../../src/modules/notifications/router.js";
+import { type NotificationWithActor } from "@taskflow/database";
+
 import {
   ANOTHER_UUID,
   db,
@@ -12,13 +12,16 @@ import {
   VALID_TASK_ID,
   VALID_USER,
   VALID_UUID,
-} from "../../helpers.js";
-import { type NotificationWithActor } from "@taskflow/database";
-import { mockDb } from "../../mocks/database-mock.js";
+} from "../../helpers";
+
 import {
   buildNotificationMessage,
   notifyTaskAssigned,
-} from "../../../src/modules/notifications/service.js";
+} from "../../../src/modules/notifications/service";
+
+import { createCallerFactory, createTRPCRouter } from "../../../src/trpc/init";
+import { notificationsRouter } from "../../../src/modules/notifications/router";
+import { mockDb } from "../../mocks/database-mock";
 
 const caller = createCallerFactory(createTRPCRouter({ notifications: notificationsRouter }));
 const authed = () => caller(makeCtx(VALID_USER));

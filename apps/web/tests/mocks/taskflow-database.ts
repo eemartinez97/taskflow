@@ -7,7 +7,7 @@
  *   - PrismaAdapter    : no-op so auth.ts doesn't throw at import time
  *
  * Activate per test file via vitest alias (vitest.config.ts) or:
- *   vi.mock("@taskflow/database", () => import("@/tests/mocks/taskflow-database.js"));
+ *   vi.mock("@taskflow/database", () => import("@/tests/mocks/taskflow-database"));
  */
 
 import type { SessionUser } from "@taskflow/shared";

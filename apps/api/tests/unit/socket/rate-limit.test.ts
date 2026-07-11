@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resetRateLimitState, shouldDropPresencePacket } from "../../../src/socket/rate-limit.js";
+
+import { resetRateLimitState, shouldDropPresencePacket } from "../../../src/socket/rate-limit";
 
 const ROOM = "project:test-room";
 const OTHER_ROOM = "project:other-room";

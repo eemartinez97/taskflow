@@ -1,8 +1,8 @@
-import { createApp } from "./app.js";
+import { createApp } from "./app";
 import http from "node:http";
-import { env } from "./config/env.js";
-import { logger } from "./config/logger.js";
-import { createSocketServer } from "./socket/server.js";
+import { env } from "./config/env";
+import { logger } from "./config/logger";
+import { createSocketServer } from "./socket/server";
 
 // Bootstrap
 

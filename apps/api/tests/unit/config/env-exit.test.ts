@@ -29,7 +29,7 @@ describe("env.ts - startup failure branch", () => {
     vi.stubEnv("DATABASE_URL", "");
     vi.stubEnv("NEXTAUTH_SECRET", "");
 
-    await expect(import("../../../src/config/env.js")).rejects.toThrow("process.exit called");
+    await expect(import("../../../src/config/env")).rejects.toThrow("process.exit called");
     expect(exitSpy).toHaveBeenCalledWith(1);
 
     exitSpy.mockRestore();

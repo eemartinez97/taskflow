@@ -4,8 +4,8 @@ import {
   type TRPCContext,
   type TRPCContextWithRole,
   TRPCError,
-} from "./init.js";
-import { createTRPCRouter } from "./init.js";
+} from "./init";
+import { createTRPCRouter } from "./init";
 import { type MiddlewareBuilder } from "@trpc/server/unstable-core-do-not-import";
 
 import { type Role } from "@taskflow/database";

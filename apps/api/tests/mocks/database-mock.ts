@@ -6,7 +6,7 @@
  * instead of the real Prisma client.
  *
  * To control per-test behavior:
- *   import { mockDb } from "tests/mocks/database-mock.js"
+ *   import { mockDb } from "tests/mocks/database-mock
  *   mockDb.session.findUnique.mockResolvedValueOnce(...)
  *
  * Integration tests (tests/integration/) use the real @taskflow/database
@@ -15,7 +15,7 @@
 import { type SessionUser } from "@taskflow/shared";
 import { type MockInstance, vi } from "vitest";
 
-import { mockOps, type MockOps } from "./database.js";
+import { mockOps, type MockOps } from "./database";
 
 export const prisma: MockOps = mockOps;
 

@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import type { Logger } from "../../src/config/logger.js";
+import type { Logger } from "../../src/config/logger";
 
 /**
  * Silent logger mock reused across setup.ts and makeCtx().

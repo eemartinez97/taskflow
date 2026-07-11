@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 
 vi.mock("next/link", () => import("../../mocks/next-link"));
 
-import HomePage from "../../../app/page.js";
+import HomePage from "../../../app/page";
 
 describe("HomePage", () => {
   it("renders the TaskFlow heading", () => {

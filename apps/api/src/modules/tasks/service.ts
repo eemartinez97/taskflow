@@ -10,9 +10,9 @@ import {
   getMaxTaskPosition,
   moveTask,
   updateTask,
-} from "./repo.js";
-import { TRPCError } from "../../trpc/init.js";
-import { notifyTaskAssigned } from "../notifications/service.js";
+} from "./repo";
+import { TRPCError } from "../../trpc/init";
+import { notifyTaskAssigned } from "../notifications/service";
 
 export async function listTasks(db: PrismaClient, columnId: string): Promise<Task[]> {
   return findTasksByColumn(db, columnId);

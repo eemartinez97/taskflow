@@ -4,4 +4,4 @@ import dotenv from "dotenv";
 dotenv.config({ quiet: true });
 
 // Side-effect import: bootstraps the HTTP server
-await import("./server.js");
+await import("./server");

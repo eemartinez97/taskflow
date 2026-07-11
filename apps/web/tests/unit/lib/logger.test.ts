@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("pino", () => import("@/tests/mocks/pino.js"));
+vi.mock("pino", () => import("@/tests/mocks/pino"));
 
-import pino, { mockPinoLogger } from "@/tests/mocks/pino.js";
+import pino, { mockPinoLogger } from "@/tests/mocks/pino";
 import { getLogLevel, logger } from "@/lib/logger";
 
 describe("getLogLevel", () => {

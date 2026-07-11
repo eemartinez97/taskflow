@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { sessionUserSchema, updateUserSchema, userSchema } from "../../src";
-import { validUserPayload } from "./fixtures.js";
+import { sessionUserSchema, updateUserSchema, userSchema } from "@taskflow/shared";
+import { validUserPayload, VALID_UUID, expectSchema } from "./fixtures";
 
 describe("userSchema", () => {
   it("parses a valid user with all fields", () => {

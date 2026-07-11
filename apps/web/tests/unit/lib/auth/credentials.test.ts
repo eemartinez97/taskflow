@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@taskflow/database", () => import("@/tests/mocks/taskflow-database.js"));
-vi.mock("bcrypt", () => import("@/tests/mocks/bcrypt.js"));
+vi.mock("@taskflow/database", () => import("@/tests/mocks/taskflow-database"));
+vi.mock("bcrypt", () => import("@/tests/mocks/bcrypt"));
 
-import { db, mockAuthorizedUser, mockDbUser, validLoginCredentials } from "@/tests/helpers.js";
-import { authorizeCredentials } from "@/lib/auth/credentials.js";
-import { webMockDb } from "@/tests/mocks/taskflow-database.js";
-import bcrypt from "@/tests/mocks/bcrypt.js";
+import { db, mockAuthorizedUser, mockDbUser, validLoginCredentials } from "@/tests/helpers";
+import { authorizeCredentials } from "@/lib/auth/credentials";
+import { webMockDb } from "@/tests/mocks/taskflow-database";
+import bcrypt from "@/tests/mocks/bcrypt";
 
 describe("authorizeCredentials", () => {
   beforeEach(() => {

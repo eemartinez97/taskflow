@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-vi.mock("@dnd-kit/utilities", () => import("@/tests/mocks/dnd-kit-utilities.js"));
-vi.mock("@dnd-kit/sortable", () => import("@/tests/mocks/dnd-kit.js"));
-vi.mock("@taskflow/ui", () => import("@/tests/mocks/taskflow-ui.js"));
-vi.mock("@dnd-kit/core", () => import("@/tests/mocks/dnd-kit.js"));
+vi.mock("@dnd-kit/utilities", () => import("@/tests/mocks/dnd-kit-utilities"));
+vi.mock("@dnd-kit/sortable", () => import("@/tests/mocks/dnd-kit"));
+vi.mock("@taskflow/ui", () => import("@/tests/mocks/taskflow-ui"));
+vi.mock("@dnd-kit/core", () => import("@/tests/mocks/dnd-kit"));
 
 import { makeColumn, makeTask, VALID_COL_A_ID, VALID_TASK_1_ID } from "@/tests/helpers";
 import { KanbanColumn } from "@/components/kanban/kanban-column";

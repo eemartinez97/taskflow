@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { Registry } from "prom-client";
-import { appRegistry } from "../../../src/metrics/index.js";
-import { METRICS_PREFIX } from "../../../src/metrics/constants.js";
+
+import { METRICS_PREFIX } from "../../../src/metrics/constants";
+import { appRegistry } from "../../../src/metrics";
 
 describe("createRegistry", () => {
   it("is a Registry instance", () => {
@@ -28,7 +29,7 @@ describe("createRegistry", () => {
 
   it("same reference is returned on every import (ES module caching)", async () => {
     // Re-import the same module - must be the identical object reference
-    const { appRegistry: reimported } = await import("../../../src/metrics/registry.js");
+    const { appRegistry: reimported } = await import("../../../src/metrics/registry");
     expect(reimported).toBe(appRegistry);
   });
 

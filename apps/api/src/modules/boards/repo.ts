@@ -7,7 +7,7 @@ import {
 } from "@taskflow/database";
 import type { CreateBoard, CreateColumn, ReorderColumns, UpdateBoard } from "@taskflow/shared";
 import { POSITION_STEP } from "@taskflow/shared";
-import { stripUndefined } from "../../utils/prisma.js";
+import { stripUndefined } from "../../utils/prisma";
 
 export async function findBoardsByProject(db: PrismaClient, projectId: string): Promise<Board[]> {
   return db.board.findMany({

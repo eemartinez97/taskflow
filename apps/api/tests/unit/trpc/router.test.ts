@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("../../../src/config/env.js");
+vi.mock("../../../src/config/env");
 
-import { createAppRouter } from "../../../src/trpc/router.js";
-import { mockIo } from "../../mocks/socket.js";
+import { createAppRouter } from "../../../src/trpc/router";
+import { mockIo } from "../../mocks/socket";
 
 describe("appRouter", () => {
   const router = createAppRouter(mockIo);

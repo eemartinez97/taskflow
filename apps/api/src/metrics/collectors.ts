@@ -1,5 +1,5 @@
 import { Counter, Gauge, Histogram, type Registry } from "prom-client";
-import { METRIC_NAMES } from "./constants.js";
+import { METRIC_NAMES } from "./constants";
 
 // Type exports
 
@@ -71,5 +71,5 @@ export const appCollectors = createCollectors(
   // Lazy import avoids a circular dependency between registry and collectors
   // Both are initialized at module load; ES module import order guarantees
   // appRegistry is ready before appCollectors is created
-  (await import("./registry.js")).appRegistry,
+  (await import("./registry")).appRegistry,
 );

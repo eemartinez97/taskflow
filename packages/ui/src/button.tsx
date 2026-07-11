@@ -3,14 +3,36 @@ import { cn } from "./utils";
 
 // Variant and size maps — defined outside component to avoid re-creation on each render
 const variantClasses = {
-  primary:
-    "bg-brand-600 text-white hover:bg-brand-700 focus-visible:ring-brand-500 disabled:bg-brand-300",
-  secondary:
-    "bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 focus-visible:ring-gray-400 disabled:opacity-50",
-  destructive:
-    "bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500 disabled:bg-red-300",
-  ghost: "text-gray-700 hover:bg-gray-100 focus-visible:ring-gray-400 disabled:opacity-50",
-  link: "text-brand-600 underline-offset-4 hover:underline focus-visible:ring-brand-500 disabled:opacity-50",
+  primary: [
+    "bg-brand-600 text-white",
+    "hover:bg-brand-700",
+    "focus-visible:ring-brand-500",
+    "disabled:bg-brand-300 disabled:text-white",
+  ].join(" "),
+  secondary: [
+    "bg-white text-gray-900 border border-gray-300",
+    "hover:bg-gray-50",
+    "focus-visible:ring-gray-400",
+    "disabled:opacity-50",
+  ].join(" "),
+  destructive: [
+    "bg-red-600 text-white",
+    "hover:bg-red-700",
+    "focus-visible:ring-red-500",
+    "disabled:bg-red-300",
+  ].join(" "),
+  ghost: [
+    "text-gray-700",
+    "hover:bg-gray-100",
+    "focus-visible:ring-gray-400",
+    "disabled:opacity-50",
+  ].join(" "),
+  link: [
+    "text-brand-600 underline-offset-4",
+    "hover:underline",
+    "focus-visible:ring-brand-500",
+    "disabled:opacity-50",
+  ].join(" "),
 } as const;
 
 const sizeClasses = {

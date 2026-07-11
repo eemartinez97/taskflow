@@ -1,12 +1,9 @@
 "use client";
-
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import type { JSX } from "react";
-
 import type { Column, Task } from "@taskflow/database";
 import { cn } from "@taskflow/ui";
-
 import { KanbanCard } from "./kanban-card";
 
 interface KanbanColumnProps {
@@ -22,11 +19,10 @@ interface KanbanColumnProps {
  */
 export function KanbanColumn({ column, tasks, isOver }: KanbanColumnProps): JSX.Element {
   const { setNodeRef } = useDroppable({ id: column.id });
-
   const taskIds = tasks.map((t) => t.id);
 
   return (
-    <div data-testid={`column-${column.id}`} className="flex w-72 flex-shrink-0 flex-col gap-2">
+    <div data-testid={`column-${column.id}`} className="flex w-72 shrink-0 flex-col gap-2">
       {/* Column header */}
       <div className="flex items-center justify-between rounded-md bg-gray-50 px-3 py-2">
         <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">

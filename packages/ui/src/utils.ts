@@ -1,9 +1,11 @@
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
 /**
- * Lightweight class name merger.
- * Concatenates truthy strings — no external dependency needed for primitives.
- * For complex merging (Tailwind class conflicts) the consuming app can wrap
- * this with tailwind-merge; packages/ui stays dependency-light.
+ * Merges class names with Tailwind conflict resolution.
+ * Uses tailwind-merge to handle class overrides correctly
+ * (e.g., "text-lg" overridden by "text-sm" passed via className prop).
  */
-export function cn(...classes: (string | undefined | null | false)[]): string {
-  return classes.filter(Boolean).join(" ");
+export function cn(...inputs: ClassValue[]): string {
+  return twMerge(clsx(inputs));
 }

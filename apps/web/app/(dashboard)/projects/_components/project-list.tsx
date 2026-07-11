@@ -63,7 +63,7 @@ export function ProjectList({ orgId, initialOrg, initialProjects }: ProjectListP
             <li key={project.id}>
               <Link href={`/dashboard/projects/${project.id}`} className="block">
                 <Card className="transition-shadow hover:shadow-sm">
-                  <CardHeader>
+                  <CardHeader spacing={project.description ? "compact" : "none"}>
                     <div className="flex items-center gap-2">
                       <Badge variant="outline">{project.key}</Badge>
                       <CardTitle className="text-sm">{project.name}</CardTitle>

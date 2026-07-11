@@ -4,8 +4,6 @@
  * tailwindcss directly, so tokens are defined once here.
  */
 
-@import "tailwindcss";
-
 @theme {
   /* Brand colors */
   --color-brand-50: oklch(97% 0.02 250);

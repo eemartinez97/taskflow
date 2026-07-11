@@ -20,10 +20,10 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: "Projects", href: "/dashboard/projects", icon: FolderKanbanIcon },
-  { label: "Tasks", href: "/dashboard/tasks", icon: CheckSquareIcon },
-  { label: "Team", href: "/dashboard/team", icon: UsersIcon },
-  { label: "Settings", href: "/dashboard/settings", icon: SettingsIcon },
+  { label: "Projects", href: "/projects", icon: FolderKanbanIcon },
+  { label: "Tasks", href: "/tasks", icon: CheckSquareIcon },
+  { label: "Team", href: "/team", icon: UsersIcon },
+  { label: "Settings", href: "/settings", icon: SettingsIcon },
 ];
 
 export function Sidebar(): JSX.Element {

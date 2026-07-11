@@ -4,10 +4,12 @@ import { colorSchema, idSchema } from "./common";
 import { commentSchema } from "./comment";
 import { userSchema } from "./user";
 
+const taskPayloadSchema = z.object({ task: taskSchema });
+
 // Typed payloads for all Socket.IO events (server -> client)
-export const socketTaskCreatedSchema = z.object({ task: taskSchema });
-export const socketTaskUpdatedSchema = z.object({ task: taskSchema });
-export const socketTaskMovedSchema = z.object({ task: taskSchema });
+export const socketTaskCreatedSchema = taskPayloadSchema;
+export const socketTaskUpdatedSchema = taskPayloadSchema;
+export const socketTaskMovedSchema = taskPayloadSchema;
 export const socketTaskDeletedSchema = z.object({ taskId: idSchema });
 export const socketCommentCreatedSchema = z.object({ comment: commentSchema });
 

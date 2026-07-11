@@ -18,11 +18,15 @@ export const projectSchema = z.object({
   updatedAt: z.date(),
 });
 
-export const createProjectSchema = z.object({
-  name: z.string().min(1).max(100),
-  key: projectKeySchema,
-  description: z.string().max(500).optional(),
-  slug: slugSchema,
-});
+export const createProjectSchema = projectSchema
+  .omit({
+    id: true,
+    orgId: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .extend({
+    description: z.string().max(500).optional(),
+  });
 
 export const updateProjectSchema = createProjectSchema.partial();

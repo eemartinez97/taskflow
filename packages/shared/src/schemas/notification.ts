@@ -25,14 +25,17 @@ export const notificationSchema = z.object({
   actor: notificationActorSchema.nullable(),
 });
 
-export const createNotificationSchema = z.object({
-  userId: idSchema,
-  actorId: idSchema.optional(),
-  type: notificationTypeSchema,
-  message: z.string().min(1).max(500),
-  entityId: idSchema.optional(),
-  entityType: z.string().max(50).optional(),
-});
+export const createNotificationSchema = notificationSchema
+  .pick({
+    userId: true,
+    type: true,
+    message: true,
+  })
+  .extend({
+    actorId: idSchema.optional(),
+    entityId: idSchema.optional(),
+    entityType: z.string().max(50).optional(),
+  });
 
 export const notificationListSchema = z.object({
   notifications: z.array(notificationSchema),

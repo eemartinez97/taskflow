@@ -10,7 +10,7 @@ export const commentSchema = z.object({
   updatedAt: z.date(),
 });
 
-export const createCommentSchema = z.object({
-  taskId: idSchema,
-  body: z.string().min(1).max(5000),
+export const createCommentSchema = commentSchema.pick({
+  taskId: true,
+  body: true,
 });

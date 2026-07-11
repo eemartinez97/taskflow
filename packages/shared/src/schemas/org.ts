@@ -12,9 +12,9 @@ export const orgSchema = z.object({
   updatedAt: z.date(),
 });
 
-export const createOrgSchema = z.object({
-  name: z.string().min(1).max(100),
-  slug: slugSchema,
+export const createOrgSchema = orgSchema.pick({
+  name: true,
+  slug: true,
 });
 
 export const updateOrgSchema = createOrgSchema.partial();

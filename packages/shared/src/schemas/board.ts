@@ -1,6 +1,21 @@
 import { z } from "zod";
 import { idSchema } from "./common";
 
+export const boardSchema = z.object({
+  id: idSchema,
+  projectId: idSchema,
+  name: z.string().min(1).max(100),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export const createBoardSchema = boardSchema.pick({
+  name: true,
+  projectId: true,
+});
+
+export const updateBoardSchema = createBoardSchema.partial();
+
 export const columnSchema = z.object({
   id: idSchema,
   boardId: idSchema,
@@ -10,26 +25,12 @@ export const columnSchema = z.object({
   updatedAt: z.date(),
 });
 
-export const boardSchema = z.object({
-  id: idSchema,
-  projectId: idSchema,
-  name: z.string().min(1).max(100),
-  createdAt: z.date(),
-  updatedAt: z.date(),
-});
-
-export const createBoardSchema = z.object({
-  name: z.string().min(1).max(100),
-  projectId: idSchema,
-});
-
-export const updateBoardSchema = createBoardSchema.partial();
-
-export const createColumnSchema = z.object({
-  name: z.string().min(1).max(100),
-  boardId: idSchema,
-  position: z.number().optional(),
-});
+export const createColumnSchema = columnSchema
+  .pick({
+    name: true,
+    boardId: true,
+  })
+  .extend({ position: z.number().optional() });
 
 export const updateColumnSchema = createColumnSchema.partial();
 

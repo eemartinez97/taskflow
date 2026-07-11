@@ -20,17 +20,20 @@ export const taskSchema = z.object({
   updatedAt: z.date(),
 });
 
-export const createTaskSchema = z.object({
-  columnId: idSchema,
-  title: z.string().min(1).max(255),
-  description: z.string().max(10_000).optional(),
-  assigneeId: idSchema.optional(),
-  priority: taskPrioritySchema.default("NONE"),
-  dueDate: z.date().optional(),
-});
+export const createTaskSchema = taskSchema
+  .pick({
+    columnId: true,
+    title: true,
+  })
+  .extend({
+    description: z.string().max(10_000).optional(),
+    assigneeId: idSchema.optional(),
+    priority: taskPrioritySchema.default("NONE"),
+    dueDate: z.date().optional(),
+  });
 
 export const updateTaskSchema = createTaskSchema
-  .omit({ columnId: true, priority: true })
+  .omit({ columnId: true })
   .extend({
     priority: taskPrioritySchema.optional(),
     assigneeId: idSchema.nullable().optional(),

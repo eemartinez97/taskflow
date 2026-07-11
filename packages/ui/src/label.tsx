@@ -15,7 +15,7 @@ export function Label({
   return (
     <label
       className={cn(
-        "block text-sm font-medium leading-none text-gray-700",
+        "block text-sm font-medium leading-none text-gray-700 select-none",
         "peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
         className,
       )}

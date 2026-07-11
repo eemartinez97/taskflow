@@ -120,7 +120,7 @@ describe("CreateProjectDialog", () => {
 
     render(<CreateProjectDialog {...defaultProps} />);
 
-    // First submit — onError fires synchronously → alert appears
+    // First submit — onError fires synchronously -> alert appears
     await fillAndSubmit();
     expect(screen.getByRole("alert")).toBeInTheDocument();
 
@@ -129,7 +129,7 @@ describe("CreateProjectDialog", () => {
     await userEvent.clear(screen.getByLabelText(/^slug/i));
 
     // Second submit — onSubmit clears serverError before calling mutate()
-    // mutateMock does NOT fire onError on call #2 → alert disappears
+    // mutateMock does NOT fire onError on call #2 -> alert disappears
     await fillAndSubmit();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(mutateMock).toHaveBeenCalledTimes(2);
@@ -184,7 +184,7 @@ describe("CreateProjectDialog", () => {
   it("onError does not call onClose", async () => {
     const onClose = vi.fn();
 
-    // mutateMock fires onError synchronously inside form submit → within act() boundary
+    // mutateMock fires onError synchronously inside form submit -> within act() boundary
     const { mutateMock, triggerError } = setupMutationMock(api.projects.create);
     mutateMock.mockImplementation(() => {
       triggerError({ message: "Some error" });

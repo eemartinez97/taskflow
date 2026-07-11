@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useRef, type JSX } from "react";
 import { cn } from "./utils";
 
@@ -13,6 +12,8 @@ export interface DialogProps {
   /** Optional description below the title. */
   description?: string;
   children: React.ReactNode;
+  /** Content rendered in the sticky footer area (e.g. action buttons). */
+  footer?: React.ReactNode;
   className?: string;
 }
 
@@ -27,6 +28,7 @@ export function Dialog({
   title,
   description,
   children,
+  footer,
   className,
 }: DialogProps): JSX.Element {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -80,12 +82,21 @@ export function Dialog({
         if (e.target === dialogRef.current) onClose();
       }}
     >
-      <div className="flex flex-col gap-2 border-b border-gray-100 px-6 py-4">
+      {/* Header */}
+      <div className="flex flex-col gap-1.5 border-b border-gray-200 px-6 py-4 shrink-0">
         <h2 className="text-base font-semibold leading-none text-gray-900">{title}</h2>
         {description && <p className="text-sm text-gray-500">{description}</p>}
       </div>
 
-      <div className="flex-1 px-6 py-4">{children}</div>
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto px-6 py-4">{children}</div>
+
+      {/* Optional footer with action buttons */}
+      {footer && (
+        <div className="flex items-center justify-end gap-2 border-t border-gray-200 px-6 py-4 shrink-0">
+          {footer}
+        </div>
+      )}
     </dialog>
   );
 }

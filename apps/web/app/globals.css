@@ -10,44 +10,57 @@
  */
 
 @import "tailwindcss";
+@import "@taskflow/ui/theme";
 
-@theme {
-  /* Brand colors */
-  --color-brand-50: oklch(97% 0.02 250);
-  --color-brand-100: oklch(93% 0.05 250);
-  --color-brand-200: oklch(86% 0.09 250);
-  --color-brand-300: oklch(77% 0.13 250);
-  --color-brand-400: oklch(66% 0.17 250);
-  --color-brand-500: oklch(55% 0.2 250);
-  --color-brand-600: oklch(46% 0.19 250);
-  --color-brand-700: oklch(38% 0.16 250);
-  --color-brand-800: oklch(30% 0.12 250);
-  --color-brand-900: oklch(22% 0.08 250);
-  --color-brand-950: oklch(15% 0.05 250);
+/* Tell Tailwind 4 to scan the UI package source for class names.
+   Without this, classes used inside packages/ui/src won't be
+   included in the final CSS output of apps/web.               */
+@source "../../../packages/ui/src";
 
-  /* Typography */
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+/* -- App-level base styles -- */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
 
-  /* Shadows (Tailwind 4 renamed scale)                     */
-  /* shadow-sm -> shadow-xs, bare shadow -> shadow-sm             */
-  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  /*
+   * Browser UA stylesheets override the universal selector (*) for form elements,
+   * resetting them to content-box. This forces border-box so h-11 is the
+   * true final height — padding never adds on top of it.
+   */
+  input,
+  select,
+  textarea,
+  button {
+    box-sizing: border-box;
+  }
 
-  /* Border radius */
-  --radius-xs: 0.125rem;
-  --radius-sm: 0.25rem;
-  --radius-md: 0.375rem;
-  --radius-lg: 0.5rem;
-  --radius-xl: 0.75rem;
-  --radius-2xl: 1rem;
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
 
-  /* Task priority semantic colors */
-  --color-priority-none: oklch(70% 0 0);
-  --color-priority-low: oklch(65% 0.15 145);
-  --color-priority-medium: oklch(70% 0.17 65);
-  --color-priority-high: oklch(65% 0.19 35);
-  --color-priority-urgent: oklch(55% 0.22 20);
+  body {
+    background-color: var(--color-surface);
+    color: oklch(15% 0 0);
+    line-height: 1.5;
+  }
+
+  :focus-visible {
+    outline: none;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-weight: 600;
+    line-height: 1.25;
+  }
 }

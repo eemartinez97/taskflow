@@ -65,16 +65,33 @@ export function CreateProjectDialog({
     });
   }
 
+  const dialogFooter = (
+    <>
+      <Button type="button" variant="secondary" onClick={handleClose}>
+        Cancel
+      </Button>
+      <Button type="submit" form="create-project-form" loading={isSubmitting || mutation.isPending}>
+        Create
+      </Button>
+    </>
+  );
+
   return (
     <Dialog
       open={open}
       onClose={handleClose}
       title="Create Project"
       description="Projects group related boards and tasks."
+      footer={dialogFooter}
     >
-      <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
+      <form
+        id="create-project-form"
+        onSubmit={handleSubmit(onSubmit)}
+        noValidate
+        className="flex flex-col gap-4"
+      >
         {serverError && (
-          <p role="alert" className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
             {serverError}
           </p>
         )}
@@ -118,15 +135,6 @@ export function CreateProjectDialog({
               {errors.slug.message}
             </p>
           )}
-        </div>
-
-        <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="secondary" onClick={handleClose}>
-            Cancel
-          </Button>
-          <Button type="submit" loading={isSubmitting || mutation.isPending}>
-            Create
-          </Button>
         </div>
       </form>
     </Dialog>

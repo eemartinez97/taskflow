@@ -1,12 +1,11 @@
 import type { NextFunction, Request, Response } from "express";
 import { createError } from "./error-handler";
-import { prisma, validateSessionToken } from "@taskflow/database";
 import { type SessionUser } from "../trpc/init";
-import { parseCookieToken } from "@taskflow/shared";
+import { getSessionUser } from "../utils/auth";
 
 /**
  * Reads the NextAuth v4 session token from the request cookie,
- * validates it against the Session table, and attaches the user to req.
+ * verifies it statelessly via @auth/core, and attaches the user to req.
  *
  * Used by the tRPC context factory to establish the caller's identity.
  */
@@ -15,24 +14,16 @@ export async function validateSession(
   _res: Response,
   next: NextFunction,
 ): Promise<void> {
-  // NextAuth v4 uses different cookie names for http vs https
-  const token = parseCookieToken(req.headers.cookie ?? "");
-
-  if (!token) {
-    next(createError("Authentication required", 401, "UNAUTHORIZED"));
-    return;
-  }
-
   try {
-    const session = await validateSessionToken(prisma, token);
+    const user = await getSessionUser(req.headers.cookie);
 
-    if (!session) {
-      next(createError("Session expired or invalid", 401, "SESSION_EXPIRED"));
+    if (!user) {
+      next(createError("Authenticated required", 401, "UNAUTHORIZED"));
       return;
     }
 
     // Attach user to request for downstream middleware and tRPC context
-    req.user = { id: session.id, email: session.email };
+    req.user = { id: user.id, email: user.email };
     next();
   } catch (err) {
     next(err);

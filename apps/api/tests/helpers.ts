@@ -3,11 +3,11 @@ import EventEmitter from "node:events";
 import { Registry } from "prom-client";
 import { vi } from "vitest";
 
-import type { Prisma, PrismaClient } from "@taskflow/database";
+import type { PrismaClient } from "@taskflow/database";
 import type { SessionUser } from "@taskflow/shared";
 
 import { type AppCollectors, createCollectors } from "../src/metrics";
-import { mockDb, validateSessionToken } from "./mocks/database-mock";
+import { mockDb } from "./mocks/database-mock";
 import type { TRPCContext } from "../src/trpc/init";
 import { mockLogger } from "./mocks/logger";
 
@@ -117,59 +117,23 @@ export function getNextError(
  * Use this instead of repeating `mockDb as unknown as PrismaClient` in every test.
  *
  * For controlling mock behavior, use mockDb directly:
- *   mockDb.session.findUnique.mockResolvedValueOnce(...)
+ *   mockDb.user.findUnique.mockResolvedValueOnce(...)
  *
  * For passing to functions that expect a real PrismaClient:
- *   import { db } from "../../helpers
- *   import { validateSessionToken } from './mocks/database-mock';
- *   await validateSessionToken(db, token)
+ *   import { db } from "../../helpers";
+ *   await someServiceFunction(db, ...);
  */
 export const db = mockDb as unknown as PrismaClient;
 
 /**
- * Prisma inferred type for a Session row with the user select shape
- * used by validateSessionToken.
- * Derived form the generated schema - never written by hand.
- */
-type SessionWithUser = Prisma.SessionGetPayload<{
-  include: {
-    user: {
-      select: { id: true; email: true; name: true };
-    };
-  };
-}>;
-
-/**
- * Builds a valid session row matching the select shape used by
- * validateSessionToken (user: { id, email, name }).
+ * Builds a SessionUser / AuthSession — the value returned by getSessionUser on success.
  *
- * Shared by auth.test.ts, session.test.ts, and any future test that
- * needs to mock a Prisma session lookup.
- */
-export function makeValidSessionRow(
-  token: string,
-  name: string | null = "Alice",
-  expiresOffset = 1000 * 60 * 60,
-): SessionWithUser {
-  return {
-    id: "session-id-1",
-    sessionToken: token,
-    userId: VALID_USER.id,
-    expires: new Date(Date.now() + expiresOffset),
-    user: { id: VALID_USER.id, email: VALID_USER.email, name },
-  };
-}
-
-/**
- * Builds a SessionUser — the value returned by validateSessionToken on success.
+ * Use this to set up the getSessionUser mock in middleware and socket tests:
  *
- * Use this to set up the validateSessionToken mock in middleware and socket tests:
- *
- *   validateSessionToken.mockResolvedValueOnce(makeSessionUser());
- *   validateSessionToken.mockResolvedValueOnce(makeSessionUser({ name: null }));
- *   validateSessionToken.mockResolvedValueOnce(null); // expired / not found
+ *   vi.mocked(getSessionUser).mockResolvedValueOnce(makeSessionUser());
+ *   vi.mocked(getSessionUser).mockResolvedValueOnce(makeSessionUser({ name: null }));
+ *   vi.mocked(getSessionUser).mockResolvedValueOnce(null); // expired / not found
  */
-
 export function makeSessionUser(overrides: Partial<SessionUser> = {}): SessionUser {
   return {
     id: VALID_USER.id,
@@ -179,9 +143,6 @@ export function makeSessionUser(overrides: Partial<SessionUser> = {}): SessionUs
     ...overrides,
   };
 }
-
-// Re-export so tests can import validateSessionToken through helpers
-export { validateSessionToken };
 
 // Metrics helpers
 

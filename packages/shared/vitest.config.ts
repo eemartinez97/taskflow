@@ -15,6 +15,7 @@ export default mergeConfig(
           branches: 90,
           statements: 90,
         },
+        exclude: ["src/types/socket-events.ts"],
         include: ["src/**/*.ts"],
       },
     },

@@ -16,8 +16,8 @@
   "scripts": {
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
-    "lint": "eslint src tests",
-    "lint:fix": "eslint src tests --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "typecheck": "tsc",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",

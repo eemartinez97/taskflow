@@ -1,11 +1,12 @@
 import "server-only";
+import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 
-import { serverEnv } from "@/lib/env";
-import { logger } from "@/lib/logger";
+import { createAppRouter } from "@taskflow/api/trpc";
+
 import { createWebTRPCContext } from "@/lib/trpc/context";
 import { noOpIo } from "@/lib/trpc/no-op-io";
-import { createAppRouter } from "@taskflow/api/trpc";
-import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
+import { serverEnv } from "@/lib/env.server";
+import { logger } from "@/lib/logger";
 
 const appRouter = createAppRouter(noOpIo);
 

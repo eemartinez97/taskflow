@@ -1,4 +1,4 @@
-import { serverEnv } from "./env";
+import { serverEnv } from "./env.server";
 import pino from "pino";
 
 /** Maps NODE_ENV to a pino log level. Exported for unit testing. */

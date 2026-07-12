@@ -10,7 +10,7 @@ export const labelSchema = z.object({
   updatedAt: z.date(),
 });
 
-export const createLabelSchema = z.object({
-  name: z.string().min(1).max(50),
-  color: colorSchema,
+export const createLabelSchema = labelSchema.pick({
+  name: true,
+  color: true,
 });

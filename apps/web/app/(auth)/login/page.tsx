@@ -46,7 +46,7 @@ export default function LoginPage(): JSX.Element {
       return;
     }
 
-    router.push("/dashboard");
+    router.push("/projects");
   }
 
   return (

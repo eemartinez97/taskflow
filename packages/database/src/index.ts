@@ -43,5 +43,3 @@ export {
   boardWithColumns,
   notificationWithActor,
 } from "./selects";
-
-export { validateSessionToken } from "./session";

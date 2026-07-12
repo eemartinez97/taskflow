@@ -24,12 +24,14 @@
     "db:studio": "prisma studio",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test": "vitest run --project=unit",
+    "test:integration": "vitest run --project=integration",
+    "test:coverage": "vitest run --project=unit --coverage"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "@prisma/client-runtime-utils": "^7.8.0",
     "pg": "^8.21.0"
   },
   "devDependencies": {

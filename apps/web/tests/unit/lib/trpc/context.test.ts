@@ -1,50 +1,68 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/auth/server-session", () => ({ getServerSessionFromHeaders: vi.fn() }));
+vi.mock("@/lib/auth/session", () => ({ getSession: vi.fn().mockResolvedValue(null) }));
 vi.mock("@taskflow/database", () => import("@/tests/mocks/taskflow-database"));
 vi.mock("pino", () => import("@/tests/mocks/pino"));
+vi.mock("server-only");
 
-import { createWebTRPCContext } from "@/lib/trpc/context";
 import { makeHeaders, makeSessionHeaders, mockServerSessionUser } from "@/tests/helpers";
-import { getServerSessionFromHeaders } from "@/lib/auth/server-session";
+import { createWebTRPCContext } from "@/lib/trpc/context";
+import { getSession } from "@/lib/auth/session";
 
 describe("createWebTRPCContext", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("returns context with db, logger, and user fields", async () => {
-    vi.mocked(getServerSessionFromHeaders).mockResolvedValueOnce(mockServerSessionUser);
-    const ctx = await createWebTRPCContext({ headers: makeSessionHeaders("tok") });
-    expect(ctx.db).toBeDefined();
-    expect(ctx.logger).toBeDefined();
-    expect(ctx.user).toBeDefined();
+  // -- Shape --
+
+  it("returns an object with db, logger, and user fields", async () => {
+    const ctx = await createWebTRPCContext({ headers: makeHeaders() });
+    expect(ctx).toHaveProperty("db");
+    expect(ctx).toHaveProperty("logger");
+    expect(ctx).toHaveProperty("user");
   });
 
-  it("attaches user.id and user.email from the validated session", async () => {
-    vi.mocked(getServerSessionFromHeaders).mockResolvedValueOnce(mockServerSessionUser);
+  it("db is defined", async () => {
+    expect((await createWebTRPCContext({ headers: makeHeaders() })).db).toBeDefined();
+  });
+
+  it("logger is defined", async () => {
+    expect((await createWebTRPCContext({ headers: makeHeaders() })).logger).toBeDefined();
+  });
+
+  // -- User assignment --
+
+  it("attaches the session user when getSession resolves", async () => {
+    vi.mocked(getSession).mockResolvedValueOnce(mockServerSessionUser);
+
     const ctx = await createWebTRPCContext({ headers: makeSessionHeaders("tok") });
+
     expect(ctx.user?.id).toBe(mockServerSessionUser.id);
     expect(ctx.user?.email).toBe(mockServerSessionUser.email);
   });
 
-  it("sets user to null when session is not found", async () => {
-    vi.mocked(getServerSessionFromHeaders).mockResolvedValueOnce(null);
-    const ctx = await createWebTRPCContext({ headers: makeHeaders() });
-    expect(ctx.user).toBeNull();
+  it("sets user to null when getSession returns null", async () => {
+    vi.mocked(getSession).mockResolvedValueOnce(null);
+    expect((await createWebTRPCContext({ headers: makeHeaders() })).user).toBeNull();
   });
 
-  it("passes the provider Headers instance to getServerSessionFromHeaders", async () => {
-    vi.mocked(getServerSessionFromHeaders).mockResolvedValueOnce(null);
-    const h = makeSessionHeaders("check-pass");
-    await createWebTRPCContext({ headers: h });
-    expect(getServerSessionFromHeaders).toHaveBeenCalledWith(h);
+  // -- Side-effects --
+
+  it("calls getSession exactly once per invocation", async () => {
+    await createWebTRPCContext({ headers: makeHeaders() });
+    expect(getSession).toHaveBeenCalledOnce();
   });
 
-  it("does not throw for any valid Headers input", async () => {
-    vi.mocked(getServerSessionFromHeaders).mockResolvedValueOnce(null);
+  // -- API surface --
+
+  it("accepts any valid Headers without throwing", async () => {
     await expect(
       createWebTRPCContext({
         headers: makeHeaders({ cookie: "next-auth.session-token=abc", "x-custom": "v" }),
       }),
     ).resolves.not.toThrow();
+  });
+
+  it("accepts an empty Headers instance without throwing", async () => {
+    await expect(createWebTRPCContext({ headers: new Headers() })).resolves.not.toThrow();
   });
 });

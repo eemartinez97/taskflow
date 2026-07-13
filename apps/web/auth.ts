@@ -1,29 +1,25 @@
+import "server-only";
 import type { NextAuthOptions, Session, User } from "next-auth";
-import { PrismaAdapter } from "@auth/prisma-adapter";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@taskflow/database";
-import { authorizeCredentials } from "./lib/auth/credentials";
-import { serverEnv } from "./lib/env.server";
+import { authorizeCredentials } from "@/lib/auth/credentials";
+import { serverEnv } from "@/lib/env.server";
+import type { JWT } from "next-auth/jwt";
 
 /**
- * NextAuth v4 - `authOptions` configuration.
+ * NextAuth v4 — JWT strategy (required for CredentialsProvider).
  *
- * Key decisions
- * - Stable v4 line (`next-auth@4.24.14`) - NOT Auth.js v5 beta.
- * - `@auth/prisma-adapter` v2.x - compatible with v4.24+.
- * - Session strategy: `database` - RBAC durability.
- * - `NEXTAUTH_SECRET` env var (NOT `AUTH_SECRET`).
- * - `getServerSession(authOptions)` for server-side access.
- * - Do NOT call the v5-only `auth()` helper.
- *
- * The `authorizeCredentials` function live in lib/auth/credentials.ts
- * so it is independently testable without mocking all of NextAuth.
+ * KEY CONSTRAINTS:
+ * - NO adapter: PrismaAdapter — incompatible with Credentials + JWT
+ * - strategy: "jwt" — mandatory with CredentialsProvider
+ * - session callback receives `token`, NOT `user` (database strategy only)
+ * - NEXTAUTH_SECRET (not AUTH_SECRET)
+ * - getServerSession(authOptions) for server access
+ * - useSession() for client access
+ * - NEVER call the v5-only auth() helper
  */
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
-
-  // Database sessions are stored in the Session table via Prisma adapter
-  session: { strategy: "database" },
+  session: { strategy: "jwt" },
 
   providers: [
     CredentialsProvider({
@@ -50,14 +46,26 @@ export const authOptions: NextAuthOptions = {
 
   callbacks: {
     /**
+     * JWT callback — runs on every sign-in and every session read.
+     * `user` is only present on the initial sign-in.
+     * Persist user.id onto the token so session callback can read it.
+     */
+    jwt({ token, user }): JWT {
+      token.id ??= user.id;
+      return token;
+    },
+
+    /**
      * Attach `user.id` to the session so Client Components and tRPC
      * procedures can read it without an extra DB query.
      *
      * `session.user` already has name/email/image from the adapter.
      * Whe only extend with `id` - never add sensitive fields here.
      */
-    session({ session, user }: { session: Session; user: User }): Session {
-      session.user.id = user.id;
+    session({ session, token }): Session {
+      if (token.id) {
+        session.user.id = token.id;
+      }
       return session;
     },
   },

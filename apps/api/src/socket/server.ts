@@ -1,12 +1,11 @@
 import { Server } from "socket.io";
 import type { Server as HttpServer } from "node:http";
-import { prisma, validateSessionToken } from "@taskflow/database";
 
 import type { AppSocket, AppServer } from "./presence";
 import { createPresenceHelpers, registerPresenceHandlers, resolveColor } from "./presence";
 import { env } from "../config/env";
 import { logger } from "../config/logger";
-import { parseCookieToken } from "@taskflow/shared";
+import { getSessionUser } from "../utils/auth";
 import { appCollectors } from "../metrics";
 
 /**
@@ -18,16 +17,9 @@ export async function authenticateSocket(
   socket: AppSocket,
   next: (err?: Error) => void,
 ): Promise<void> {
-  const rawCookies = socket.handshake.headers.cookie ?? "";
-  const token = parseCookieToken(rawCookies);
-
-  if (!token) {
-    next(new Error("UNAUTHORIZED"));
-    return;
-  }
-
   try {
-    const session = await validateSessionToken(prisma, token);
+    // Verify session statelessly from the handshake cookie
+    const session = await getSessionUser(socket.handshake.headers.cookie);
 
     if (!session) {
       next(new Error("UNAUTHORIZED"));
@@ -39,7 +31,7 @@ export async function authenticateSocket(
     socket.data = {
       userId: session.id,
       userEmail: session.email,
-      userName: session.name,
+      userName: session.name, // Name is now extracted directly from the JWT
       color: resolveColor(session.id),
     };
 
@@ -59,7 +51,7 @@ export async function authenticateSocket(
  *
  * Auth strategy
  * - Handshake middleware extracts the NextAuth v4 session cookie.
- * - Delegates validation to validateSessionToken (shared with Express middleware).
+ * - Delegates validation to @auth/core stateless JWT verification.
  * - Valid session -> attaches userId, email, name, color to socket.data.
  * - Invalid / expired -> rejects with "UNAUTHORIZED"
  */

@@ -4,15 +4,15 @@ vi.mock("@taskflow/api/trpc", () => import("@/tests/mocks/taskflow-api"));
 vi.mock("@taskflow/database", () => import("@/tests/mocks/taskflow-database"));
 vi.mock("pino", () => import("@/tests/mocks/pino"));
 vi.mock("server-only");
-vi.mock("@/lib/auth/server-session", () => ({
-  getServerSessionFromHeaders: vi.fn().mockResolvedValue(null),
-}));
 vi.mock("@trpc/server/adapters/fetch", () => ({
   fetchRequestHandler: vi.fn(),
 }));
+vi.mock("@/lib/auth/session", () => ({
+  getSession: vi.fn().mockResolvedValue(null),
+}));
 
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
-import { GET, POST } from "@/app/api/trpc/[trpc]/route";
+import { GET, POST } from "@/app/api/trpc/[...trpc]/route";
 import { mockPinoLogger } from "@/tests/mocks/pino";
 
 // -- Types --
@@ -148,7 +148,7 @@ describe("onError — conditional by NODE_ENV", () => {
 
     it("onError IS included in development mode", async () => {
       setupDevMock();
-      const { GET: devGET } = (await import("@/app/api/trpc/[trpc]/route")) as {
+      const { GET: devGET } = (await import("@/app/api/trpc/[...trpc]/route")) as {
         GET: (req: Request) => Promise<Response>;
       };
       await devGET(new Request(BASE_URL));
@@ -162,7 +162,7 @@ describe("onError — conditional by NODE_ENV", () => {
         onErrorPayload: { path: "auth.me", error: testError, type: "query" },
       });
 
-      const { GET: devGET } = (await import("@/app/api/trpc/[trpc]/route")) as {
+      const { GET: devGET } = (await import("@/app/api/trpc/[...trpc]/route")) as {
         GET: (req: Request) => Promise<Response>;
       };
       await devGET(new Request(BASE_URL));
@@ -180,7 +180,7 @@ describe("onError — conditional by NODE_ENV", () => {
         onErrorPayload: { path: "auth.me", error: new Error("x"), type: "query" },
       });
 
-      const { GET: devGET } = (await import("@/app/api/trpc/[trpc]/route")) as {
+      const { GET: devGET } = (await import("@/app/api/trpc/[...trpc]/route")) as {
         GET: (req: Request) => Promise<Response>;
       };
       await devGET(new Request(BASE_URL));

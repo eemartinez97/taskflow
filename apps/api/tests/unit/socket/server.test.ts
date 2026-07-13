@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, vi, it, afterEach } from "vitest";
 
+vi.mock("../../../src/utils/auth", () => ({
+  getSessionUser: vi.fn(),
+}));
 vi.mock("socket.io", () => import("../../mocks/socket-io-module"));
 vi.mock("../../../src/config/env");
 
@@ -12,9 +15,10 @@ import {
   createSocketServer,
   getConnectedCount,
 } from "../../../src/socket/server";
-import { validateSessionToken, makeMockNext, VALID_USER, makeSessionUser } from "../../helpers";
+import { makeMockNext, VALID_USER, makeSessionUser } from "../../helpers";
 import { getMockIoInstance, Server } from "../../mocks/socket-io-module";
 import { makeIoMock, makeSocketMock } from "../../mocks/socket";
+import { getSessionUser } from "../../../src/utils/auth";
 import { appCollectors } from "../../../src/metrics";
 
 const fakeHttpServer = {} as HttpServer;
@@ -29,26 +33,27 @@ describe("authenticateSocket", () => {
     return socket;
   }
 
-  it("calls next(UNAUTHORIZED) when no cookie header ir present", async () => {
+  it("calls next(UNAUTHORIZED) when no cookie header is present", async () => {
+    vi.mocked(getSessionUser).mockResolvedValueOnce(null);
     const next = makeMockNext();
 
     await authenticateSocket(makeAuthSocket(undefined), next);
 
     expect(next).toHaveBeenCalledWith(new Error("UNAUTHORIZED"));
-    expect(validateSessionToken).not.toHaveBeenCalled();
+    expect(getSessionUser).toHaveBeenCalledWith(undefined);
   });
 
-  it("calls next(UNAUTHORIZED) when cookie has no session token", async () => {
+  it("calls next(UNAUTHORIZED) when getSessionUser returns null (invalid/expired JWT)", async () => {
+    vi.mocked(getSessionUser).mockResolvedValueOnce(null);
     const next = makeMockNext();
 
-    await authenticateSocket(makeAuthSocket("theme=dark; lang=en"), next);
+    await authenticateSocket(makeAuthSocket("next-auth.session-token=ghost"), next);
 
     expect(next).toHaveBeenCalledWith(new Error("UNAUTHORIZED"));
-    expect(validateSessionToken).not.toHaveBeenCalled();
   });
 
   it("calls next() with no args on a valid session", async () => {
-    validateSessionToken.mockResolvedValueOnce(makeSessionUser());
+    vi.mocked(getSessionUser).mockResolvedValueOnce(makeSessionUser());
     const next = makeMockNext();
 
     await authenticateSocket(makeAuthSocket("next-auth.session-token=valid-token"), next);
@@ -58,7 +63,7 @@ describe("authenticateSocket", () => {
   });
 
   it("attaches userId, userEmail, userName, color to socket.data on success", async () => {
-    validateSessionToken.mockResolvedValueOnce(makeSessionUser({ name: "Alice" }));
+    vi.mocked(getSessionUser).mockResolvedValueOnce(makeSessionUser({ name: "Alice" }));
     const socket = makeAuthSocket("next-auth.session-token=data-token");
 
     await authenticateSocket(socket, makeMockNext());
@@ -70,7 +75,7 @@ describe("authenticateSocket", () => {
   });
 
   it("resolves userName to null when user has no display name", async () => {
-    validateSessionToken.mockResolvedValueOnce(makeSessionUser({ name: null }));
+    vi.mocked(getSessionUser).mockResolvedValueOnce(makeSessionUser({ name: null }));
     const socket = makeAuthSocket(`next-auth.session-token=null-name-token`);
 
     await authenticateSocket(socket, makeMockNext());
@@ -78,27 +83,8 @@ describe("authenticateSocket", () => {
     expect(socket.data.userName).toBeNull();
   });
 
-  it("calls next(UNAUTHORIZED) when session is not found", async () => {
-    validateSessionToken.mockResolvedValueOnce(null);
-    const next = makeMockNext();
-
-    await authenticateSocket(makeAuthSocket("next-auth.session-token=ghost"), next);
-
-    expect(next).toHaveBeenCalledWith(new Error("UNAUTHORIZED"));
-  });
-
-  it("calls next(UNAUTHORIZED) when session is expired", async () => {
-    // validateSessionToken already handles expiry internally and returns null
-    validateSessionToken.mockResolvedValueOnce(null);
-    const next = makeMockNext();
-
-    await authenticateSocket(makeAuthSocket("next-auth.session-token=expired"), next);
-
-    expect(next).toHaveBeenCalledWith(new Error("UNAUTHORIZED"));
-  });
-
-  it("calls next(UNAUTHORIZED) when Prisma throws", async () => {
-    validateSessionToken.mockRejectedValueOnce(new Error("Connection refused"));
+  it("calls next(UNAUTHORIZED) when getSessionUser throws", async () => {
+    vi.mocked(getSessionUser).mockRejectedValueOnce(new Error("JWT decode failed"));
     const next = makeMockNext();
 
     await authenticateSocket(makeAuthSocket(`next-auth.session-token=any`), next);
@@ -106,15 +92,16 @@ describe("authenticateSocket", () => {
     expect(next).toHaveBeenCalledWith(new Error("UNAUTHORIZED"));
   });
 
-  it("reads __Secure- prefixed token (HTTPS origin)", async () => {
+  it("passes the raw cookie header to getSessionUser for __Secure- prefixed token", async () => {
     const token = "secure-socket-token";
-    validateSessionToken.mockResolvedValueOnce(makeSessionUser());
+    const cookieHeader = `__Secure-next-auth.session-token=${token}`;
+    vi.mocked(getSessionUser).mockResolvedValueOnce(makeSessionUser());
     const next = makeMockNext();
 
-    await authenticateSocket(makeAuthSocket(`__Secure-next-auth.session-token=${token}`), next);
+    await authenticateSocket(makeAuthSocket(cookieHeader), next);
 
     expect(next).toHaveBeenCalledWith();
-    expect(validateSessionToken).toHaveBeenCalledWith(expect.anything(), token);
+    expect(getSessionUser).toHaveBeenCalledWith(cookieHeader);
   });
 });
 
@@ -155,6 +142,7 @@ describe("createSocketServer", () => {
 
   describe("io.use() wrapper - delegates to authenticateSocket", () => {
     it("calls next(UNAUTHORIZED) via the wrapper when no cookies is present", async () => {
+      vi.mocked(getSessionUser).mockResolvedValueOnce(null);
       createSocketServer(fakeHttpServer);
 
       const inst = getMockIoInstance();

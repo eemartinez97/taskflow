@@ -19,7 +19,7 @@ export default mergeConfig(
       include: ["tests/**/*.test.{ts,tsx}"],
       setupFiles: ["./tests/setup.ts"],
       coverage: {
-        include: ["lib/**/*.{ts,tsx}", "app/**/*.{ts,tsx}"],
+        include: ["lib/**/*.{ts,tsx}", "app/**/*.{ts,tsx}", "*.ts"],
         exclude: [
           "app/layout.tsx", // Root layout, HTML shell, no logic
           "app/globals.css",

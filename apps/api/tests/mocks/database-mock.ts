@@ -12,8 +12,6 @@
  * Integration tests (tests/integration/) use the real @taskflow/database
  * via Testcontainers — the alias is scoped to the "unit" project only.
  */
-import { type SessionUser } from "@taskflow/shared";
-import { type MockInstance, vi } from "vitest";
 
 import { mockOps, type MockOps } from "./database";
 
@@ -50,7 +48,3 @@ export const boardWithColumns = {
 export const notificationWithActor = {
   actor: { select: { id: true, name: true, image: true } },
 } as const;
-
-export const validateSessionToken: MockInstance<
-  (db: unknown, token: string) => Promise<SessionUser | null>
-> = vi.fn();

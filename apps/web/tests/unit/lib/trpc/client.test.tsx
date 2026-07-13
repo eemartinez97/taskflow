@@ -6,9 +6,6 @@ import type { JSX } from "react";
 
 vi.mock("@taskflow/api/trpc", () => import("@/tests/mocks/taskflow-api"));
 vi.mock("pino", () => import("@/tests/mocks/pino"));
-vi.mock("@/lib/auth/server-session", () => ({
-  getServerSessionFromHeaders: vi.fn().mockResolvedValue(null),
-}));
 vi.mock("@trpc/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof TRPCReactQuery>();
   return {

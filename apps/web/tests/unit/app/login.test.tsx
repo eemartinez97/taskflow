@@ -88,13 +88,13 @@ describe("LoginPage", () => {
     );
   });
 
-  it("redirects to /dashboard on successful sign-in", async () => {
+  it("redirects to /projects on successful sign-in", async () => {
     render(<LoginPage />);
     await submitLoginForm();
 
     await waitFor(
       () => {
-        expect(routerMock.pushMock).toHaveBeenCalledWith("/dashboard");
+        expect(routerMock.pushMock).toHaveBeenCalledWith("/projects");
       },
       { timeout: 300 },
     );
@@ -147,7 +147,7 @@ describe("LoginPage", () => {
 
     await waitFor(
       () => {
-        expect(routerMock.pushMock).toHaveBeenCalledWith("/dashboard");
+        expect(routerMock.pushMock).toHaveBeenCalledWith("/projects");
       },
       { timeout: 300 },
     );

@@ -1,18 +1,20 @@
 import "server-only";
 
 import { type SessionUser } from "@taskflow/shared";
-import { redirect } from "next/navigation";
-import { headers } from "next/headers";
-
-import { getServerSessionFromHeaders } from "./server-session";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/auth";
 
 export async function getSession(): Promise<SessionUser | null> {
-  const requestHeaders = await headers();
-  return getServerSessionFromHeaders(requestHeaders);
-}
+  const session = await getServerSession(authOptions);
 
-export async function requireSession(): Promise<SessionUser> {
-  const session = await getSession();
-  if (!session) redirect("/login");
-  return session;
+  if (!session?.user.id || !session.user.email) return null;
+
+  const { id, email, name, image } = session.user;
+
+  return {
+    id,
+    email,
+    name: name ?? null,
+    image: image ?? null,
+  };
 }

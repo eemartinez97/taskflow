@@ -6,6 +6,7 @@ import { prisma, type PrismaClient } from "@taskflow/database";
 import { type Role } from "@taskflow/shared";
 import { isProduction } from "../config/env";
 import { type Logger, logger } from "../config/logger";
+import { getSessionUser } from "../utils/auth";
 
 // Context
 
@@ -49,8 +50,10 @@ export type TRPCContextWithRole = TRPCAuthedContext & { membershipRole: Role };
  * `req.user` is attached by `validateSession` middleware for protected routes.
  * Public routes leave it undefined, which is coerced to null here.
  */
-export function createTRPCContext({ req }: CreateExpressContextOptions): TRPCContext {
-  const user = (req as typeof req & { user?: SessionUser }).user ?? null;
+export async function createTRPCContext({
+  req,
+}: CreateExpressContextOptions): Promise<TRPCContext> {
+  const user = await getSessionUser(req.headers.cookie ?? null);
   return { db: prisma, logger, user };
 }
 

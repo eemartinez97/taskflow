@@ -1,67 +1,76 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/auth/server-session", () => ({ getServerSessionFromHeaders: vi.fn() }));
-vi.mock("next/navigation", () => import("@/tests/mocks/next-navigation"));
-vi.mock("next/headers", () => ({ headers: vi.fn() }));
+vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
+vi.mock("@/auth", () => ({ authOptions: {} }));
 vi.mock("server-only");
 
-import { headers } from "next/headers";
+import { getServerSession } from "next-auth";
 
-import { getServerSessionFromHeaders } from "@/lib/auth/server-session";
-import { getSession, requireSession } from "@/lib/auth/session";
-import { makeHeaders, makeSessionHeaders, mockServerSessionUser } from "@/tests/helpers";
-import { redirect } from "@/tests/mocks/next-navigation";
+import { VALID_USER_ID, mockSession, mockServerSessionUser } from "@/tests/helpers";
+import { getSession } from "@/lib/auth/session";
+
+/**
+ * Builds a minimal NextAuth Session-shaped object for edge-case tests.
+ * `mockSession` from helpers covers the happy path.
+ */
+function makeSession(
+  overrides: Partial<{ id: string; email: string; name: string | null; image: string | null }>,
+) {
+  return {
+    expires: "2099-01-01T00:00:00.000Z",
+    user: { ...mockSession.user, ...overrides },
+  };
+}
 
 describe("getSession", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+  beforeEach(() => vi.clearAllMocks());
 
-  it("passes the request headers to getServerSessionFromHeaders", async () => {
-    const h = makeSessionHeaders("tok");
-    vi.mocked(headers).mockResolvedValueOnce(h);
-    vi.mocked(getServerSessionFromHeaders).mockResolvedValueOnce(null);
-
-    await getSession();
-
-    expect(getServerSessionFromHeaders).toHaveBeenCalledWith(h);
-  });
-
-  it("returns the session when authenticated", async () => {
-    vi.mocked(headers).mockResolvedValueOnce(makeHeaders());
-    vi.mocked(getServerSessionFromHeaders).mockResolvedValueOnce(mockServerSessionUser);
+  it("returns a SessionUser matching mockServerSessionUser on a valid session", async () => {
+    vi.mocked(getServerSession).mockResolvedValueOnce(mockSession);
     expect(await getSession()).toEqual(mockServerSessionUser);
   });
 
-  it("returns null when unauthenticated", async () => {
-    vi.mocked(headers).mockResolvedValueOnce(makeHeaders());
-    vi.mocked(getServerSessionFromHeaders).mockResolvedValueOnce(null);
+  it("returns null when getServerSession returns null", async () => {
+    vi.mocked(getServerSession).mockResolvedValueOnce(null);
     expect(await getSession()).toBeNull();
   });
-});
 
-describe("requireSession", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(headers).mockResolvedValueOnce(makeHeaders());
+  it("returns null when user.id is an empty string", async () => {
+    vi.mocked(getServerSession).mockResolvedValueOnce(makeSession({ id: "" }));
+    expect(await getSession()).toBeNull();
   });
 
-  it("returns the session user when authenticated", async () => {
-    vi.mocked(getServerSessionFromHeaders).mockResolvedValueOnce(mockServerSessionUser);
-    expect(await requireSession()).toBe(mockServerSessionUser);
+  it("returns null when user.email is an empty string", async () => {
+    vi.mocked(getServerSession).mockResolvedValueOnce(makeSession({ email: "" }));
+    expect(await getSession()).toBeNull();
   });
 
-  it("calls redirect('/login') when session is null", async () => {
-    vi.mocked(getServerSessionFromHeaders).mockResolvedValueOnce(null);
-    await requireSession().catch(() => undefined);
-
-    // redirect was called with /login
-    expect(redirect).toHaveBeenCalledWith("/login");
+  it("coerces undefined name to null", async () => {
+    vi.mocked(getServerSession).mockResolvedValueOnce(
+      makeSession({ name: undefined as unknown as null }),
+    );
+    const result = await getSession();
+    expect(result?.name).toBeNull();
   });
 
-  it("does NOT call redirect when session exists", async () => {
-    vi.mocked(getServerSessionFromHeaders).mockResolvedValueOnce(mockServerSessionUser);
-    await requireSession();
-    expect(redirect).not.toHaveBeenCalled();
+  it("coerces null name to null", async () => {
+    vi.mocked(getServerSession).mockResolvedValueOnce(makeSession({ name: null }));
+    expect((await getSession())?.name).toBeNull();
+  });
+
+  it("coerces null image to null", async () => {
+    vi.mocked(getServerSession).mockResolvedValueOnce(makeSession({ image: null }));
+    expect((await getSession())?.image).toBeNull();
+  });
+
+  it("maps user.id from the session", async () => {
+    vi.mocked(getServerSession).mockResolvedValueOnce(mockSession);
+    expect((await getSession())?.id).toBe(VALID_USER_ID);
+  });
+
+  it("calls getServerSession exactly once", async () => {
+    vi.mocked(getServerSession).mockResolvedValueOnce(null);
+    await getSession();
+    expect(getServerSession).toHaveBeenCalledOnce();
   });
 });

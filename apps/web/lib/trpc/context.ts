@@ -1,8 +1,8 @@
 import { type PrismaClient, prisma } from "@taskflow/database";
 import { type SessionUser } from "@taskflow/shared";
 
-import { getServerSessionFromHeaders } from "../auth/server-session";
 import { type Logger, logger } from "../logger";
+import { getSession } from "../auth/session";
 
 /**
  * Web-side tRPC context.
@@ -23,7 +23,7 @@ export interface WebTRPCContext {
  * Canonical tRPC v11 signature `{ headers: Headers }`.
  * Authentication: reads the NextAuth v4 session token from the cookie header.
  */
-export async function createWebTRPCContext(opts: { headers: Headers }): Promise<WebTRPCContext> {
-  const session = await getServerSessionFromHeaders(opts.headers);
+export async function createWebTRPCContext(_opts: { headers: Headers }): Promise<WebTRPCContext> {
+  const session = await getSession();
   return { db: prisma, logger, user: session };
 }

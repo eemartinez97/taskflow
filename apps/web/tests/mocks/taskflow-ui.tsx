@@ -119,6 +119,7 @@ interface MockDialogProps {
   title: string;
   description?: string;
   children: React.ReactNode;
+  footer?: React.ReactNode;
   className?: string;
 }
 
@@ -127,6 +128,7 @@ export function Dialog({
   title,
   description,
   children,
+  footer,
 }: MockDialogProps): JSX.Element | null {
   if (!open) return null;
   return (
@@ -134,6 +136,7 @@ export function Dialog({
       <h2>{title}</h2>
       {description && <p>{description}</p>}
       {children}
+      {footer && <div className="mock-dialog-footer">{footer}</div>}
     </dialog>
   );
 }

@@ -5,6 +5,11 @@ import type { Request, Response } from "express";
 import request from "supertest";
 import express from "express";
 
+vi.mock("../../../src/config/env");
+vi.mock("../../../src/utils/auth", () => ({
+  getSessionUser: vi.fn().mockResolvedValue(null),
+}));
+
 import { prisma } from "@taskflow/database";
 
 import {
@@ -13,16 +18,16 @@ import {
   createTRPCRouter,
   TRPCError,
 } from "../../../src/trpc/init";
-
 import { isProduction } from "../../../src/config/env";
 import { logger } from "../../../src/config/logger";
 import { VALID_USER } from "../../helpers";
+import { getSessionUser } from "../../../src/utils/auth";
 
-vi.mock("../../../src/config/env");
-
-function makeOpts(user?: { id: string; email: string }): CreateExpressContextOptions {
+function makeOpts(cookieHeader?: string): CreateExpressContextOptions {
   return {
-    req: { user } as unknown as Request,
+    req: {
+      headers: { cookie: cookieHeader },
+    } as unknown as Request,
     res: {} as Response,
     info: {} as Parameters<typeof createTRPCContext>[0]["info"],
   };
@@ -70,36 +75,66 @@ interface TRPCErrorResponse {
 }
 
 describe("createTRPCContext", () => {
-  it("attaches db (prisma) to context", () => {
-    const ctx = createTRPCContext(makeOpts());
+  beforeEach(() => vi.clearAllMocks());
+
+  it("attaches db (prisma) to context", async () => {
+    const ctx = await createTRPCContext(makeOpts());
     expect(ctx.db).toBe(prisma);
   });
 
-  it("attaches logger to context", () => {
-    const ctx = createTRPCContext(makeOpts());
+  it("attaches logger to context", async () => {
+    const ctx = await createTRPCContext(makeOpts());
     expect(ctx.logger).toBe(logger);
   });
 
-  it("sets user to null when req.user is undefined (public route)", () => {
-    const ctx = createTRPCContext(makeOpts(undefined));
+  it("sets user to null when req.user is undefined (public route)", async () => {
+    vi.mocked(getSessionUser).mockResolvedValueOnce(null);
+
+    const ctx = await createTRPCContext(makeOpts(undefined));
+
     expect(ctx.user).toBeNull();
   });
 
-  it("sets user from req.user when present (authenticated route)", () => {
-    const ctx = createTRPCContext(makeOpts(VALID_USER));
+  it("sets user from getSessionUser when cookie contains a valid session token", async () => {
+    vi.mocked(getSessionUser).mockResolvedValueOnce(VALID_USER);
+
+    const ctx = await createTRPCContext(makeOpts("next-auth.session-token=valid-tok"));
+
     expect(ctx.user).toEqual(VALID_USER);
+  });
+
+  it("calls getSessionUser with the exact cookie header from the request", async () => {
+    const cookie = "next-auth.session-token=tok123";
+
+    await createTRPCContext(makeOpts(cookie));
+
+    expect(getSessionUser).toHaveBeenCalledWith(cookie);
+  });
+
+  it("calls getSessionUser with null when the cookie header is absent", async () => {
+    await createTRPCContext(makeOpts(undefined));
+
+    expect(getSessionUser).toHaveBeenCalledWith(null);
+  });
+
+  it("calls getSessionUser exactly once per context creation", async () => {
+    await createTRPCContext(makeOpts());
+
+    expect(getSessionUser).toHaveBeenCalledOnce();
   });
 });
 
 describe("errorFormatter", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getSessionUser).mockResolvedValue(null);
     vi.mocked(isProduction).mockReturnValue(false);
   });
 
   it("strips error cause in production mode", async () => {
     vi.mocked(isProduction).mockReturnValue(true);
-    const app = makeErrorApp("INTERNAL_SERVER_ERROR", new Error("raw db password"));
 
+    const app = makeErrorApp("INTERNAL_SERVER_ERROR", new Error("raw db password"));
     const res = await request(app).get("/trpc/fail");
 
     // INTERNAL_SERVER_ERROR -> HTTP 500
@@ -112,9 +147,8 @@ describe("errorFormatter", () => {
 
   it("includes error cause in development mode", async () => {
     vi.mocked(isProduction).mockReturnValue(false);
-    const cause = "invalid-query-param";
-    const app = makeErrorApp("BAD_REQUEST", cause);
 
+    const app = makeErrorApp("BAD_REQUEST", "invalid-query-param");
     const res = await request(app).get("/trpc/fail");
 
     // BAD_REQUEST -> 400 (tRPC maps error codes to HTTP status)

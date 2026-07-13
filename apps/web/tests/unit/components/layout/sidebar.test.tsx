@@ -10,7 +10,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 describe("Sidebar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(usePathname).mockReturnValue("/dashboard/projects");
+    vi.mocked(usePathname).mockReturnValue("/projects");
   });
 
   it("renders the TaskFlow logo link", () => {
@@ -27,13 +27,13 @@ describe("Sidebar", () => {
   });
 
   it("marks the active nav item with aria-current='page'", () => {
-    vi.mocked(usePathname).mockReturnValue("/dashboard/projects");
+    vi.mocked(usePathname).mockReturnValue("/projects");
     render(<Sidebar />);
     expect(screen.getByRole("link", { name: /projects/i })).toHaveAttribute("aria-current", "page");
   });
 
   it("does not mark inactive items with aria-current", () => {
-    vi.mocked(usePathname).mockReturnValue("/dashboard/projects");
+    vi.mocked(usePathname).mockReturnValue("/projects");
     render(<Sidebar />);
     expect(screen.getByRole("link", { name: /tasks/i })).not.toHaveAttribute("aria-current");
   });
@@ -43,12 +43,9 @@ describe("Sidebar", () => {
     expect(screen.getByRole("link", { name: /projects/i })).toHaveClass("bg-brand-50");
   });
 
-  it("Projects link points to /dashboard/projects", () => {
+  it("Projects link points to /projects", () => {
     render(<Sidebar />);
-    expect(screen.getByRole("link", { name: /projects/i })).toHaveAttribute(
-      "href",
-      "/dashboard/projects",
-    );
+    expect(screen.getByRole("link", { name: /projects/i })).toHaveAttribute("href", "/projects");
   });
 
   it("renders inside an <aside> landmark", () => {

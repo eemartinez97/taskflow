@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import type { JSX } from "react";
 
 import type { TasksMap } from "@/hooks/use-board-dnd";
-import { requireSession } from "@/lib/auth/session";
 import { getServerTRPC } from "@/lib/trpc/server";
 import { BoardPageClient } from "./board";
 
@@ -31,8 +30,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
  */
 export default async function ProjectBoardPage({ params }: PageProps): Promise<JSX.Element> {
   const { id: projectId } = await params;
-
-  await requireSession();
 
   const trpc = await getServerTRPC();
 

@@ -1,68 +1,46 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 
-vi.mock("@/lib/auth/session", () => ({
-  requireSession: vi.fn().mockResolvedValue({ id: "u1", email: "u@test.com" }),
-}));
-
+/**
+ * Stub pages are synchronous Server Components with zero dependencies.
+ * No mocks required — render directly as JSX.
+ */
 import SettingsPage from "@/app/(dashboard)/settings/page";
 import TasksPage from "@/app/(dashboard)/tasks/page";
-import { requireSession } from "@/lib/auth/session";
 import TeamPage from "@/app/(dashboard)/team/page";
 
 describe("TasksPage", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("renders the heading", async () => {
-    render(await TasksPage());
+  it("renders the 'My Tasks' heading", () => {
+    render(<TasksPage />);
     expect(screen.getByRole("heading", { name: /my tasks/i })).toBeInTheDocument();
   });
 
-  it("calls requireSession", async () => {
-    render(await TasksPage());
-    expect(requireSession).toHaveBeenCalledOnce();
-  });
-
-  it("renders the coming-soon message", async () => {
-    render(await TasksPage());
+  it("renders the coming-soon message", () => {
+    render(<TasksPage />);
     expect(screen.getByText(/coming in a future release/i)).toBeInTheDocument();
   });
 });
 
 describe("TeamPage", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("renders the heading", async () => {
-    render(await TeamPage());
+  it("renders the 'Team' heading", () => {
+    render(<TeamPage />);
     expect(screen.getByRole("heading", { name: /^team$/i })).toBeInTheDocument();
   });
 
-  it("calls requireSession", async () => {
-    render(await TeamPage());
-    expect(requireSession).toHaveBeenCalledOnce();
-  });
-
-  it("renders the coming-soon message", async () => {
-    render(await TeamPage());
+  it("renders the coming-soon message", () => {
+    render(<TeamPage />);
     expect(screen.getByText(/coming in a future release/i)).toBeInTheDocument();
   });
 });
 
 describe("SettingsPage", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("renders the heading", async () => {
-    render(await SettingsPage());
+  it("renders the 'Settings' heading", () => {
+    render(<SettingsPage />);
     expect(screen.getByRole("heading", { name: /settings/i })).toBeInTheDocument();
   });
 
-  it("calls requireSession", async () => {
-    render(await SettingsPage());
-    expect(requireSession).toHaveBeenCalledOnce();
-  });
-
-  it("renders the coming-soon message", async () => {
-    render(await SettingsPage());
+  it("renders the coming-soon message", () => {
+    render(<SettingsPage />);
     expect(screen.getByText(/coming in a future release/i)).toBeInTheDocument();
   });
 });

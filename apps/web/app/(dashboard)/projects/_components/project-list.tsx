@@ -61,7 +61,7 @@ export function ProjectList({ orgId, initialOrg, initialProjects }: ProjectListP
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="Projects list">
           {projects.map((project) => (
             <li key={project.id}>
-              <Link href={`/dashboard/projects/${project.id}`} className="block">
+              <Link href={`/projects/${project.id}`} className="block">
                 <Card className="transition-shadow hover:shadow-sm">
                   <CardHeader spacing={project.description ? "compact" : "none"}>
                     <div className="flex items-center gap-2">

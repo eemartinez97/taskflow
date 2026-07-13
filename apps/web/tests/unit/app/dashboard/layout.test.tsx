@@ -1,56 +1,56 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import type { JSX } from "react";
 
-vi.mock("next/navigation", () => import("@/tests/mocks/next-navigation"));
-vi.mock("next-auth/react", () => import("@/tests/mocks/next-auth"));
-vi.mock("@taskflow/ui", () => import("@/tests/mocks/taskflow-ui"));
-vi.mock("@/lib/auth/session", () => ({ requireSession: vi.fn() }));
-vi.mock("next/link", () => import("@/tests/mocks/next-link"));
+/**
+ * DashboardLayout is a SYNCHRONOUS Server Component.
+ * Auth is handled upstream by proxy.ts — no requireSession, no redirect here.
+ *
+ * Sidebar and Header are mocked inline so we test the layout structure only,
+ * not the behavior of its child components (which have their own test files).
+ */
+vi.mock("@/components/layout/sidebar", () => ({
+  Sidebar: (): JSX.Element => <aside data-testid="sidebar" />,
+}));
+vi.mock("@/components/layout/header", () => ({
+  Header: ({ title }: { title: string }): JSX.Element => (
+    <header data-testid="header">{title}</header>
+  ),
+}));
 
-import { redirect } from "@/tests/mocks/next-navigation";
 import DashboardLayout from "@/app/(dashboard)/layout";
-import { requireSession } from "@/lib/auth/session";
-import { mockAuthorizedUser } from "@/tests/helpers";
 
 describe("DashboardLayout", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(requireSession).mockResolvedValue(mockAuthorizedUser);
-  });
-
-  it("renders children when session is valid", async () => {
-    const layout = await DashboardLayout({ children: <p>page content</p> });
-    render(layout);
+  it("renders children", () => {
+    render(DashboardLayout({ children: <p>page content</p> }));
     expect(screen.getByText("page content")).toBeInTheDocument();
   });
 
-  it("calls requireSession", async () => {
-    const layout = await DashboardLayout({ children: <span /> });
-    render(layout);
-    expect(requireSession).toHaveBeenCalledOnce();
-  });
-
-  it("calls redirect('/login') when session is null", async () => {
-    vi.mocked(requireSession).mockImplementationOnce(() => {
-      redirect("/login");
-      // redirect() throws in Next.js; simulate that:
-      throw new Error("NEXT_REDIRECT");
-    });
-
-    await expect(DashboardLayout({ children: <span /> })).rejects.toThrow("NEXT_REDIRECT");
-    expect(redirect).toHaveBeenCalledWith("/login");
-  });
-
-  it("renders a <main> element with id='main-content'", async () => {
-    const layout = await DashboardLayout({ children: <span>inner</span> });
-    render(layout);
+  it("renders a <main> element with id='main-content'", () => {
+    render(DashboardLayout({ children: <span /> }));
     expect(document.getElementById("main-content")).toBeInTheDocument();
   });
 
-  it("renders children inside the <main> element", async () => {
-    const layout = await DashboardLayout({ children: <p data-testid="child">hello</p> });
-    render(layout);
-    const main = document.getElementById("main-content");
-    expect(main?.querySelector("[data-testid='child']")).toBeInTheDocument();
+  it("renders children inside the <main> element", () => {
+    render(DashboardLayout({ children: <p data-testid="child">hello</p> }));
+    expect(
+      document.getElementById("main-content")?.querySelector("[data-testid='child']"),
+    ).toBeInTheDocument();
+  });
+
+  it("renders the sidebar", () => {
+    render(DashboardLayout({ children: <span /> }));
+    expect(screen.getByTestId("sidebar")).toBeInTheDocument();
+  });
+
+  it("renders the header", () => {
+    render(DashboardLayout({ children: <span /> }));
+    expect(screen.getByTestId("header")).toBeInTheDocument();
+  });
+
+  it("does not throw for any ReactNode children type", () => {
+    expect(() => render(DashboardLayout({ children: null }))).not.toThrow();
+    expect(() => render(DashboardLayout({ children: "text" }))).not.toThrow();
+    expect(() => render(DashboardLayout({ children: <div /> }))).not.toThrow();
   });
 });

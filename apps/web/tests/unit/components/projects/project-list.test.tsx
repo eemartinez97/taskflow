@@ -63,7 +63,7 @@ describe("ProjectList - rendering", () => {
     );
     expect(screen.getByRole("link", { name: new RegExp(mockProject.name, "i") })).toHaveAttribute(
       "href",
-      `/dashboard/projects/${mockProject.id}`,
+      `/projects/${mockProject.id}`,
     );
   });
 

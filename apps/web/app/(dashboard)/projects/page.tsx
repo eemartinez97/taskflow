@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import type { JSX } from "react";
 
 import { ProjectList } from "./_components/project-list";
-import { requireSession } from "@/lib/auth/session";
 import { getServerTRPC } from "@/lib/trpc/server";
 
 export const metadata: Metadata = { title: "Projects" };
@@ -14,8 +13,6 @@ export const metadata: Metadata = { title: "Projects" };
  * a populated page immediately without a loading flash.
  */
 export default async function ProjectsPage(): Promise<JSX.Element> {
-  await requireSession();
-
   const trpc = await getServerTRPC();
 
   const orgs = await trpc.orgs.list();

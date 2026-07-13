@@ -33,7 +33,7 @@ export function Sidebar(): JSX.Element {
     <aside className="flex h-full w-56 flex-col border-r border-gray-200 bg-white">
       <div className="flex h-14 items-center border-b border-gray-200 px-4">
         <Link
-          href="/dashboard/projects"
+          href="/projects"
           className="flex items-center gap-2 text-base font-semibold text-brand-700"
         >
           <LayoutDashboard className="h-5 w-5" />

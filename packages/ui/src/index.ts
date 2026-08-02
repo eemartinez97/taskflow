@@ -1,4 +1,4 @@
-// UI primitives — single entry point
+// UI primitives - single entry point
 // Consumed by apps/web via: import { Button, Card, ... } from "@taskflow/ui"
 
 export { Button } from "./button";
@@ -27,5 +27,14 @@ export type { BadgeProps } from "./badge";
 
 export { Spinner } from "./spinner";
 export type { SpinnerProps } from "./spinner";
+
+export { Alert } from "./alert";
+export type { AlertProps } from "./alert";
+
+export { FormField } from "./form-field";
+export type { FormFieldProps } from "./form-field";
+
+export { InlineEditText } from "./inline-edit-text";
+export type { InlineEditTextProps } from "./inline-edit-text";
 
 export { cn } from "./utils";

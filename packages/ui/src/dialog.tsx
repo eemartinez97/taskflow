@@ -11,7 +11,7 @@ export interface DialogProps {
   title: string;
   /** Optional description below the title. */
   description?: string;
-  children: React.ReactNode;
+  children?: React.ReactNode;
   /** Content rendered in the sticky footer area (e.g. action buttons). */
   footer?: React.ReactNode;
   className?: string;
@@ -71,7 +71,7 @@ export function Dialog({
       className={cn(
         // Reset browser default styles
         "rounded-xl border border-gray-200 bg-white p-0 shadow-lg",
-        "w-full max-w-md backdrop:bg-black/40",
+        "m-auto w-full max-w-md backdrop:bg-black/40",
         // Use React-controlled class instead of open: Tailwind variant
         // to avoid relying on browser attribute timing
         open ? "flex flex-col" : "hidden",
@@ -88,8 +88,9 @@ export function Dialog({
         {description && <p className="text-sm text-gray-500">{description}</p>}
       </div>
 
-      {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">{children}</div>
+      {/* Body - skipped entirely when there is no content, so the header and
+      footer borders don't stack into a double rule */}
+      {children ? <div className="flex-1 overflow-y-auto px-6 py-4">{children}</div> : null}
 
       {/* Optional footer with action buttons */}
       {footer && (

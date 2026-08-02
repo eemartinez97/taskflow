@@ -6,7 +6,7 @@ import type { ToastItem } from "../src";
 
 // Timer behavior tests (fake timers required)
 
-describe("Toast — timer behavior", () => {
+describe("Toast - timer behavior", () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -59,9 +59,9 @@ describe("Toast — timer behavior", () => {
   });
 });
 
-// Rendering and interaction tests (real timers — no timer logic involved)
+// Rendering and interaction tests (real timers - no timer logic involved)
 
-describe("Toast — rendering and interactions", () => {
+describe("Toast - rendering and interactions", () => {
   it("renders the message", () => {
     render(<Toast message="Operation successful" onDismiss={vi.fn()} />);
     expect(screen.getByText("Operation successful")).toBeInTheDocument();
@@ -74,7 +74,7 @@ describe("Toast — rendering and interactions", () => {
 
   it("calls onDismiss when dismiss button is clicked", async () => {
     const onDismiss = vi.fn();
-    // duration=0 disables the internal setTimeout entirely — no fake timers needed
+    // duration=0 disables the internal setTimeout entirely - no fake timers needed
     render(<Toast message="Click to dismiss" duration={0} onDismiss={onDismiss} />);
     await userEvent.click(screen.getByRole("button", { name: "Dismiss notification" }));
     expect(onDismiss).toHaveBeenCalledOnce();
@@ -104,7 +104,7 @@ describe("Toast — rendering and interactions", () => {
   });
 });
 
-// ToastContaine
+// ToastContainer
 
 describe("ToastContainer", () => {
   const toasts: ToastItem[] = [
@@ -125,7 +125,7 @@ describe("ToastContainer", () => {
 
   it("calls onDismiss with the correct toast id", async () => {
     const onDismiss = vi.fn();
-    // duration=0 disables auto-dismiss — no fake timers needed
+    // duration=0 disables auto-dismiss - no fake timers needed
     const staticToasts: ToastItem[] = [
       { id: "1", message: "First", duration: 0 },
       { id: "2", message: "Second", duration: 0 },

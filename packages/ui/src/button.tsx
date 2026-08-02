@@ -1,7 +1,7 @@
 import type { JSX } from "react";
 import { cn } from "./utils";
 
-// Variant and size maps — defined outside component to avoid re-creation on each render
+// Variant and size maps - defined outside component to avoid re-creation on each render
 const variantClasses = {
   primary: [
     "bg-brand-600 text-white",
@@ -76,7 +76,7 @@ export function Button({
   return (
     <button
       ref={ref}
-      disabled={disabled ?? loading}
+      disabled={loading || disabled}
       aria-busy={loading}
       className={cn(
         // Base styles

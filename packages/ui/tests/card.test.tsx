@@ -36,4 +36,54 @@ describe("Card", () => {
     expect(screen.getByText("Body")).toBeInTheDocument();
     expect(screen.getByText("Footer")).toBeInTheDocument();
   });
+
+  it("applies default spacing with divider to CardHeader", () => {
+    render(
+      <Card>
+        <CardHeader data-testid="header" spacing="default" divider>
+          <CardTitle>Title</CardTitle>
+        </CardHeader>
+      </Card>,
+    );
+    const header = screen.getByTestId("header");
+    expect(header).toHaveClass("pb-5", "mb-5", "border-b", "border-gray-100");
+  });
+
+  it("applies default spacing without divider to CardHeader", () => {
+    render(
+      <Card>
+        <CardHeader data-testid="header" spacing="default" divider={false}>
+          <CardTitle>Title</CardTitle>
+        </CardHeader>
+      </Card>,
+    );
+    const header = screen.getByTestId("header");
+    expect(header).toHaveClass("mb-6");
+    expect(header).not.toHaveClass("border-b");
+  });
+
+  it("applies compact spacing with divider to CardHeader", () => {
+    render(
+      <Card>
+        <CardHeader data-testid="header" spacing="compact" divider>
+          <CardTitle>Title</CardTitle>
+        </CardHeader>
+      </Card>,
+    );
+    const header = screen.getByTestId("header");
+    expect(header).toHaveClass("pb-3", "mb-3", "border-b", "border-gray-100");
+  });
+
+  it("applies compact spacing without divider to CardHeader", () => {
+    render(
+      <Card>
+        <CardHeader data-testid="header" spacing="compact" divider={false}>
+          <CardTitle>Title</CardTitle>
+        </CardHeader>
+      </Card>,
+    );
+    const header = screen.getByTestId("header");
+    expect(header).toHaveClass("mb-3");
+    expect(header).not.toHaveClass("border-b");
+  });
 });

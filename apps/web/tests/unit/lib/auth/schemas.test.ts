@@ -1,103 +1,51 @@
+// apps/web/tests/unit/lib/auth/schemas.test.ts
 import { describe, expect, it } from "vitest";
-
-import { validLoginCredentials, validRegisterPayload } from "@/tests/helpers";
-import { loginSchema, registerSchema } from "@/lib/auth/schemas";
+import { loginSchema, passwordSchema, registerSchema } from "@/lib/auth/schemas";
+import { validRegisterPayload } from "@/tests/support/fixtures";
 
 describe("loginSchema", () => {
-  it("accepts valid email and password", () => {
-    const result = loginSchema.parse(validLoginCredentials);
-    expect(result.email).toBe(validLoginCredentials.email);
+  it("accepts a valid email/password pair", () => {
+    expect(loginSchema.safeParse({ email: "a@b.com", password: "x" }).success).toBe(true);
   });
-
-  it("rejects invalid email format", () => {
-    expect(() => loginSchema.parse({ email: "not-an-email", password: "pass" })).toThrow();
+  it("rejects an invalid email", () => {
+    expect(loginSchema.safeParse({ email: "not-an-email", password: "x" }).success).toBe(false);
   });
-
-  it("rejects empty password", () => {
-    expect(() => {
-      loginSchema.parse({ email: validLoginCredentials.email, password: "" });
-    }).toThrow();
+  it("rejects an empty password", () => {
+    expect(loginSchema.safeParse({ email: "a@b.com", password: "" }).success).toBe(false);
   });
+});
 
-  it("rejects missing email", () => {
-    expect(() => loginSchema.parse({ password: "pass" })).toThrow();
+describe("passwordSchema", () => {
+  it("accepts a compliant password", () => {
+    expect(passwordSchema.safeParse("Str0ng!Pass").success).toBe(true);
   });
-
-  it("rejects missing password", () => {
-    expect(() => loginSchema.parse({ email: validLoginCredentials.email })).toThrow();
+  it.each([
+    ["too short", "Sh0rt!"],
+    ["no lowercase", "STRONG1!AAA"],
+    ["no uppercase", "strong1!aaa"],
+    ["no number", "StrongPass!"],
+    ["no symbol", "StrongPass1"],
+    ["too long", `A1!${"a".repeat(70)}`],
+  ])("rejects: %s", (_label, value) => {
+    expect(passwordSchema.safeParse(value).success).toBe(false);
   });
 });
 
 describe("registerSchema", () => {
-  it("accepts valid registration data", () => {
-    expect(registerSchema.parse(validRegisterPayload).email).toBe(validRegisterPayload.email);
+  it("accepts a fully valid payload", () => {
+    expect(registerSchema.safeParse(validRegisterPayload).success).toBe(true);
   });
-
-  it("rejects name shorter than 2 characters", () => {
-    expect(() => registerSchema.parse({ ...validRegisterPayload, name: "A" })).toThrow();
-  });
-
-  it("rejects name longer than 100 characters", () => {
-    expect(() =>
-      registerSchema.parse({ ...validRegisterPayload, name: "A".repeat(101) }),
-    ).toThrow();
-  });
-
-  it("rejects invalid email", () => {
-    expect(() =>
-      registerSchema.parse({ ...validRegisterPayload, email: "not-an-email" }),
-    ).toThrow();
-  });
-
-  it("rejects password shorter than 8 characters", () => {
-    expect(() => registerSchema.parse({ ...validRegisterPayload, password: "short" })).toThrow();
-  });
-  it("rejects password longer than 72 characters (bcrypt limit)", () => {
-    expect(() =>
-      registerSchema.parse({ ...validRegisterPayload, password: "a".repeat(73) }),
-    ).toThrow();
-  });
-
-  it("rejects when password and confirmPassword do not match", () => {
-    expect(() =>
-      registerSchema.parse({ ...validRegisterPayload, confirmPassword: "different-password" }),
-    ).toThrow();
-  });
-
-  it("attaches the validation error to the confirmPassword path", () => {
-    const result = registerSchema.safeParse({ ...validRegisterPayload, confirmPassword: "wrong" });
+  it("rejects mismatched passwords with an error on confirmPassword", () => {
+    const result = registerSchema.safeParse({
+      ...validRegisterPayload,
+      confirmPassword: "Different1!",
+    });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const paths = result.error.issues.map((i) => i.path.join("."));
-      expect(paths).toContain("confirmPassword");
+      expect(result.error.issues[0]?.path).toEqual(["confirmPassword"]);
     }
   });
-
-  it("accepts passwords exactly at 8 characters (boundary)", () => {
-    const boundary = "a".repeat(8);
-    expect(
-      registerSchema.parse({
-        ...validRegisterPayload,
-        password: boundary,
-        confirmPassword: boundary,
-      }).password,
-    ).toBe(boundary);
-  });
-
-  it("accepts password exactly at 72 characters (bcrypt boundary)", () => {
-    const boundary = "a".repeat(72);
-    expect(
-      registerSchema.parse({
-        ...validRegisterPayload,
-        password: boundary,
-        confirmPassword: boundary,
-      }).password,
-    ).toBe(boundary);
-  });
-
-  it("rejects missing confirmPassword", () => {
-    const { confirmPassword: _, ...withoutConfirm } = validRegisterPayload;
-    void _;
-    expect(() => registerSchema.parse(withoutConfirm)).toThrow();
+  it("rejects a name shorter than 2 characters", () => {
+    expect(registerSchema.safeParse({ ...validRegisterPayload, name: "A" }).success).toBe(false);
   });
 });

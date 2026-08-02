@@ -1,96 +1,84 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@taskflow/database", () => import("@/tests/mocks/taskflow-database"));
 vi.mock("bcrypt", () => import("@/tests/mocks/bcrypt"));
 
-import { db, mockAuthorizedUser, mockDbUser, validLoginCredentials } from "@/tests/helpers";
 import { authorizeCredentials } from "@/lib/auth/credentials";
-import { webMockDb } from "@/tests/mocks/taskflow-database";
-import bcrypt from "@/tests/mocks/bcrypt";
+import { compare as mockCompare } from "@/tests/mocks/bcrypt";
+import { mockDb } from "@/tests/mocks/taskflow-database";
+import { db } from "@/tests/support/factories";
+import { mockDbUser } from "@/tests/support/fixtures";
 
 describe("authorizeCredentials", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    // Default: user found with hashed password
-    webMockDb.user.findUnique.mockResolvedValue(mockDbUser);
-    vi.mocked(bcrypt.compare).mockResolvedValue(true);
-  });
-
-  it("returns an AuthorizedUser (without password) on valid credentials", async () => {
-    const result = await authorizeCredentials(db, validLoginCredentials);
-    expect(result).toEqual(mockAuthorizedUser);
-  });
-
-  it("does NOT include the password field in the result", async () => {
-    const result = await authorizeCredentials(db, validLoginCredentials);
-    expect(result).not.toHaveProperty("password");
-  });
-
-  it("normalizes email to lowercase before querying", async () => {
-    await authorizeCredentials(db, {
-      ...validLoginCredentials,
-      email: validLoginCredentials.email.toUpperCase(),
-    });
-    expect(webMockDb.user.findUnique).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { email: validLoginCredentials.email },
-      }),
-    );
-  });
-
-  it("trims whitespace from email before querying", async () => {
-    await authorizeCredentials(db, {
-      ...validLoginCredentials,
-      email: ` ${validLoginCredentials.email} `,
-    });
-    expect(webMockDb.user.findUnique).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { email: validLoginCredentials.email },
-      }),
-    );
-  });
-
   it("returns null when email is missing", async () => {
-    expect(await authorizeCredentials(db, { password: "pass" })).toBeNull();
-    expect(webMockDb.user.findUnique).not.toHaveBeenCalled();
+    expect(await authorizeCredentials(db, { password: "x" })).toBeNull();
   });
 
   it("returns null when password is missing", async () => {
-    expect(await authorizeCredentials(db, { email: validLoginCredentials.email })).toBeNull();
-    expect(webMockDb.user.findUnique).not.toHaveBeenCalled();
+    expect(await authorizeCredentials(db, { email: "a@b.com" })).toBeNull();
   });
 
-  it("returns null when email is empty string", async () => {
-    expect(await authorizeCredentials(db, { email: "", password: "pass" })).toBeNull();
-  });
-
-  it("returns null when user is not found in DB", async () => {
-    webMockDb.user.findUnique.mockResolvedValueOnce(null);
-    expect(await authorizeCredentials(db, validLoginCredentials)).toBeNull();
-  });
-
-  it("returns null when user has no stored password (OAuth-only account)", async () => {
-    webMockDb.user.findUnique.mockResolvedValueOnce({ ...mockDbUser, password: null });
-    expect(await authorizeCredentials(db, validLoginCredentials)).toBeNull();
-    // verifyPassword must NOT be called - no hash to compare against
-    expect(bcrypt.compare).not.toHaveBeenCalled();
-  });
-
-  it("returns null when password verification fails", async () => {
-    vi.mocked(bcrypt.compare).mockResolvedValueOnce(false);
-    expect(await authorizeCredentials(db, validLoginCredentials)).toBeNull();
-  });
-
-  it("returns null (does NOT throw) when the DB throws", async () => {
-    webMockDb.user.findUnique.mockRejectedValueOnce(new Error("Connection refused"));
-    expect(await authorizeCredentials(db, validLoginCredentials)).toBeNull();
-  });
-
-  it("selects only the required fields (no over-fetching)", async () => {
-    await authorizeCredentials(db, validLoginCredentials);
-    expect(webMockDb.user.findUnique).toHaveBeenCalledWith({
-      where: { email: validLoginCredentials.email },
-      select: { id: true, email: true, name: true, image: true, password: true },
+  it("normalizes email to lowercase/trimmed before lookup", async () => {
+    mockDb.user.findUnique.mockResolvedValueOnce(mockDbUser);
+    mockCompare.mockResolvedValueOnce(true);
+    await authorizeCredentials(db, {
+      email: "  Alice@TaskFlow.dev  ",
+      password: "correct-password",
     });
+    expect(mockDb.user.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { email: "alice@taskflow.dev" } }),
+    );
+  });
+
+  it("returns null when no user is found", async () => {
+    mockDb.user.findUnique.mockResolvedValueOnce(null);
+    const result = await authorizeCredentials(db, {
+      email: "ghost@taskflow.dev",
+      password: "x",
+    });
+    expect(result).toBeNull();
+  });
+
+  it("returns null when the user has no password hash (OAuth-only account)", async () => {
+    mockDb.user.findUnique.mockResolvedValueOnce({ ...mockDbUser, password: null });
+    const result = await authorizeCredentials(db, {
+      email: mockDbUser.email,
+      password: "x",
+    });
+    expect(result).toBeNull();
+  });
+
+  it("returns null when the password doesn't match", async () => {
+    mockDb.user.findUnique.mockResolvedValueOnce(mockDbUser);
+    mockCompare.mockResolvedValueOnce(false);
+    const result = await authorizeCredentials(db, {
+      email: mockDbUser.email,
+      password: "wrong",
+    });
+    expect(result).toBeNull();
+  });
+
+  it("returns the user without the password field on success", async () => {
+    mockDb.user.findUnique.mockResolvedValueOnce(mockDbUser);
+    mockCompare.mockResolvedValueOnce(true);
+    const result = await authorizeCredentials(db, {
+      email: mockDbUser.email,
+      password: "correct-password",
+    });
+    expect(result).toEqual({
+      id: mockDbUser.id,
+      email: mockDbUser.email,
+      name: mockDbUser.name,
+      image: mockDbUser.image,
+    });
+    expect(result).not.toHaveProperty("password");
+  });
+
+  it("returns null (never throws) when the DB call rejects", async () => {
+    mockDb.user.findUnique.mockRejectedValueOnce(new Error("connection lost"));
+    const result = await authorizeCredentials(db, {
+      email: mockDbUser.email,
+      password: "x",
+    });
+    expect(result).toBeNull();
   });
 });

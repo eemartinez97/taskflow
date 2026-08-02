@@ -7,8 +7,32 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 
-import { Button, Card, CardHeader, CardTitle, Input, CardContent, Label } from "@taskflow/ui";
+import {
+  Button,
+  Card,
+  CardHeader,
+  CardTitle,
+  Input,
+  CardContent,
+  FormField,
+  Alert,
+} from "@taskflow/ui";
 import { type LoginInput, loginSchema } from "@/lib/auth/schemas";
+
+/**
+ * Reads the ?callbackUrl the proxy attached when it redirected an
+ * unauthenticated user, and validates it is a same-origin relative path
+ * (rejecting "//evil.com" style open redirects).
+ *
+ * Read inside the submit handler via window.location instead of
+ * useSearchParams: the hook would force a Suspense boundary around the page
+ * under Next 16 cacheComponents, and an event handler is browser-only anyway.
+ */
+
+function getCallbackUrl(): string {
+  const raw = new URLSearchParams(window.location.search).get("callbackUrl");
+  return raw?.startsWith("/") && !raw.startsWith("//") ? raw : "/projects";
+}
 
 /**
  * Login page - Client Component (uses hooks and signIn),
@@ -46,7 +70,7 @@ export default function LoginPage(): JSX.Element {
       return;
     }
 
-    router.push("/projects");
+    router.push(getCallbackUrl());
   }
 
   return (
@@ -57,16 +81,9 @@ export default function LoginPage(): JSX.Element {
 
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
-          {serverError && (
-            <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-              {serverError}
-            </p>
-          )}
+          <Alert message={serverError} />
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="email" required>
-              Email
-            </Label>
+          <FormField label="Email" htmlFor="email" required error={errors.email?.message}>
             <Input
               id="email"
               type="email"
@@ -74,17 +91,9 @@ export default function LoginPage(): JSX.Element {
               hasError={!!errors.email}
               {...register("email")}
             />
-            {errors.email && (
-              <p className="text-xs text-red-600" role="alert">
-                {errors.email.message}
-              </p>
-            )}
-          </div>
+          </FormField>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="password" required>
-              Password
-            </Label>
+          <FormField label="Password" htmlFor="password" required error={errors.password?.message}>
             <Input
               id="password"
               type="password"
@@ -92,12 +101,7 @@ export default function LoginPage(): JSX.Element {
               hasError={!!errors.password}
               {...register("password")}
             />
-            {errors.password && (
-              <p className="text-xs text-red-600" role="alert">
-                {errors.password.message}
-              </p>
-            )}
-          </div>
+          </FormField>
 
           <Button type="submit" fullWidth loading={isSubmitting}>
             Sign in

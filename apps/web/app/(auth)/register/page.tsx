@@ -6,8 +6,18 @@ import { useForm } from "react-hook-form";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label } from "@taskflow/ui";
+import {
+  Alert,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  FormField,
+  Input,
+} from "@taskflow/ui";
 import { type RegisterInput, registerSchema } from "@/lib/auth/schemas";
+import { signIn } from "next-auth/react";
 
 /**
  * Register page - Client Component.
@@ -48,7 +58,18 @@ export default function RegisterPage(): JSX.Element {
       return;
     }
 
-    router.push("/login?registered=true");
+    const result = await signIn("credentials", {
+      email: data.email,
+      password: data.password,
+      redirect: false,
+    });
+
+    if (result?.error) {
+      router.push("/login");
+      return;
+    }
+
+    router.push("/projects");
   }
 
   return (
@@ -59,16 +80,9 @@ export default function RegisterPage(): JSX.Element {
 
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
-          {serverError && (
-            <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-              {serverError}
-            </p>
-          )}
+          <Alert message={serverError} />
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="name" required>
-              Name
-            </Label>
+          <FormField label="Name" htmlFor="name" required error={errors.name?.message}>
             <Input
               id="name"
               type="text"
@@ -76,17 +90,9 @@ export default function RegisterPage(): JSX.Element {
               hasError={!!errors.name}
               {...register("name")}
             />
-            {errors.name && (
-              <p className="text-xs text-red-600" role="alert">
-                {errors.name.message}
-              </p>
-            )}
-          </div>
+          </FormField>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="email" required>
-              Email
-            </Label>
+          <FormField label="Email" htmlFor="email" required error={errors.email?.message}>
             <Input
               id="email"
               type="email"
@@ -94,18 +100,9 @@ export default function RegisterPage(): JSX.Element {
               hasError={!!errors.email}
               {...register("email")}
             />
-            {errors.email && (
-              <p className="text-xs text-red-600" role="alert">
-                {" "}
-                {errors.email.message}
-              </p>
-            )}
-          </div>
+          </FormField>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="password" required>
-              Password
-            </Label>
+          <FormField label="Password" htmlFor="password" required error={errors.password?.message}>
             <Input
               id="password"
               type="password"
@@ -113,17 +110,18 @@ export default function RegisterPage(): JSX.Element {
               hasError={!!errors.password}
               {...register("password")}
             />
-            {errors.password && (
-              <p className="text-xs text-red-600" role="alert">
-                {errors.password.message}
-              </p>
-            )}
-          </div>
+          </FormField>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="confirmPassword" required>
-              Confirm password
-            </Label>
+          <p className="text-xs text-gray-400">
+            At least 10 characters, with uppercase, lowercase, a number and a symbol.
+          </p>
+
+          <FormField
+            label="Confirm Password"
+            htmlFor="confirmPassword"
+            required
+            error={errors.confirmPassword?.message}
+          >
             <Input
               id="confirmPassword"
               type="password"
@@ -131,12 +129,7 @@ export default function RegisterPage(): JSX.Element {
               hasError={!!errors.confirmPassword}
               {...register("confirmPassword")}
             />
-            {errors.confirmPassword && (
-              <p className="text-xs text-red-600" role="alert">
-                {errors.confirmPassword.message}
-              </p>
-            )}
-          </div>
+          </FormField>
 
           <Button type="submit" fullWidth loading={isSubmitting}>
             Create account

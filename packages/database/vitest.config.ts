@@ -1,37 +1,28 @@
-import { defineConfig } from "vitest/config";
+import { baseVitestConfig, mergeConfig, defineConfig } from "@taskflow/config/vitest/base";
 
-export default defineConfig({
-  test: {
-    environment: "node",
-
-    // passWithNoTests lives at root level — not inside individual projects
-    passWithNoTests: true,
-
-    coverage: {
-      provider: "v8",
-      reporter: ["text", "lcov", "html"],
-      include: ["src/selects.ts"],
-      thresholds: {
-        lines: 100,
-        functions: 100,
-        branches: 100,
-        statements: 100,
+export default mergeConfig(
+  baseVitestConfig,
+  defineConfig({
+    test: {
+      passWithNoTests: true,
+      projects: [
+        {
+          extends: true,
+          test: { name: "unit", environment: "node", include: ["tests/unit/**/*.test.ts"] },
+        },
+        {
+          extends: true,
+          test: {
+            name: "integration",
+            environment: "node",
+            include: ["tests/integration/**/*.test.ts"],
+          },
+        },
+      ],
+      coverage: {
+        include: ["src/selects.ts"],
+        thresholds: { lines: 100, functions: 100, branches: 100, statements: 100 },
       },
     },
-
-    projects: [
-      {
-        test: {
-          name: "unit",
-          include: ["tests/unit/**/*.test.ts"],
-        },
-      },
-      {
-        test: {
-          name: "integration",
-          include: ["tests/integration/**/*.test.ts"],
-        },
-      },
-    ],
-  },
-});
+  }),
+);

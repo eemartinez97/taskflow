@@ -10,7 +10,7 @@
  *   vi.mock("@dnd-kit/sortable", () => import("@/tests/mocks/dnd-kit"));
  */
 
-import type { JSX } from "react";
+import { useEffect, type JSX } from "react";
 import { vi } from "vitest";
 
 // -- Sensors (no-op) --
@@ -38,17 +38,34 @@ export const useDroppable = vi.fn(() => ({
 }));
 
 // -- DndContext (passthrough) --
+
+/** Captures the last DndContext props so tests can invoke handlers directly. */
+export const capturedDndProps: {
+  onDragStart?: (e: unknown) => void;
+  onDragOver?: (e: unknown) => void;
+  onDragEnd?: (e: unknown) => void;
+  collisionDetection?: (args: unknown) => unknown;
+} = {};
+
 export function DndContext({
   children,
-  onDragStart: _s,
-  onDragOver: _o,
-  onDragEnd: _e,
+  onDragStart,
+  onDragOver,
+  onDragEnd,
+  collisionDetection,
 }: {
   children: React.ReactNode;
   onDragStart?: unknown;
   onDragOver?: unknown;
   onDragEnd?: unknown;
+  collisionDetection?: unknown;
 }): JSX.Element {
+  useEffect(() => {
+    capturedDndProps.onDragStart = onDragStart as never;
+    capturedDndProps.onDragOver = onDragOver as never;
+    capturedDndProps.onDragEnd = onDragEnd as never;
+    capturedDndProps.collisionDetection = collisionDetection as never;
+  });
   return <>{children}</>;
 }
 

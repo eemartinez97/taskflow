@@ -8,27 +8,14 @@
 
 import { vi } from "vitest";
 
-type MockFn = ReturnType<typeof vi.fn>;
-
 interface UserModelMock {
-  findUnique: MockFn;
-  create: MockFn;
+  findUnique: ReturnType<typeof vi.fn>;
+  create: ReturnType<typeof vi.fn>;
 }
 
-export interface WebMockDb {
-  user: UserModelMock;
-}
-
-const fn = (): MockFn => vi.fn();
-
-export const mockDb: WebMockDb = {
-  user: { findUnique: fn(), create: fn() },
+export const mockDb: { user: UserModelMock } = {
+  user: { findUnique: vi.fn(), create: vi.fn() },
 };
-
-/** Named alias for semantic clarity in test files. */
-export const webMockDb = mockDb;
 
 /** Matches `import { prisma } from "@taskflow/database"` */
 export const prisma = mockDb;
-
-export type PrismaClient = typeof mockDb;

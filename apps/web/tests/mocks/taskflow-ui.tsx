@@ -1,9 +1,9 @@
 /**
- * Mock for @taskflow/ui — replaces every primitive with a minimal
+ * Mock for @taskflow/ui - replaces every primitive with a minimal
  * HTML equivalent so pages render in jsdom without Tailwind/CSS.
  *
  * Activate per test file:
- *   vi.mock("@taskflow/ui", () => import("../mocks/taskflow-ui"));
+ *   vi.mock("@taskflow/ui", () => import("@/tests/mocks/taskflow-ui"));
  */
 
 import type { JSX } from "react";
@@ -182,8 +182,75 @@ export function ToastContainer({ toasts, onDismiss }: MockToastContainerProps): 
   );
 }
 
+// -- Alert --
+interface MockAlertProps {
+  message?: string | null;
+  variant?: string;
+  className?: string;
+}
+
+export function Alert({
+  message,
+  variant: _variant,
+  className,
+}: MockAlertProps): JSX.Element | null {
+  if (!message) return null;
+  return (
+    <p role="alert" className={className}>
+      {message}
+    </p>
+  );
+}
+
+// -- FormField --
+interface MockFormFieldProps {
+  label: string;
+  htmlFor: string;
+  required?: boolean;
+  error?: string;
+  children: React.ReactNode;
+  className?: string;
+}
+
+export function FormField({
+  label,
+  htmlFor,
+  error,
+  children,
+  required: _r,
+}: MockFormFieldProps): JSX.Element {
+  return (
+    <div>
+      <label htmlFor={htmlFor}>{label}</label>
+      {children}
+      {error && <p role="alert">{error}</p>}
+    </div>
+  );
+}
+
 // -- cn utility (pass-through in tests) --
 
 export function cn(...classes: (string | undefined | null | false)[]): string {
   return classes.filter(Boolean).join(" ");
+}
+
+interface MockInlineEditTextProps {
+  label: string;
+  value: string;
+  maxLength?: number;
+  className?: string;
+  inputClassName?: string;
+  onSave: (value: string) => void;
+}
+
+export function InlineEditText({ label, value, onSave }: MockInlineEditTextProps): JSX.Element {
+  return (
+    <input
+      aria-label={label}
+      defaultValue={value}
+      onBlur={(e) => {
+        onSave(e.target.value);
+      }}
+    />
+  );
 }

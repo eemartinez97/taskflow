@@ -3,7 +3,7 @@
  * that call useRouter, usePathname, useSearchParams, or redirect().
  *
  * Activate per test file:
- *   vi.mock("next/navigation", () => import("../mocks/next-navigation))
+ *   vi.mock("next/navigation", () => import("@/tests/mocks/next-navigation))
  *
  * Override per test:
  *   vi.mocked(usePathname).mockReturnValue("/dashboard")

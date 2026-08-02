@@ -1,36 +1,21 @@
 /**
- * Mock for the full `@/lib/trpc/client` tRPC instance (the `api` export).
- *
- * Each resource and method is a vi.fn() spy.
- * Individual tests override per-call behaviour:
- *   vi.mocked(api.projects.list.useQuery).mockReturnValue({
- *     data: [mockProject], isLoading: false, ...
- *   });
+ * Mock for `@/lib/trpc/client` (the `api` export).
+ * Every procedure is a vi.fn() spy with a sane default; override per test:
+ *   vi.mocked(api.projects.list.useQuery).mockReturnValue(makeMockQueryResult([mockProject]));
  *
  * Activate per test file:
  *   vi.mock("@/lib/trpc/client", () => import("@/tests/mocks/trpc-api"));
  */
-
 import type { JSX } from "react";
 import { vi } from "vitest";
 
-interface MockQueryResult {
-  data: unknown[] | undefined;
-  isLoading: boolean;
-  isPending: boolean;
-  isFetching: boolean;
-  isError: boolean;
-  error: null;
-  refetch: ReturnType<typeof vi.fn>;
-}
-
-// -- Default result shapes --
-const defaultQuery: MockQueryResult = {
-  data: [] as unknown[],
+const defaultQuery = {
+  data: undefined,
   isLoading: false,
   isPending: false,
   isFetching: false,
   isError: false,
+  isSuccess: true,
   error: null,
   refetch: vi.fn(),
 };
@@ -40,117 +25,110 @@ const defaultMutation = {
   mutateAsync: vi.fn().mockResolvedValue(undefined),
   isPending: false,
   isError: false,
+  isSuccess: false,
   error: null,
   data: undefined,
   reset: vi.fn(),
 };
 
-// -- Full api mock object --
+function query() {
+  return vi.fn(() => ({ ...defaultQuery }));
+}
+function mutation() {
+  return vi.fn(() => ({ ...defaultMutation }));
+}
+
+const utilsInvalidate = () => ({
+  invalidate: vi.fn(),
+  setData: vi.fn(),
+  getData: vi.fn(),
+  cancel: vi.fn(),
+});
 
 export const api = {
-  // --- auth ---
   auth: {
-    me: { useQuery: vi.fn(() => ({ ...defaultQuery })) },
-    signOut: { useMutation: vi.fn(() => ({ ...defaultMutation })) },
+    me: { useQuery: query() },
+    updateProfile: { useMutation: mutation() },
+    signOut: { useMutation: mutation() },
   },
-
-  // --- orgs ---
   orgs: {
-    list: { useQuery: vi.fn(() => ({ ...defaultQuery })) },
-    create: { useMutation: vi.fn(() => ({ ...defaultMutation })) },
-    update: { useMutation: vi.fn(() => ({ ...defaultMutation })) },
-    delete: { useMutation: vi.fn(() => ({ ...defaultMutation })) },
-    invite: { useMutation: vi.fn(() => ({ ...defaultMutation })) },
-    removeMember: { useMutation: vi.fn(() => ({ ...defaultMutation })) },
-    members: { useQuery: vi.fn(() => ({ ...defaultQuery })) },
+    list: { useQuery: query() },
+    members: { useQuery: query() },
+    create: { useMutation: mutation() },
+    update: { useMutation: mutation() },
+    delete: { useMutation: mutation() },
+    invite: { useMutation: mutation() },
+    removeMember: { useMutation: mutation() },
+    updateMemberRole: { useMutation: mutation() },
   },
-
-  // --- projects ---
   projects: {
-    list: { useQuery: vi.fn(() => ({ ...defaultQuery })) },
-    get: { useQuery: vi.fn(() => ({ ...defaultQuery })) },
-    create: { useMutation: vi.fn(() => ({ ...defaultMutation })) },
-    update: { useMutation: vi.fn(() => ({ ...defaultMutation })) },
-    delete: { useMutation: vi.fn(() => ({ ...defaultMutation })) },
+    list: { useQuery: query() },
+    get: { useQuery: query() },
+    create: { useMutation: mutation() },
+    update: { useMutation: mutation() },
+    delete: { useMutation: mutation() },
   },
-
-  // --- boards ---
   boards: {
-    list: { useQuery: vi.fn(() => ({ ...defaultQuery })) },
-    getByProject: { useQuery: vi.fn(() => ({ ...defaultQuery })) },
-    create: { useMutation: vi.fn(() => ({ ...defaultMutation })) },
-    update: { useMutation: vi.fn(() => ({ ...defaultMutation })) },
-    addColumn: { useMutation: vi.fn(() => ({ ...defaultMutation })) },
-    reorderColumns: { useMutation: vi.fn(() => ({ ...defaultMutation })) },
+    list: { useQuery: query() },
+    get: { useQuery: query() },
+    create: { useMutation: mutation() },
+    update: { useMutation: mutation() },
+    delete: { useMutation: mutation() },
+    addColumn: { useMutation: mutation() },
+    renameColumn: { useMutation: mutation() },
+    deleteColumn: { useMutation: mutation() },
+    reorderColumns: { useMutation: mutation() },
   },
-
-  // --- tasks ---
   tasks: {
-    list: { useQuery: vi.fn(() => ({ ...defaultQuery })) },
-    get: { useQuery: vi.fn(() => ({ ...defaultQuery })) },
-    create: { useMutation: vi.fn(() => ({ ...defaultMutation })) },
-    update: { useMutation: vi.fn(() => ({ ...defaultMutation })) },
-    move: { useMutation: vi.fn(() => ({ ...defaultMutation })) },
-    delete: { useMutation: vi.fn(() => ({ ...defaultMutation })) },
+    list: { useQuery: query() },
+    get: { useQuery: query() },
+    myTasks: { useQuery: query() },
+    labels: { useQuery: query() },
+    labelsByProject: { useQuery: query() },
+    create: { useMutation: mutation() },
+    update: { useMutation: mutation() },
+    move: { useMutation: mutation() },
+    delete: { useMutation: mutation() },
+    addLabel: { useMutation: mutation() },
+    removeLabel: { useMutation: mutation() },
   },
-
-  // --- comments ---
   comments: {
-    list: { useQuery: vi.fn(() => ({ ...defaultQuery })) },
-    create: { useMutation: vi.fn(() => ({ ...defaultMutation })) },
-    delete: { useMutation: vi.fn(() => ({ ...defaultMutation })) },
+    list: { useQuery: query() },
+    create: { useMutation: mutation() },
+    delete: { useMutation: mutation() },
   },
-
-  // --- labels ---
   labels: {
-    list: { useQuery: vi.fn(() => ({ ...defaultQuery })) },
-    create: { useMutation: vi.fn(() => ({ ...defaultMutation })) },
-    delete: { useMutation: vi.fn(() => ({ ...defaultMutation })) },
+    list: { useQuery: query() },
+    create: { useMutation: mutation() },
+    delete: { useMutation: mutation() },
   },
-
-  // --- notifications ---
   notifications: {
-    list: { useQuery: vi.fn(() => ({ ...defaultQuery })) },
-    markRead: { useMutation: vi.fn(() => ({ ...defaultMutation })) },
-    markAllRead: { useMutation: vi.fn(() => ({ ...defaultMutation })) },
-    delete: { useMutation: vi.fn(() => ({ ...defaultMutation })) },
+    list: { useQuery: query() },
+    markRead: { useMutation: mutation() },
+    markAllRead: { useMutation: mutation() },
+    delete: { useMutation: mutation() },
   },
-
-  // --- useQueries (batched column task fetching) ---
   useQueries: vi.fn(() => []),
-
-  // --- useUtils (TanStack Query cache invalidation / optimistic updates) ---
   useUtils: vi.fn(() => ({
     invalidate: vi.fn(),
-    projects: { list: { invalidate: vi.fn(), setData: vi.fn() } },
+    orgs: { list: utilsInvalidate(), members: utilsInvalidate() },
+    projects: { list: utilsInvalidate() },
+    boards: { list: utilsInvalidate(), get: utilsInvalidate() },
     tasks: {
-      list: {
-        invalidate: vi.fn(),
-        setData: vi.fn(),
-      },
+      list: utilsInvalidate(),
+      get: utilsInvalidate(),
+      myTasks: utilsInvalidate(),
+      labels: utilsInvalidate(),
+      labelsByProject: utilsInvalidate(),
     },
+    comments: { list: utilsInvalidate() },
+    labels: { list: utilsInvalidate() },
+    notifications: { list: utilsInvalidate() },
   })),
-
-  // --- Provider + createClient (used by TRPCProvider component) ---
-  Provider: vi.fn(
-    ({ children }: { children: React.ReactNode }): JSX.Element =>
-      children as unknown as JSX.Element,
-  ),
+  Provider: vi.fn(({ children }: { children: React.ReactNode }): JSX.Element => <>{children}</>),
   createClient: vi.fn(() => ({})),
 };
 
-// -- Named exports that mirror lib/trpc/client --
-
-/** Returns "" in all test environments (same-origin relative URL). */
-export const getBaseUrl = vi.fn((): string => "");
-
-/** Returns empty headers in all test environments. */
-export const getTRPCHeaders = vi.fn((): Record<string, string> => ({}));
-
-/**
- * Passthrough TRPCProvider — renders children directly without any
- * QueryClient or tRPC initialization overhead.
- */
 export function TRPCProvider({ children }: { children: React.ReactNode }): JSX.Element {
-  return children as unknown as JSX.Element;
+  return <>{children}</>;
 }

@@ -6,7 +6,7 @@
  * spies so tests remain fast and portable.
  *
  * Activate per test file:
- *   vi.mock("bcrypt", () => import("../mocks/bcrypt))
+ *   vi.mock("bcrypt", () => import("@/tests/mocks/bcrypt))
  */
 
 import { vi } from "vitest";

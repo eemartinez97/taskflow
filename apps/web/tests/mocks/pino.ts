@@ -5,7 +5,7 @@
  * In unit tests we replace it with a silent vi.fn() logger
  * so tests remain fast and don't pollute stdout.
  *
- * Active per test file:
+ * Activate per test file:
  *   vi.mock("pino", () => import("@/tests/mocks/pino"));
  */
 import type { Logger } from "pino";

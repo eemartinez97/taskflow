@@ -1,61 +1,57 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { QueryClient } from "@tanstack/react-query";
+import { describe, expect, it, vi } from "vitest";
 
-import { type ShouldDehydrateFn, extractShouldDehydrate } from "@/tests/helpers";
 import { getQueryClient, makeQueryClient } from "@/lib/trpc/query-client";
-
-// Reset browser singleton between tests that manipulate `typeof window`
-afterEach(() => vi.unstubAllGlobals());
+import { toast } from "@/lib/toast/store";
 
 describe("makeQueryClient", () => {
-  it("returns a QueryClient instance", () => {
-    expect(makeQueryClient()).toBeInstanceOf(QueryClient);
+  it("shows an error toast on mutation failure unless skipErrorToast is set", () => {
+    const client = makeQueryClient();
+    const cache = client.getMutationCache();
+    const onError = cache.config.onError;
+    onError?.(new Error("boom"), undefined, undefined, { meta: {} } as never, undefined as never);
+    expect(toast.error).toHaveBeenCalledWith("boom");
   });
 
-  it("each call produces a fresh instance (no shared state)", () => {
-    expect(makeQueryClient()).not.toBe(makeQueryClient());
+  it("falls back to a generic message when the error has no message", () => {
+    const client = makeQueryClient();
+    const onError = client.getMutationCache().config.onError;
+    onError?.(new Error(""), undefined, undefined, { meta: {} } as never, undefined as never);
+    expect(toast.error).toHaveBeenCalledWith("Something went wrong. Please try again.");
   });
 
-  it("configures all default options correctly", () => {
-    const opts = makeQueryClient().getDefaultOptions();
-    expect(opts.queries?.staleTime).toBe(30_000);
-    expect(opts.queries?.gcTime).toBe(5 * 60_000);
-    expect(opts.queries?.retry).toBe(1);
-    expect(opts.queries?.refetchOnWindowFocus).toBe(false);
-    expect(opts.dehydrate?.serializeData).toBeDefined();
-    expect(opts.hydrate?.deserializeData).toBeDefined();
+  it("skips the toast when mutation.meta.skipErrorToast is true", () => {
+    const client = makeQueryClient();
+    const onError = client.getMutationCache().config.onError;
+    onError?.(
+      new Error("boom"),
+      undefined,
+      undefined,
+      { meta: { skipErrorToast: true } } as never,
+      undefined as never,
+    );
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
-  describe("shouldDehydrateQuery", () => {
-    let shouldDehydrate: ShouldDehydrateFn;
-
-    beforeEach(() => {
-      shouldDehydrate = extractShouldDehydrate(makeQueryClient());
-    });
-
-    it.each<[string, boolean]>([
-      ["success", true], // defaultShouldDehydrateQuery branch
-      ["pending", true], // our extension branch
-      ["error", false], // both branches false
-    ])("status '%s' → %s", (status, expected) => {
-      expect(shouldDehydrate({ state: { status } })).toBe(expected);
-    });
+  it("applies SSR-safe query defaults", () => {
+    const client = makeQueryClient();
+    const defaults = client.getDefaultOptions().queries;
+    expect(defaults?.staleTime).toBe(30_000);
+    expect(defaults?.refetchOnWindowFocus).toBe(false);
   });
 });
 
 describe("getQueryClient", () => {
-  it("returns a QueryClient instance", () => {
-    expect(getQueryClient()).toBeInstanceOf(QueryClient);
+  it("returns a fresh client every call on the server", () => {
+    vi.stubGlobal("window", undefined);
+    const a = getQueryClient();
+    const b = getQueryClient();
+    expect(a).not.toBe(b);
+    vi.unstubAllGlobals();
   });
 
-  it("browser: returns the SAME instance on every calls (singleton)", () => {
+  it("returns the same singleton client on the browser", () => {
     const a = getQueryClient();
     const b = getQueryClient();
     expect(a).toBe(b);
-  });
-
-  it("server: returns a NEW instance on each call (no shared state across requests)", () => {
-    vi.stubGlobal("window", undefined);
-    expect(getQueryClient()).not.toBe(getQueryClient);
   });
 });

@@ -1,7 +1,7 @@
 import { type PrismaClient, prisma } from "@taskflow/database";
 import { type SessionUser } from "@taskflow/shared";
 
-import { type Logger, logger } from "../logger";
+import { type Logger, logger } from "@/lib/utils/logger";
 import { getSession } from "../auth/session";
 
 /**

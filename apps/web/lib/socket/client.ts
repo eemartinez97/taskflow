@@ -23,13 +23,17 @@ export type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
  * - `autoConnect: false` lets the hook call `.connect()` explicitly,
  *   making connection timing testable.
  */
-export function createSocket(projectId: string): AppSocket | null {
+export function createSocket(projectId?: string, boardId?: string): AppSocket | null {
   if (isServer()) return null;
 
-  return io(publicEnv.NEXT_PUBLIC_SOCKET_URL, {
+  const query: Record<string, string> = {};
+  if (projectId) query.projectId = projectId;
+  if (boardId) query.boardId = boardId;
+
+  return io(publicEnv.NEXT_PUBLIC_API_URL, {
     withCredentials: true,
     autoConnect: false,
-    query: { projectId },
+    ...(Object.keys(query).length > 0 && { query }),
     transports: ["websocket", "polling"],
   });
 }

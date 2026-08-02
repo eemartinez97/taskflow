@@ -12,6 +12,11 @@ export const mockLogger: Logger = {
   debug: vi.fn(),
   trace: vi.fn(),
   fatal: vi.fn(),
-  child: vi.fn().mockReturnThis(),
+  child: vi.fn(),
   level: "silent",
-} as unknown as Logger;
+} satisfies Partial<Logger> as unknown as Logger;
+
+/** `vi.resetAllMocks()` wipes `.mockReturnThis()`, so re-arm it each test. */
+export function armLoggerMock(): void {
+  vi.mocked(mockLogger.child).mockReturnValue(mockLogger as unknown as ReturnType<Logger["child"]>);
+}

@@ -13,7 +13,7 @@
  * TypeScript evaluates inline conditional mapped types independently in each
  * context, producing "two distinct types with the same name that are not
  * related". Extracting to a named alias `WithoutUndefined<T>` lets TypeScript
- * cache and unify the type correctly — the error disappears.
+ * cache and unify the type correctly - the error disappears.
  *
  * The `as unknown as WithoutUndefined<T>` cast is intentional and safe:
  * this function is only called at post-Zod validated boundaries where
@@ -34,7 +34,7 @@ export function stripUndefined<T extends Record<string, unknown>>(obj: T): Witho
     }
   }
 
-  // Post-Zod validated boundary — stripping undefined is safe.
+  // Post-Zod validated boundary - stripping undefined is safe.
   // `as unknown as` required: exactOptionalPropertyTypes prevents direct
   // assignment of `{ field?: T | undefined }` to `{ field?: T }`.
   return result as unknown as WithoutUndefined<T>;

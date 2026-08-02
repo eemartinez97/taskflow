@@ -9,8 +9,9 @@ import { defaultRateLimiter } from "./middleware/rate-limit";
 import { errorHandler } from "./middleware/error-handler";
 import { createAppRouter } from "./trpc/router";
 import { createTRPCContext, TRPCError } from "./trpc/init";
-import { type Server } from "socket.io";
 import { appCollectors, appRegistry, createMetricsMiddleware } from "./metrics";
+import { env, isProduction } from "./config/env";
+import type { AppServer } from "./socket/events";
 
 export function isHealthCheckUrl(url: string | undefined): boolean {
   return url === "/healthz" || url === "/readyz";
@@ -36,7 +37,7 @@ export function handleTRPCError({
  * Exported separately from the HTTP server so tests can import
  * the app without binding to a port
  */
-export function createApp(io: Server): Express {
+export function createApp(io: AppServer): Express {
   const app = express();
 
   const router = createAppRouter(io);
@@ -71,13 +72,18 @@ export function createApp(io: Server): Express {
   );
 
   // Prometheus scrape endpoint
-  app.get("/metrics", async (_req, res) => {
+  app.get("/metrics", async (req, res) => {
+    // Scrapes come from the custer; never expose route topology publicly.
+    if (
+      isProduction() &&
+      (!env.METRICS_TOKEN || req.headers.authorization !== `Bearer ${env.METRICS_TOKEN}`)
+    ) {
+      res.status(404).end();
+      return;
+    }
     res.set("Content-Type", appRegistry.contentType);
     res.end(await appRegistry.metrics());
   });
-
-  // Global rate limiting
-  app.use(defaultRateLimiter);
 
   // Health endpoints
   app.get("/healthz", (_req, res) => {
@@ -87,6 +93,9 @@ export function createApp(io: Server): Express {
   app.get("/readyz", (_req, res) => {
     res.status(200).json({ status: "ready" });
   });
+
+  // Global rate limiting
+  app.use(defaultRateLimiter);
 
   // tRPC
   // Express adapter - handles all POST/GET requests at /trpc/*

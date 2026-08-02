@@ -24,6 +24,12 @@ function getMatchedRoutePath(req: Request): string | null {
   return null;
 }
 
+/** Strips the querystring so `/metrics?x=1` is still recognized. */
+export function stripQuery(url: string): string {
+  const idx = url.indexOf("?");
+  return idx === -1 ? url : url.slice(0, idx);
+}
+
 /**
  * Normalizes a request path for use as a Prometheus label.
  *
@@ -43,7 +49,7 @@ export function normalizeRoute(req: Request): string {
   const matched = getMatchedRoutePath(req);
   if (matched !== null) return matched;
 
-  const url = req.url;
+  const url = stripQuery(req.url);
 
   // Collapse all tRPC procedure calls into a single series to prevent
   // cardinality explosion - each procedure would otherwise be a unique label
@@ -75,7 +81,7 @@ export function normalizeRoute(req: Request): string {
 export function createMetricsMiddleware(collectors: AppCollectors) {
   return function metricsMiddleware(req: Request, res: Response, next: NextFunction): void {
     // Skip the /metrics endpoint itself - scrape traffic should not inflate counts
-    if (req.url === "/metrics") {
+    if (stripQuery(req.url) === "/metrics") {
       next();
       return;
     }
@@ -87,7 +93,15 @@ export function createMetricsMiddleware(collectors: AppCollectors) {
     // Use process.hrtime.bigint for nanoseconds precision (avoids Date.now() drift)
     const startNs = process.hrtime.bigint();
 
-    res.on("finish", () => {
+    // `finish` fires when the response is fully sent; `close` fires on BOTH
+    // completion and client abort. Listening to only `finish` leaks the
+    // in-progress gauge on aborted requests; listening to both needs a guard
+    // because they both fire on the happy path.
+    let recorded = false;
+    const record = (): void => {
+      if (recorded) return;
+      recorded = true;
+
       const durationSeconds = Number(process.hrtime.bigint() - startNs) / 1e9;
       const route = normalizeRoute(req);
       const statusCode = String(res.statusCode);
@@ -98,7 +112,10 @@ export function createMetricsMiddleware(collectors: AppCollectors) {
         { method, route, status_code: statusCode },
         durationSeconds,
       );
-    });
+    };
+
+    res.once("finish", record);
+    res.once("close", record);
 
     next();
   };

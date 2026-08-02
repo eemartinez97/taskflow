@@ -1,6 +1,8 @@
 import type { NextFunction, Request, Response } from "express";
 import EventEmitter from "node:events";
 import { Registry } from "prom-client";
+import { hkdfSync } from "node:crypto";
+import { EncryptJWT } from "jose";
 import { vi } from "vitest";
 
 import type { PrismaClient } from "@taskflow/database";
@@ -31,8 +33,8 @@ export const FIXED_DATE = new Date("2026-06-06T00:00:00.000Z");
 // User fixtures
 export const VALID_USER = {
   id: VALID_UUID,
-  email: "alice@example.com",
-  name: "Alice" as string | null,
+  email: "user@example.com",
+  name: "Sofia" as string | null,
 } as const;
 
 // Response shapes
@@ -42,9 +44,9 @@ export interface ErrorBody {
   error: { message: string; code: string };
 }
 
-/** Shape of the /healthz and /readyz response */
-export interface HealthResponseBody {
-  status: string;
+/** Builds the canonical API error body - single source of truth for asserts. */
+export function errorBody(message: string, code: string): ErrorBody {
+  return { error: { message, code } };
 }
 
 // Express mock factories
@@ -100,20 +102,6 @@ export function makeCtx(user: { id: string; email: string } | null = null): TRPC
 // Error extraction helper
 
 /**
- * Extracts the first argument passed to a mocked next() function as a typed error.
- * The cast through unknown is intentional: NextFunction's signature types the
- * argument as `string | undefined` but the middleware always passes an Error object.
- */
-export function getNextError(
-  next: ReturnType<typeof makeMockNext>,
-): Error & { statusCode: number; code?: string } {
-  return vi.mocked(next).mock.calls[0]?.[0] as unknown as Error & {
-    statusCode: number;
-    code?: string;
-  };
-}
-
-/**
  * Pre-cast mockDb instance typed as PrismaClient.
  * Use this instead of repeating `mockDb as unknown as PrismaClient` in every test.
  *
@@ -127,7 +115,7 @@ export function getNextError(
 export const db = mockDb as unknown as PrismaClient;
 
 /**
- * Builds a SessionUser / AuthSession — the value returned by getSessionUser on success.
+ * Builds a SessionUser / AuthSession - the value returned by getSessionUser on success.
  *
  * Use this to set up the getSessionUser mock in middleware and socket tests:
  *
@@ -152,14 +140,13 @@ export function makeSessionUser(overrides: Partial<SessionUser> = {}): SessionUs
  * Test import these instead of writing
  * `ReturnType<typeof makeTestCollectors>["collectors"]` inline.
  */
-export type TestRegistry = Registry;
 export type TestCollectors = AppCollectors;
 
 /**
  * Creates a fresh isolated Registry + collectors for each test.
  * Prevents cross-test metric pollution from the module-level singleton
  */
-export function makeTestCollectors(): { registry: TestRegistry; collectors: TestCollectors } {
+export function makeTestCollectors(): { registry: Registry; collectors: TestCollectors } {
   const registry = new Registry();
   const collectors = createCollectors(registry);
   return { registry, collectors };
@@ -175,4 +162,48 @@ export function makeMockResEE(statusCode = 200): Response & EventEmitter {
   const emitter = new EventEmitter() as EventEmitter & { statusCode: number };
   emitter.statusCode = statusCode;
   return emitter as unknown as Response & EventEmitter;
+}
+
+/** Same value as process.env.NEXTAUTH_SECRET (see tests/setup.ts). */
+export const TEST_SECRET = "test-secret-value-at-least-16-chars";
+
+/** NextAuth v4 HKDF info string - must match src/utils/auth.ts. */
+const V4_HKDF_INFO = "NextAuth.js Generated Encryption Key";
+
+export function deriveTestKey(secret: string = TEST_SECRET): Uint8Array {
+  return new Uint8Array(hkdfSync("sha256", secret, "", V4_HKDF_INFO, 32));
+}
+
+/**
+ * Mints a NextAuth v4-compatible JWE session token.
+ * Mirrors what next-auth does internally: dir + A256GCM.
+ */
+export async function makeSessionToken(
+  payload: Record<string, unknown> = { sub: VALID_USER.id, email: VALID_USER.email, name: "Sofia" },
+  opts: { secret?: string; expiresIn?: string | number } = {},
+): Promise<string> {
+  return new EncryptJWT(payload)
+    .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
+    .setIssuedAt()
+    .setExpirationTime(opts.expiresIn ?? "1h")
+    .encrypt(deriveTestKey(opts.secret));
+}
+
+/**
+ * Wraps a token in a Cookie header the way the browser sends it.
+ * NOTE: adjust the cookie name if parseCookieToken() in @taskflow/shared
+ * expects the __Secure- prefixed variant.
+ */
+const SESSION_COOKIE_NAME = "next-auth.session-token";
+
+export function makeCookieHeader(token: string, cookieName = SESSION_COOKIE_NAME): string {
+  return `${cookieName}=${token}`;
+}
+
+/** Convenience: token + cookie header in one call. */
+export async function makeAuthCookie(
+  payload?: Record<string, unknown>,
+  opts?: { secret?: string; expiresIn?: string | number },
+): Promise<string> {
+  return makeCookieHeader(await makeSessionToken(payload, opts));
 }

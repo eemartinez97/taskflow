@@ -1,75 +1,136 @@
-import { type Server } from "socket.io";
-import { vi, type MockInstance } from "vitest";
-import type { AppServer, AppSocket } from "../../src/socket/presence";
-import { type SocketData } from "../../src/socket/events";
+import { type MockInstance, vi } from "vitest";
+
+import type { AppServer, AppSocket, SocketData } from "../../src/socket/events";
 import { VALID_USER } from "../helpers";
 
 /**
- * Minimal Socket.IO server mock.
- * Only `to().emit()` is needed — the real Server has ~50 methods.
- *
- * Explicit type annotation on mockEmit is required:
- * vi.fn() without annotation infers a deep internal vitest type
- * (`Procedure` from @vitest/spy) that TypeScript cannot name in
- * declaration files, causing "inferred type cannot be named" errors
- * under `declaration: true` + `isolatedModules: true`.
- *
- * Usage in test files:
- *   import { mockIo, mockEmit } from "../../mocks/socket";
- *
- *   beforeEach(() => vi.clearAllMocks());
- *
- *   expect(mockIo.to).toHaveBeenCalledWith("project:abc");
- *   expect(mockEmit).toHaveBeenCalledWith("task:created", { task });
+ * Explicit type annotations on every vi.fn() are required: an un-annotated
+ * vi.fn() infers `Procedure` from @vitest/spy, which TypeScript cannot name
+ * in declaration files (declaration:true + isolatedModules:true).
  */
-export const mockEmit: MockInstance<(event: string, payload: unknown) => boolean> = vi.fn();
+export type EmitMock = MockInstance<(event: string, payload: unknown) => boolean>;
 
-export const mockTo: MockInstance<(room: string) => { emit: typeof mockEmit }> = vi
-  .fn()
-  .mockReturnValue({ emit: mockEmit });
+/** Shape of the objects returned by io.in(room).fetchSockets(). */
+export interface RemoteSocketLike {
+  id: string;
+  data: SocketData;
+}
 
-// Server mocks (two type casts, one underlying spy)
+// ---------------------------------------------------------------- Helpers
 
-const _ioBase = { to: mockTo };
+const DEFAULT_SOCKET_DATA: SocketData = {
+  userId: VALID_USER.id,
+  userEmail: "user@example.com",
+  userName: "Sofia",
+  color: "#3B82F6",
+};
 
-/** Used by task/comment tests (injected as `io` into service functions). */
-export const mockIo = _ioBase as unknown as Server;
+/** Centralized default SocketData to ensure consistency across peers and sockets */
+function getDefaultSocketData(overrides: Partial<SocketData> = {}): SocketData {
+  return {
+    ...DEFAULT_SOCKET_DATA,
+    ...overrides,
+  };
+}
 
-/** Used by presence/server tests (typed as AppServer) */
+// ---------------------------------------------------------------- emit chain
+
+export const mockEmit: EmitMock = vi.fn();
+
+/** Shape helpers to reduce verbosity in MockInstance typings */
+interface EmitChain {
+  emit: EmitMock;
+}
+type ExceptChain = EmitChain & { except: MockInstance<(id: string) => EmitChain> };
+
+/** io.to(room).except(id).emit(...) - used by emitLeaveIfLastSocket. */
+export const mockExcept: MockInstance<(id: string) => EmitChain> = vi.fn();
+
+/** io.to(room).emit(...) and io.to(room).except(...) */
+export const mockTo: MockInstance<(room: string) => ExceptChain> = vi.fn();
+
+/** io.in(room).fetchSockets() */
+export const mockFetchSockets: MockInstance<() => Promise<RemoteSocketLike[]>> = vi.fn();
+
+export const mockIn: MockInstance<(room: string) => { fetchSockets: typeof mockFetchSockets }> =
+  vi.fn();
+
+/** io.of("/").sockets.size - backs getConnectedCount(). */
+export const mockOf: MockInstance<(ns: string) => { sockets: { size: number } }> = vi.fn();
+
+const _ioBase = { to: mockTo, in: mockIn, of: mockOf };
+
+/** Injected as `io` into service/router functions (typed as AppServer). */
+export const mockIo = _ioBase as unknown as AppServer;
+
+/** Alias kept for presence/server tests that import it by name. */
 export const mockAppServer = _ioBase as unknown as AppServer;
 
-// AppSocket mock factory
+/**
+ * Re-applies every chained return value. `vi.resetAllMocks()` (run globally in
+ * tests/setup.ts) strips `.mockReturnValue()`, so this must run after it.
+ */
+export function armSocketMocks(): void {
+  mockEmit.mockReturnValue(true);
+  mockExcept.mockReturnValue({ emit: mockEmit });
+  mockTo.mockReturnValue({ emit: mockEmit, except: mockExcept });
+  mockFetchSockets.mockResolvedValue([]);
+  mockIn.mockReturnValue({ fetchSockets: mockFetchSockets });
+  mockOf.mockReturnValue({ sockets: { size: 0 } });
+}
+
+/** Controls what io.in(room).fetchSockets() resolves with. */
+export function setRoomPeers(peers: RemoteSocketLike[]): void {
+  mockFetchSockets.mockResolvedValue(peers);
+}
+
+/** Controls the socket count for io.of("/").sockets.size */
+export function setSocketCount(size: number): void {
+  mockOf.mockReturnValue({ sockets: { size } });
+}
+
+/** Builds a peer entry for setRoomPeers(). */
+export function makePeer(overrides: Partial<SocketData> & { id?: string } = {}): RemoteSocketLike {
+  const data = getDefaultSocketData(overrides);
+  return {
+    id: overrides.id ?? `socket-${data.userId}`,
+    data,
+  };
+}
+
+// ------------------------------------------------------- AppSocket mock
 
 type HandlerStore = Record<string, ((...args: unknown[]) => void) | undefined>;
 
 export interface MockSocketResult {
   socket: AppSocket;
-  handlers: HandlerStore;
   rooms: Set<string>;
-  /** vi.fn() for socket.join - use this in assertions, not socket.join */
   joinMock: MockInstance<(room: string) => Promise<void>>;
-  /** vi.fn() for socket.leave - use this in assertions, not socket.leave */
   leaveMock: MockInstance<(room: string) => Promise<void>>;
-  /**
-   * vi.fn() for socket.broadcast.to - use this in assertions.
-   * Same reference as socket.broadcast.to internally.
-   */
-  broadcastToMock: MockInstance<(room: string) => { emit: typeof mockEmit }>;
-  /** vi.fn() for socket.on - use this or registeredEvents() in assertions */
+  broadcastToMock: MockInstance<(room: string) => EmitChain>;
   onMock: MockInstance<(event: string, fn: (...args: unknown[]) => void) => AppSocket>;
+  /** socket.emit(...) - used by presence:async */
+  emitMock: EmitMock;
+  /** Fires a handler registered through socket.on(event, ...) */
+  fire: (event: string, ...args: unknown[]) => void;
+  handlerNames: () => string[];
 }
 
-export function makeSocketMock(
-  opts: Partial<SocketData & { projectId?: string }> = {},
-): MockSocketResult {
-  const data: SocketData = {
-    userId: opts.userId ?? VALID_USER.id,
-    userEmail: opts.userEmail ?? "user@example.com",
-    userName: opts.userName ?? "Alice",
-    color: opts.color ?? "#3B82F6",
-  };
+export interface MockSocketOpts extends Partial<SocketData> {
+  /** Injected into handshake.query.projectId */
+  projectId?: string;
+  /** Injected into handshake.query.boardId */
+  boardId?: string;
+  /** Injected into handshake.headers.cookie (needed by authenticateSocket) */
+  cookie?: string;
+  /** Extra rooms the socket already belongs to */
+  rooms?: string[];
+}
 
-  const rooms = new Set([`socket-${data.userId}`]);
+export function makeSocketMock(opts: MockSocketOpts = {}): MockSocketResult {
+  const data = getDefaultSocketData(opts);
+  const socketId = `socket-${data.userId}`;
+  const rooms = new Set<string>([socketId, ...(opts.rooms ?? [])]);
   const handlers: HandlerStore = {};
 
   const joinMock = vi.fn((room: string) => {
@@ -78,52 +139,64 @@ export function makeSocketMock(
   });
 
   const leaveMock = vi.fn((room: string) => {
-    rooms.add(room);
+    rooms.delete(room);
     return Promise.resolve();
   });
 
-  const broadcastToMock: MockInstance<(room: string) => { emit: typeof mockEmit }> = vi
-    .fn()
-    .mockReturnValue({ emit: mockEmit });
+  const emitMock: EmitMock = vi.fn(() => true);
+  const broadcastToMock: MockInstance<(room: string) => EmitChain> = vi.fn(() => ({
+    emit: mockEmit,
+  }));
 
   const onMock: MockInstance<(event: string, fn: (...args: unknown[]) => void) => AppSocket> =
-    vi.fn((event: string, fn: (...args: unknown[]) => void) => {
+    vi.fn((event: string, fn) => {
       handlers[event] = fn;
       return socket;
     });
 
   const socket = {
-    id: `socket-${data.userId}`,
+    id: socketId,
     data,
     rooms,
-    handshake: { query: opts.projectId ? { projectId: opts.projectId } : {} },
+    handshake: {
+      query: {
+        projectId: opts.projectId,
+        boardId: opts.boardId,
+      },
+      headers: opts.cookie === undefined ? {} : { cookie: opts.cookie },
+    },
     join: joinMock,
     leave: leaveMock,
-    to: vi.fn().mockReturnValue({ emit: mockEmit }),
+    emit: emitMock,
+    to: vi.fn(() => ({ emit: mockEmit })),
     broadcast: { to: broadcastToMock },
     on: onMock,
   } as unknown as AppSocket;
 
-  return { socket, handlers, rooms, joinMock, leaveMock, broadcastToMock, onMock };
-}
+  const fire = (event: string, ...args: unknown[]): void => {
+    const handler = handlers[event];
+    if (!handler) throw new Error(`No handler registered for "${event}"`);
+    handler(...args);
+  };
 
-// makeIoMock
+  const handlerNames = (): string[] => Object.keys(handlers);
 
-export interface IoMock {
-  io: AppServer;
-  /** Direct reference to the spy - avoids unbound-method limit error in tests */
-  ofSpy: ReturnType<typeof vi.fn>;
-}
-
-/**
- * Builds a minimal AppServer mock with a controllable socket count.
- *
- * Parameter intentionally omitted from the arrow function - it is unused
- * and omitting avoids the `no-unused-vars` lint warning.
- */
-
-export function makeIoMock(size: number): AppServer {
   return {
-    of: () => ({ sockets: { size } }),
-  } as unknown as AppServer;
+    socket,
+    rooms,
+    joinMock,
+    leaveMock,
+    broadcastToMock,
+    onMock,
+    emitMock,
+    fire,
+    handlerNames,
+  };
+}
+
+// ------------------------------------------------------------- makeIoMock
+
+/** Minimal AppServer whose default namespace reports `size` sockets. */
+export function makeIoMock(size: number): AppServer {
+  return { of: () => ({ sockets: { size } }) } as unknown as AppServer;
 }

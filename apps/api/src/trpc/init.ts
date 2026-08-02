@@ -18,22 +18,23 @@ import { getSessionUser } from "../utils/auth";
  * which would cause "inferred type cannot be named" TS errors.
  */
 
-export interface SessionUser {
+export interface CtxUser {
   id: string;
   email: string;
 }
+
 export interface TRPCContext {
   db: PrismaClient;
   logger: Logger;
-  user: SessionUser | null;
+  user: CtxUser | null;
 }
 
 export interface TRPCAuthedContext extends Omit<TRPCContext, "user"> {
-  user: SessionUser;
+  user: CtxUser;
 }
 
 /**
- * Extended context produced by roleGuard — adds the resolved membership role
+ * Extended context produced by roleGuard - adds the resolved membership role
  * so downstream procedures can read it without a second DB query.
  */
 export type TRPCContextWithRole = TRPCAuthedContext & { membershipRole: Role };
@@ -59,7 +60,7 @@ export async function createTRPCContext({
 
 // tRPC instance
 
-// Do NOT export the full `t` object — export named helpers individually.
+// Do NOT export the full `t` object - export named helpers individually.
 // This prevents misuse and keeps the public API explicit
 const t = initTRPC.context<TRPCContext>().create({
   transformer: superjson,
@@ -77,16 +78,16 @@ const t = initTRPC.context<TRPCContext>().create({
 
 // Exported helpers
 
-/** Factory for composing sub-routers — one per resource module. */
+/** Factory for composing sub-routers - one per resource module. */
 export const createTRPCRouter = t.router;
 
-/** Base procedure — no auth, no guards. Starting point for all procedures. */
+/** Base procedure - no auth, no guards. Starting point for all procedures. */
 export const baseProcedure = t.procedure;
 
 /** Used by apps/web RSC helpers to call procedures server-side. */
 export const createCallerFactory = t.createCallerFactory;
 
-/** Middleware builder — used internally by procedures.ts only. */
+/** Middleware builder - used internally by procedures.ts only. */
 export const middleware = t.middleware;
 
 // Re-export so modules don't need a direct @trpc/server import for errors

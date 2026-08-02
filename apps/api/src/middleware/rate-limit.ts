@@ -1,5 +1,7 @@
 import rateLimit, { type Options, type RateLimitRequestHandler } from "express-rate-limit";
 
+import { isProduction } from "../config/env";
+
 /**
  * Base configuration shared by all rate limiters.
  * Use createRateLimiter() to create an instance with custom limits.
@@ -36,15 +38,8 @@ export function createRateLimiter({
   });
 }
 
-/** 100 req / 15 min — applied globally. */
+/** 100 req / 15 min - applied globally. */
 export const defaultRateLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000,
-  limit: 100,
-});
-
-/** 10 req / 15 min — applied to auth routes (login, register). */
-export const authRateLimiter = createRateLimiter({
-  windowMs: 15 * 60 * 1000,
-  limit: 10,
-  message: "Too many authentication attempts, please try again later.",
+  limit: isProduction() ? 100 : 1000,
 });

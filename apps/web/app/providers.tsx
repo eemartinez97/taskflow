@@ -4,6 +4,7 @@ import { SessionProvider } from "next-auth/react";
 import type { JSX } from "react";
 
 import { TRPCProvider } from "@/lib/trpc/client";
+import { Toaster } from "@/lib/toast/toaster";
 
 /**
  * Client-side provider tree.
@@ -15,7 +16,10 @@ import { TRPCProvider } from "@/lib/trpc/client";
 export function Providers({ children }: { children: React.ReactNode }): JSX.Element {
   return (
     <SessionProvider>
-      <TRPCProvider>{children}</TRPCProvider>
+      <TRPCProvider>
+        {children}
+        <Toaster />
+      </TRPCProvider>
     </SessionProvider>
   );
 }

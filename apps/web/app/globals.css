@@ -1,12 +1,12 @@
 /*
- * TaskFlow global stylesheet — Tailwind 4 CSS-first.
+ * TaskFlow global stylesheet - Tailwind 4 CSS-first.
  *
  * Single entry point: import this file from app/layout.tsx only.
  *
  * @import "tailwindcss" activates base/components/utilities.
  * @theme {} defines design tokens.
  *
- * NO tailwind.config.js — tokens live here per Tailwind 4 spec.
+ * NO tailwind.config.js - tokens live here per Tailwind 4 spec.
  */
 
 @import "tailwindcss";
@@ -28,7 +28,7 @@
   /*
    * Browser UA stylesheets override the universal selector (*) for form elements,
    * resetting them to content-box. This forces border-box so h-11 is the
-   * true final height — padding never adds on top of it.
+   * true final height - padding never adds on top of it.
    */
   input,
   select,

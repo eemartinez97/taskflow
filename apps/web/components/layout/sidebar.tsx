@@ -1,30 +1,13 @@
 "use client";
 
-import {
-  FolderKanban as FolderKanbanIcon,
-  CheckSquare as CheckSquareIcon,
-  Settings as SettingsIcon,
-  Users as UsersIcon,
-  LayoutDashboard,
-} from "lucide-react";
-
+import { LayoutDashboard } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { cn } from "@taskflow/ui";
 import { type JSX } from "react";
 import Link from "next/link";
 
-interface NavItem {
-  label: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-}
-
-const NAV_ITEMS: NavItem[] = [
-  { label: "Projects", href: "/projects", icon: FolderKanbanIcon },
-  { label: "Tasks", href: "/tasks", icon: CheckSquareIcon },
-  { label: "Team", href: "/team", icon: UsersIcon },
-  { label: "Settings", href: "/settings", icon: SettingsIcon },
-];
+import { NAV_ITEMS } from "@/lib/constants/navigation";
+import { cn } from "@taskflow/ui";
+import { OrgSwitcher } from "./org-switcher";
 
 export function Sidebar(): JSX.Element {
   const pathname = usePathname();
@@ -39,6 +22,10 @@ export function Sidebar(): JSX.Element {
           <LayoutDashboard className="h-5 w-5" />
           <span>TaskFlow</span>
         </Link>
+      </div>
+
+      <div className="border-b border-gray-200 px-3 py-4">
+        <OrgSwitcher />
       </div>
 
       <nav className="flex flex-1 flex-col gap-0.5 p-2" aria-label="Main navigation">

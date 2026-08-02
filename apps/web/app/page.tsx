@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { JSX } from "react";
 
 /**
- * Public lading page - Server Component.
+ * Public landing page - Server Component.
  */
 export default function HomePage(): JSX.Element {
   return (

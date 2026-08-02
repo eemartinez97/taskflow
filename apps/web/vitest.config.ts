@@ -1,5 +1,4 @@
-import { baseVitestConfig, mergeConfig } from "@taskflow/config/vitest/base";
-import { defineConfig } from "vitest/config";
+import { baseVitestConfig, mergeConfig, defineConfig } from "@taskflow/config/vitest/base";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
 
@@ -14,23 +13,61 @@ export default mergeConfig(
       },
     },
     test: {
-      environment: "jsdom",
       globals: true,
-      include: ["tests/**/*.test.{ts,tsx}"],
-      setupFiles: ["./tests/setup.ts"],
+      css: false,
+      projects: [
+        {
+          extends: true,
+          test: {
+            name: "unit",
+            environment: "jsdom",
+            include: ["tests/unit/**/*.test.{ts,tsx}"],
+            setupFiles: ["./tests/setup/unit.ts"],
+          },
+        },
+        {
+          extends: true,
+          test: {
+            name: "integration-server",
+            environment: "node",
+            include: ["tests/integration/server/**/*.test.{ts,tsx}"],
+            setupFiles: ["./tests/setup/integration.node.ts"],
+          },
+        },
+        {
+          extends: true,
+          test: {
+            name: "integration-ui",
+            environment: "jsdom",
+            include: ["tests/integration/ui/**/*.test.{ts,tsx}"],
+            setupFiles: ["./tests/setup/integration.ui.ts"],
+          },
+        },
+      ],
       coverage: {
-        include: ["lib/**/*.{ts,tsx}", "app/**/*.{ts,tsx}", "*.ts"],
+        include: [
+          "lib/**/*.{ts,tsx}",
+          "app/**/*.{ts,tsx}",
+          "components/**/*.{ts,tsx}",
+          "auth.ts",
+          "proxy.ts",
+        ],
         exclude: [
-          "app/layout.tsx", // Root layout, HTML shell, no logic
-          "app/globals.css",
-          "**/*.d.ts",
+          "app/layout.tsx",
+          // "app/providers.tsx",
+          "app/(dashboard)/layout.tsx",
+          "app/(auth)/layout.tsx",
           "app/api/auth/\\[...nextauth\\]/route.ts",
+          "types/**",
+          "**/*.config.{ts,tsx}",
+          ".next/**",
+          "next-env.d.ts",
         ],
         thresholds: {
-          lines: 90,
-          functions: 90,
-          branches: 90,
-          statements: 90,
+          lines: 100,
+          functions: 100,
+          branches: 100,
+          statements: 100,
         },
       },
     },

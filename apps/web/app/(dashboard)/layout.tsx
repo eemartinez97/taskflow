@@ -19,7 +19,10 @@ interface DashboardLayoutProps {
  * allows the static layout to render immediately while dynamic data resolves,
  * satisfying Next.js 16 strict caching rules without using `force-dynamic`.
  *
- * Auth redirect is handled by `proxy.ts` — no requireSession() needed here.
+ * The Header derives its title from the current route (previously it was
+ * hardcoded to "Dashboard" on every page).
+ *
+ * Auth redirect is handled by `proxy.ts` - no requireSession() needed here.
  */
 
 export default function DashboardLayout({ children }: DashboardLayoutProps): JSX.Element {
@@ -31,7 +34,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): JSX
       </Suspense>
       <div className="flex flex-1 flex-col overflow-hidden">
         <Suspense fallback={<div className="h-16 bg-white border-b animate-pulse" />}>
-          <Header title="Dashboard" />
+          <Header />
         </Suspense>
 
         <main className="flex-1 overflow-y-auto p-6" id="main-content" aria-label="Main content">

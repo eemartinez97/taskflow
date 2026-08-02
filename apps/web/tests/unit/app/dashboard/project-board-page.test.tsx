@@ -1,165 +1,171 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/trpc/server", () => ({
-  getServerTRPC: vi.fn(),
-  getQueryClient: vi.fn(),
-  TRPCHydrationBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+vi.mock("@/lib/trpc/server", () => ({ getServerTRPC: vi.fn() }));
+vi.mock("@/lib/utils/org-utils", () => ({ getOrgOrNull: vi.fn() }));
+
+vi.mock("@/app/(dashboard)/projects/[id]/board", () => ({
+  BoardPageClient: ({ boardId }: { boardId: string }) => <p>BoardPageClient: {boardId}</p>,
 }));
-vi.mock("next/navigation", () => import("@/tests/mocks/next-navigation"));
-vi.mock("@/lib/trpc/client", () => import("@/tests/mocks/trpc-api"));
-vi.mock("@dnd-kit/utilities", () => import("@/tests/mocks/dnd-kit"));
-vi.mock("@dnd-kit/sortable", () => import("@/tests/mocks/dnd-kit"));
-vi.mock("@taskflow/ui", () => import("@/tests/mocks/taskflow-ui"));
-vi.mock("@dnd-kit/core", () => import("@/tests/mocks/dnd-kit"));
+vi.mock("@/app/(dashboard)/projects/[id]/_components/board-switcher", () => ({
+  BoardSwitcher: ({ activeBoardId }: { activeBoardId: string }) => (
+    <p>BoardSwitcher: {activeBoardId}</p>
+  ),
+}));
 
-import {
-  buildServerTRPCMock,
-  makeBoard,
-  makeColumn,
-  makeProject,
-  makeTask,
-  type ServerTRPCMock,
-  VALID_COL_A_ID,
-  VALID_PROJECT_ID,
-} from "@/tests/helpers";
-import ProjectBoardPage, { generateMetadata } from "@/app/(dashboard)/projects/[id]/page";
-import { notFound } from "@/tests/mocks/next-navigation";
+import { notFound } from "next/navigation";
 import { getServerTRPC } from "@/lib/trpc/server";
-import { api } from "@/tests/mocks/trpc-api";
+import { getOrgOrNull } from "@/lib/utils/org-utils";
+import ProjectBoardPage, { generateMetadata } from "@/app/(dashboard)/projects/[id]/page";
+import { VALID_COL_A_ID, VALID_PROJECT_ID } from "@/tests/support/fixtures";
+import { makeBoard, makeColumn, makeOrg, makeProject } from "@/tests/support/factories";
+import { mockGetServerTRPC } from "@/tests/support/trpc";
 
-// -- Shared fixtures (reuse helpers.tsx factories) --
-
-const mockProject = makeProject();
-const colA = makeColumn({ id: VALID_COL_A_ID });
-const mockBoard = { ...makeBoard(), columns: [colA] };
-const task1 = makeTask({ columnId: VALID_COL_A_ID });
-const params = Promise.resolve({ id: VALID_PROJECT_ID });
-
-/**
- * Happy-path tRPC mock: project found, board found, one task in colA.
- * Local factory — combines helpers.tsx builders into a scenario-specific shape.
- */
-function makeDefaultTRPC() {
-  return buildServerTRPCMock({
-    projects: { get: vi.fn().mockResolvedValue(mockProject) },
-    boards: { getByProject: vi.fn().mockResolvedValue(mockBoard) },
-    tasks: { list: vi.fn().mockResolvedValue([task1]) },
-  });
+function params(id = VALID_PROJECT_ID) {
+  return Promise.resolve({ id });
+}
+function searchParams(query: Record<string, string> = {}) {
+  return Promise.resolve(query);
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(getServerTRPC).mockResolvedValue(makeDefaultTRPC() as never);
-  vi.mocked(api.useQueries).mockReturnValue([{ data: [task1] }] as never);
 });
 
 describe("generateMetadata", () => {
-  it("returns the project name as the page title", async () => {
-    const meta = await generateMetadata({ params });
-    expect(meta.title).toBe(mockProject.name);
+  it("returns the project's name as title", async () => {
+    mockGetServerTRPC(vi.mocked(getServerTRPC), {
+      projects: { get: vi.fn().mockResolvedValue(makeProject({ name: "My Project" })) },
+    });
+    vi.mocked(getOrgOrNull).mockResolvedValue(makeOrg());
+
+    const meta = await generateMetadata({ params: params(), searchParams: searchParams() });
+    expect(meta.title).toBe("My Project");
   });
 
-  it("calls getServerTRPC to resolve the project", async () => {
-    await generateMetadata({ params });
-    expect(getServerTRPC).toHaveBeenCalledOnce();
-  });
+  it("falls back to 'Project' when the user has no org", async () => {
+    mockGetServerTRPC(vi.mocked(getServerTRPC));
+    vi.mocked(getOrgOrNull).mockResolvedValue(null);
 
-  it("calls trpc.projects.get with the correct projectId", async () => {
-    const mockTRPC = buildServerTRPCMock();
-    vi.mocked(getServerTRPC).mockResolvedValue(mockTRPC as never);
-
-    await generateMetadata({ params });
-
-    expect(mockTRPC.projects.get).toHaveBeenCalledWith({ projectId: VALID_PROJECT_ID });
-  });
-
-  it("returns fallback title 'Project' when project fetch throws", async () => {
-    vi.mocked(getServerTRPC).mockResolvedValue(
-      buildServerTRPCMock({
-        projects: { get: vi.fn().mockRejectedValue(new Error("NOT_FOUND")) },
-      }) as never,
-    );
-
-    const meta = await generateMetadata({ params: Promise.resolve({ id: "bad-id" }) });
+    const meta = await generateMetadata({ params: params(), searchParams: searchParams() });
     expect(meta.title).toBe("Project");
   });
 
-  it("returns fallback title 'Project' when getServerTRPC itself throws", async () => {
-    vi.mocked(getServerTRPC).mockRejectedValue(new Error("tRPC unavailable"));
+  it("falls back to 'Project' when getProjectContext throws", async () => {
+    mockGetServerTRPC(vi.mocked(getServerTRPC), {
+      projects: { get: vi.fn().mockRejectedValue(new Error("boom")) },
+    });
+    vi.mocked(getOrgOrNull).mockResolvedValue(makeOrg());
 
-    const meta = await generateMetadata({ params });
+    const meta = await generateMetadata({ params: params(), searchParams: searchParams() });
     expect(meta.title).toBe("Project");
-  });
-
-  it("always resolves — never throws for any input", async () => {
-    await expect(generateMetadata({ params })).resolves.toBeDefined();
   });
 });
 
 describe("ProjectBoardPage", () => {
-  it("renders the project name", async () => {
-    render(await ProjectBoardPage({ params }));
-    expect(screen.getByText(mockProject.name)).toBeInTheDocument();
+  // Shared fixture: a board that carries its columns (Board type has no `columns`
+  // field, so we use a spread to extend the shape without casting).
+  const board = { ...makeBoard(), columns: [makeColumn({ id: VALID_COL_A_ID })] };
+
+  it("calls notFound() when the user has no org", async () => {
+    mockGetServerTRPC(vi.mocked(getServerTRPC));
+    vi.mocked(getOrgOrNull).mockResolvedValue(null);
+    vi.mocked(notFound).mockImplementationOnce(() => {
+      throw new Error("NEXT_NOT_FOUND");
+    });
+
+    await expect(
+      ProjectBoardPage({ params: params(), searchParams: searchParams() }),
+    ).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
-  it("renders the board name", async () => {
-    render(await ProjectBoardPage({ params }));
-    expect(screen.getByText(mockBoard.name)).toBeInTheDocument();
+  it("calls notFound() when getProjectContext rejects inside the page body (the .catch(() => null) branch)", async () => {
+    mockGetServerTRPC(vi.mocked(getServerTRPC), {
+      projects: { get: vi.fn().mockRejectedValue(new Error("db down")) },
+    });
+    vi.mocked(getOrgOrNull).mockResolvedValue(makeOrg());
+    vi.mocked(notFound).mockImplementationOnce(() => {
+      throw new Error("NEXT_NOT_FOUND");
+    });
+    await expect(
+      ProjectBoardPage({ params: params(), searchParams: searchParams() }),
+    ).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
-  it("calls notFound() when trpc.projects.get throws", async () => {
-    vi.mocked(getServerTRPC).mockResolvedValue(
-      buildServerTRPCMock({
-        projects: { get: vi.fn().mockRejectedValue(new Error("NOT_FOUND")) },
-        boards: { getByProject: vi.fn().mockResolvedValue(mockBoard) },
-        tasks: { list: vi.fn().mockResolvedValue([task1]) },
-      }) as never,
-    );
+  it("shows the 'no board found' state when the project has zero boards", async () => {
+    mockGetServerTRPC(vi.mocked(getServerTRPC), {
+      boards: { list: vi.fn().mockResolvedValue([]) },
+    });
 
-    await ProjectBoardPage({ params }).catch(() => undefined);
-    expect(notFound).toHaveBeenCalledOnce();
-  });
+    vi.mocked(getOrgOrNull).mockResolvedValue(makeOrg());
 
-  it("renders the no-board message when board is null", async () => {
-    vi.mocked(getServerTRPC).mockResolvedValue(
-      buildServerTRPCMock({
-        boards: { getByProject: vi.fn().mockResolvedValue(null) },
-      }) as never,
-    );
-
-    render(await ProjectBoardPage({ params }));
+    render(await ProjectBoardPage({ params: params(), searchParams: searchParams() }));
     expect(screen.getByText(/no board found/i)).toBeInTheDocument();
   });
 
-  it("renders the Kanban board when board exists", async () => {
-    render(await ProjectBoardPage({ params }));
-    expect(screen.getByTestId("kanban-board")).toBeInTheDocument();
+  it("calls notFound() when the resolved board is null", async () => {
+    mockGetServerTRPC(vi.mocked(getServerTRPC), {
+      boards: {
+        list: vi.fn().mockResolvedValue([{ ...makeBoard() }]),
+        get: vi.fn().mockResolvedValue(null),
+      },
+    });
+    vi.mocked(getOrgOrNull).mockResolvedValue(makeOrg());
+    vi.mocked(notFound).mockImplementationOnce(() => {
+      throw new Error("NEXT_NOT_FOUND");
+    });
+
+    await expect(
+      ProjectBoardPage({ params: params(), searchParams: searchParams() }),
+    ).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
-  it("prefetches tasks for every column in parallel", async () => {
-    const colB = makeColumn({ id: "col-b", position: 2000 });
-    vi.mocked(getServerTRPC).mockResolvedValue(
-      buildServerTRPCMock({
-        boards: {
-          getByProject: vi.fn().mockResolvedValue({ ...mockBoard, columns: [colA, colB] }),
-        },
-      }) as never,
+  it("picks the first board when ?board= doesn't match any board", async () => {
+    mockGetServerTRPC(vi.mocked(getServerTRPC), {
+      boards: {
+        list: vi.fn().mockResolvedValue([board]),
+        get: vi.fn().mockResolvedValue(board),
+      },
+      tasks: { list: vi.fn().mockResolvedValue([]) },
+    });
+    vi.mocked(getOrgOrNull).mockResolvedValue(makeOrg());
+
+    render(
+      await ProjectBoardPage({
+        params: params(),
+        searchParams: searchParams({ board: "does-not-exist" }),
+      }),
     );
-    vi.mocked(api.useQueries).mockReturnValue([{ data: [task1] }, { data: [] }] as never);
-
-    render(await ProjectBoardPage({ params }));
-
-    const trpc = (await vi.mocked(getServerTRPC).mock.results[0]?.value) as ServerTRPCMock;
-    expect(trpc.tasks.list).toHaveBeenCalledTimes(2);
+    expect(screen.getByText(`BoardSwitcher: ${board.id}`)).toBeInTheDocument();
   });
 
-  it("passes orgId from the project to each tasks.list call", async () => {
-    render(await ProjectBoardPage({ params }));
+  it("renders the full page when the requested board matches", async () => {
+    mockGetServerTRPC(vi.mocked(getServerTRPC), {
+      projects: { get: vi.fn().mockResolvedValue(makeProject()) },
+      boards: {
+        list: vi.fn().mockResolvedValue([board]),
+        get: vi.fn().mockResolvedValue(board),
+      },
+      tasks: { list: vi.fn().mockResolvedValue([]) },
+    });
+    vi.mocked(getOrgOrNull).mockResolvedValue(makeOrg());
 
-    const trpc = (await vi.mocked(getServerTRPC).mock.results[0]?.value) as ServerTRPCMock;
-    expect(trpc.tasks.list).toHaveBeenCalledWith(
-      expect.objectContaining({ orgId: mockProject.orgId }),
+    render(
+      await ProjectBoardPage({
+        params: params(),
+        searchParams: searchParams({ board: board.id }),
+      }),
     );
+    expect(screen.getByText(`BoardPageClient: ${board.id}`)).toBeInTheDocument();
+  });
+
+  it("defaults canManage to false when the org has no memberships", async () => {
+    mockGetServerTRPC(vi.mocked(getServerTRPC), {
+      boards: { list: vi.fn().mockResolvedValue([board]), get: vi.fn().mockResolvedValue(board) },
+      tasks: { list: vi.fn().mockResolvedValue([]) },
+    });
+    vi.mocked(getOrgOrNull).mockResolvedValue(makeOrg({ memberships: [] }));
+    render(await ProjectBoardPage({ params: params(), searchParams: searchParams() }));
+    expect(screen.getByText(`BoardSwitcher: ${board.id}`)).toBeInTheDocument();
   });
 });

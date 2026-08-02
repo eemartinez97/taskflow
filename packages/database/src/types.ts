@@ -1,6 +1,7 @@
 import { type Prisma } from "./generated";
 import type {
   boardWithColumns,
+  commentWithAuthor,
   membershipWithUser,
   notificationWithActor,
   orgWithMembership,
@@ -26,4 +27,8 @@ export type NotificationWithActor = Prisma.NotificationGetPayload<{
 
 export type OrgWithMembership = Prisma.OrgGetPayload<{
   include: typeof orgWithMembership;
+}>;
+
+export type CommentWithAuthor = Prisma.CommentGetPayload<{
+  include: typeof commentWithAuthor;
 }>;

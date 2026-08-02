@@ -4,13 +4,18 @@ import { PrismaClient } from "./generated";
 // PrismaClient singleton - prevents exhausting DB connections in dev (Next.js HMR)
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 const isProduction = process.env.NODE_ENV === "production";
+const isTest = process.env.NODE_ENV === "test";
 
 function createPrismaClient(): PrismaClient {
   const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 
   return new PrismaClient({
     adapter,
-    log: isProduction ? ["warn", "error"] : ["query", "warn", "error"],
+    // test: no logs at all - expected errors (constraint checks etc.)
+    //       are captured by vitest matchers, not by Prisma's logger.
+    // production: only actionable alerts.
+    // development: full query log for debugging.
+    log: isTest ? [] : isProduction ? ["warn", "error"] : ["query", "warn", "error"],
   });
 }
 
@@ -22,7 +27,7 @@ if (!isProduction) {
 
 // Re-export all generated types - consumers import from "@taskflow/database"
 // PrismaClient is already exported as a value above via the import
-export { PrismaClient } from "./generated";
+export { PrismaClient, Prisma } from "./generated";
 export type * from "./generated";
 export type { DefaultArgs } from "./generated/runtime/client";
 
@@ -32,6 +37,7 @@ export type {
   BoardWithColumns,
   MembershipWithUser,
   NotificationWithActor,
+  CommentWithAuthor,
 } from "./types";
 
 // Query fragments - consumed by repo files in apps/api
@@ -42,4 +48,5 @@ export {
   orgWithMembership,
   boardWithColumns,
   notificationWithActor,
+  commentWithAuthor,
 } from "./selects";

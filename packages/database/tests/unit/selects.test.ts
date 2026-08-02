@@ -82,7 +82,7 @@ describe("boardWithColumns", () => {
     });
   });
 
-  it("uses asc order — not desc — to render left-to-right columns", () => {
+  it("uses asc order - not desc - to render left-to-right columns", () => {
     expect(boardWithColumns.columns.orderBy.position).toBe("asc");
   });
 });

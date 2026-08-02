@@ -1,9 +1,9 @@
 /**
- * Reusable Prisma query fragments — selects and includes.
+ * Reusable Prisma query fragments - selects and includes.
  *
  * WHY Prisma.validator():
  * - Validates the shape against the generated schema at compile time.
- * - The inferred type flows through GetPayload — no manual type duplication.
+ * - The inferred type flows through GetPayload - no manual type duplication.
  * - Single source of truth: change the select here, all types and queries
  *   that reference it update automatically.
  *
@@ -55,4 +55,10 @@ export const boardWithColumns = Prisma.validator<Prisma.BoardInclude>()({
 /** Notification with the actor's profile - used in the notification list. */
 export const notificationWithActor = Prisma.validator<Prisma.NotificationInclude>()({
   actor: { select: userProfileSelect },
+});
+
+// Comment fragments
+
+export const commentWithAuthor = Prisma.validator<Prisma.CommentInclude>()({
+  author: { select: { id: true, name: true, email: true, image: true } },
 });

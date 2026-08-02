@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import { PrismaClient } from "../src";
 import { PrismaPg } from "@prisma/adapter-pg";
+import bcrypt from "bcrypt";
 
 // dotenv 17 - pass quiet:true to suppress the startup log line
 dotenv.config({ quiet: true });
@@ -10,22 +11,25 @@ const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 
 const prisma = new PrismaClient({ adapter });
 
+const SALT_ROUNDS = 12;
+const SEED_PASSWORD = "admin123";
+
 const SEED_IDS = {
-  org: "10000000-0000-0000-0000-000000000001",
-  user: "20000000-0000-0000-0000-000000000001",
-  membership: "30000000-0000-0000-0000-000000000001",
-  project: "40000000-0000-0000-0000-000000000001",
-  board: "50000000-0000-0000-0000-000000000001",
+  org: "10000000-0000-4000-8000-000000000001",
+  user: "20000000-0000-4000-8000-000000000001",
+  membership: "30000000-0000-4000-8000-000000000001",
+  project: "40000000-0000-4000-8000-000000000001",
+  board: "50000000-0000-4000-8000-000000000001",
   columns: {
-    todo: "60000000-0000-0000-0000-000000000001",
-    inProgress: "60000000-0000-0000-0000-000000000002",
-    inReview: "60000000-0000-0000-0000-000000000003",
-    done: "60000000-0000-0000-0000-000000000004",
+    todo: "60000000-0000-4000-8000-000000000001",
+    inProgress: "60000000-0000-4000-8000-000000000002",
+    inReview: "60000000-0000-4000-8000-000000000003",
+    done: "60000000-0000-4000-8000-000000000004",
   },
   labels: {
-    bug: "70000000-0000-0000-0000-000000000001",
-    feature: "70000000-0000-0000-0000-000000000002",
-    improvement: "70000000-0000-0000-0000-000000000003",
+    bug: "70000000-0000-4000-8000-000000000001",
+    feature: "70000000-0000-4000-8000-000000000002",
+    improvement: "70000000-0000-4000-8000-000000000003",
   },
 } as const;
 
@@ -44,13 +48,17 @@ async function main(): Promise<void> {
   });
 
   // Create demo user
+
+  const hashedPassword = await bcrypt.hash(SEED_PASSWORD, SALT_ROUNDS);
+
   const user = await prisma.user.upsert({
     where: { id: SEED_IDS.user },
-    update: {},
+    update: { password: hashedPassword },
     create: {
       id: SEED_IDS.user,
       name: "Admin User",
       email: "admin@taskflow.dev",
+      password: hashedPassword,
     },
   });
 

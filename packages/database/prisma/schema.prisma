@@ -11,7 +11,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   schemas  = ["taskflow", "auth"]
-  // multiSchema is stable since Prisma 5 — no previewFeatures needed
+  // multiSchema is stable since Prisma 5 - no previewFeatures needed
 }
 
 // Enums
@@ -72,6 +72,7 @@ model User {
   // Application relations
   memberships            Membership[]
   assignedTasks          Task[]         @relation("TaskAssignee")
+  createdTasks           Task[]         @relation("TaskCreator")
   comments               Comment[]
   notifications          Notification[] @relation("NotificationRecipient")
   triggeredNotifications Notification[] @relation("NotificationActor")
@@ -206,6 +207,7 @@ model Task {
   title       String       @db.VarChar(255)
   description String?      @db.VarChar(10000)
   assigneeId  String?      @db.Uuid
+  creatorId   String?      @db.Uuid
   priority    TaskPriority @default(NONE)
   status      TaskStatus   @default(TODO)
   // Fractional float for O(1) lexorank-style reordering within column
@@ -216,6 +218,7 @@ model Task {
 
   column   Column @relation(fields: [columnId], references: [id], onDelete: Cascade)
   assignee User?  @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  creator  User?  @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: SetNull)
 
   comments    Comment[]
   attachments Attachment[]

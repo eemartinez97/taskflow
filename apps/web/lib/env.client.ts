@@ -7,7 +7,7 @@ import { type PublicEnv, publicEnvSchema } from "./env";
  */
 function parsePublicEnv(): PublicEnv {
   const parsed = publicEnvSchema.safeParse({
-    NEXT_PUBLIC_SOCKET_URL: process.env.NEXT_PUBLIC_SOCKET_URL,
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
     NEXT_PUBLIC_WEB_URL: process.env.NEXT_PUBLIC_WEB_URL,
   });
 

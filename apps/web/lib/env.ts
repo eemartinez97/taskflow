@@ -21,15 +21,17 @@ export const serverEnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   DATABASE_URL: z.string().min(1, { error: "DATABASE_URL is required" }),
   NEXTAUTH_SECRET: z.string().min(16, { error: "NEXTAUTH_SECRET must be at least 16 characters" }),
-  NEXTAUTH_URL: z.url({ error: "NEXTAUTH_URL must be a valid URL" }),
+  NEXTAUTH_URL: z.url().regex(/^https?:\/\//, "NEXTAUTH_URL must start with http:// or https://"),
 });
 
 export const publicEnvSchema = z.object({
-  NEXT_PUBLIC_SOCKET_URL: z
-    .url({ error: "NEXT_PUBLIC_SOCKET_URL must be a valid URL" })
+  NEXT_PUBLIC_API_URL: z
+    .url()
+    .regex(/^https?:\/\//, "NEXT_PUBLIC_API_URL must start with http:// or https://")
     .default("http://localhost:8000"),
   NEXT_PUBLIC_WEB_URL: z
-    .url({ error: "NEXT_PUBLIC_WEB_URL mist be a valid URL" })
+    .url()
+    .regex(/^https?:\/\//, "NEXT_PUBLIC_WEB_URL must start with http:// or https://")
     .default("http://localhost:3000"),
 });
 

@@ -3,7 +3,7 @@
  *
  * Single source of truth for browser vs. server checks.
  * Eliminates the `typeof window !== "undefined"` pattern scattered
- * across the codebase — import these instead.
+ * across the codebase - import these instead.
  */
 
 /** Returns `true` when running in a browser context. */

@@ -1,6 +1,6 @@
 import { notificationWithActor } from "@taskflow/database";
 import { type CreateNotification } from "@taskflow/shared";
-import type { Notification, NotificationWithActor, PrismaClient } from "@taskflow/database";
+import type { NotificationWithActor, PrismaClient } from "@taskflow/database";
 import { stripUndefined } from "../../utils/prisma";
 
 export async function findNotificationsForUser(
@@ -18,8 +18,11 @@ export async function findNotificationsForUser(
 export async function createNotification(
   db: PrismaClient,
   data: CreateNotification,
-): Promise<Notification> {
-  return db.notification.create({ data: stripUndefined(data) });
+): Promise<NotificationWithActor> {
+  return db.notification.create({
+    data: stripUndefined(data),
+    include: notificationWithActor,
+  });
 }
 
 export async function markNotificationsAsRead(

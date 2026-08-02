@@ -1,10 +1,11 @@
-import { type CreateNotification } from "@taskflow/shared";
 import type {
   Notification,
   NotificationType,
   NotificationWithActor,
   PrismaClient,
 } from "@taskflow/database";
+import { Prisma } from "@taskflow/database";
+
 import {
   countUnread,
   createNotification,
@@ -14,6 +15,9 @@ import {
   markNotificationsAsRead,
 } from "./repo";
 import { TRPCError } from "../../trpc/init";
+import type { AppServer } from "../../socket/events";
+import { type CreateNotification, SOCKET_EVENTS } from "@taskflow/shared";
+import { emitToUser } from "../../socket/emit";
 
 /**
  * Shared options for task-related notification helpers.
@@ -24,6 +28,7 @@ export interface TaskNotificationOpts {
   taskId: string;
   taskTitle: string;
   assigneeId: string | null;
+  creatorId: string | null;
   actorId: string;
 }
 
@@ -55,12 +60,18 @@ export async function deleteNotificationById(
   db: PrismaClient,
   notificationId: string,
   userId: string,
-): Promise<{ success: boolean }> {
+): Promise<{ success: true }> {
   try {
     await deleteNotification(db, notificationId, userId);
     return { success: true };
-  } catch {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Notification not found." });
+  } catch (err) {
+    // P2025 = "An operation failed because it depends on one or more records
+    // that were required but not found". Anything else (connection loss,
+    // constraint violation) must NOT be reported to the client as a 404.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025") {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Notification not found." });
+    }
+    throw err;
   }
 }
 
@@ -70,11 +81,16 @@ export async function deleteNotificationById(
  */
 export async function notify(
   db: PrismaClient,
+  io: AppServer,
   data: CreateNotification,
 ): Promise<Notification | null> {
   if (data.actorId && data.actorId === data.userId) return null;
 
-  return createNotification(db, data);
+  const notification = await createNotification(db, data);
+
+  emitToUser(io, data.userId, SOCKET_EVENTS.NOTIFICATION_CREATED, { notification });
+
+  return notification;
 }
 
 export function buildNotificationMessage(
@@ -94,7 +110,14 @@ export function buildNotificationMessage(
     case "COMMENT_CREATED":
       return entityTitle ? `${actor} commented on "${entityTitle}"` : `${actor} left a comment`;
     case "MEMBER_INVITED":
-      return `${actor} invited you to an organization`;
+      return entityTitle
+        ? `${actor} invited you to "${entityTitle}"`
+        : `${actor} invited you to an organization`;
+    /* v8 ignore next 4 -- defensive exhaustiveness guard, unreachable by type system */
+    default: {
+      const _exhaustive: never = type;
+      return _exhaustive;
+    }
   }
 }
 
@@ -110,40 +133,80 @@ async function getActorName(db: PrismaClient, actorId: string): Promise<string |
 }
 
 /**
- * Core task notification helper — single source of truth for all
+ * Core task notification helper - single source of truth for all
  * task-scoped notifications (TASK_ASSIGNED, COMMENT_CREATED, …).
  *
  * No-ops silently when:
  *  - assigneeId is null (no recipient)
  *  - actorId === assigneeId (self-notification guard inside notify())
  */
-export async function notifyTaskEvent(db: PrismaClient, opts: TaskNotificationOpts): Promise<void> {
-  if (!opts.assigneeId) return;
+export async function notifyTaskEvent(
+  db: PrismaClient,
+  io: AppServer,
+  opts: Omit<TaskNotificationOpts, "assigneeId" | "creatorId"> & {
+    recipientIds: (string | null | undefined)[];
+  },
+): Promise<void> {
+  // Deduplicate and remove nulls in one pass
+  const recipients = [...new Set(opts.recipientIds.filter(Boolean))] as string[];
+  if (recipients.length === 0) return;
 
   const actorName = await getActorName(db, opts.actorId);
 
-  await notify(db, {
-    userId: opts.assigneeId,
-    actorId: opts.actorId,
-    type: opts.type,
-    message: buildNotificationMessage(opts.type, actorName, opts.taskTitle),
-    entityId: opts.taskId,
-    entityType: "task",
-  });
+  await Promise.all(
+    recipients.map((userId) =>
+      notify(db, io, {
+        userId,
+        actorId: opts.actorId,
+        type: opts.type,
+        message: buildNotificationMessage(opts.type, actorName, opts.taskTitle),
+        entityId: opts.taskId,
+        entityType: "task",
+      }),
+    ),
+  );
 }
 
 /** Notifies the assignee when a task is assigned to them */
 export async function notifyTaskAssigned(
   db: PrismaClient,
+  io: AppServer,
   opts: Omit<TaskNotificationOpts, "type">,
 ): Promise<void> {
-  await notifyTaskEvent(db, { ...opts, type: "TASK_ASSIGNED" });
+  await notifyTaskEvent(db, io, {
+    ...opts,
+    type: "TASK_ASSIGNED",
+    recipientIds: [opts.assigneeId],
+  });
 }
 
 /** Notifies the assignee when someone comments on their task. */
 export async function notifyCommentCreated(
   db: PrismaClient,
+  io: AppServer,
   opts: Omit<TaskNotificationOpts, "type">,
 ): Promise<void> {
-  await notifyTaskEvent(db, { ...opts, type: "COMMENT_CREATED" });
+  await notifyTaskEvent(db, io, {
+    ...opts,
+    type: "COMMENT_CREATED",
+    recipientIds: [opts.assigneeId, opts.creatorId],
+  });
+}
+
+/** Notifies a user when they are added to an organization. */
+export async function notifyMemberInvited(
+  db: PrismaClient,
+  io: AppServer,
+  opts: { recipientId: string; actorId: string; orgId: string; orgName: string },
+): Promise<void> {
+  const actorName = await getActorName(db, opts.actorId);
+
+  await notify(db, io, {
+    userId: opts.recipientId,
+    actorId: opts.actorId,
+    type: "MEMBER_INVITED",
+    message: buildNotificationMessage("MEMBER_INVITED", actorName, opts.orgName),
+    entityId: opts.orgId,
+    entityType: "org",
+  });
 }

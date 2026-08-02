@@ -8,6 +8,7 @@ import {
   updateProject,
 } from "./repo";
 import { TRPCError } from "../../trpc/init";
+import { createBoardInProject } from "../boards/service";
 
 export async function listProjects(db: PrismaClient, orgId: string): Promise<Project[]> {
   return findProjectsByOrg(db, orgId);
@@ -26,7 +27,10 @@ export async function createProjectInOrg(
   orgId: string,
   data: CreateProject,
 ): Promise<Project> {
-  return createProject(db, orgId, data);
+  const project = await createProject(db, orgId, data);
+  // Auto-create board + default columns so the board page is never empty
+  await createBoardInProject(db, { projectId: project.id, name: "Main Board" });
+  return project;
 }
 
 export async function updateProjectById(
@@ -41,7 +45,7 @@ export async function updateProjectById(
 export async function deleteProjectById(
   db: PrismaClient,
   projectId: string,
-): Promise<{ success: boolean }> {
+): Promise<{ success: true }> {
   await getProject(db, projectId);
   await deleteProject(db, projectId);
   return { success: true };

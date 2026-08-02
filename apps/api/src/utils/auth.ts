@@ -1,6 +1,8 @@
+import { hkdfSync } from "node:crypto";
+import { jwtDecrypt } from "jose";
+
 import { parseCookieToken } from "@taskflow/shared";
-import { decode } from "@auth/core/jwt";
-import { env, isProduction } from "../config/env";
+import { env } from "../config/env";
 
 export interface AuthSession {
   id: string;
@@ -9,30 +11,39 @@ export interface AuthSession {
 }
 
 /**
- * Extracts and cryptographically verifies the JWT session from request headers.
- * Uses @auth/core to decode the token WITHOUT hitting the database (O(1) memory check).
+ * NextAuth v4 derives its JWE encryption key as:
+ *   HKDF(sha256, secret, salt = "", info = "NextAuth.js Generated Encryption Key", 32)
+ *
+ * @auth/core (v5) derives it with a DIFFERENT info string that embeds the
+ * cookie-name salt, so its decode() can never decrypt a v4 session cookie.
+ * We replicate the v4 derivation here with node:crypto + jose.
+ */
+const V4_HKDF_INFO = "NextAuth.js Generated Encryption Key";
+
+/** Derived once at startup - the secret never changes at runtime. */
+const encryptionKey = new Uint8Array(hkdfSync("sha256", env.NEXTAUTH_SECRET, "", V4_HKDF_INFO, 32));
+
+/**
+ * Extracts and cryptographically verifies the NextAuth v4 JWT session from
+ * the Cookie header. No database round-trip (stateless JWE decryption).
  */
 export async function getSessionUser(cookieHeader?: string | null): Promise<AuthSession | null> {
   if (!cookieHeader) return null;
 
-  // 1. Extract the token
+  //  Extract the token
   const token = parseCookieToken(cookieHeader);
   if (!token) return null;
 
-  // 2. Determine the salt (cookie name) used by NextAuth
-  // In NextAuth v4/v5, the salt is the cookie name itself
-  const salt = isProduction() ? "__Secure-next-auth.session-token" : "next-auth.session-token";
-
   try {
-    // 3. Verify the JWT signature using @auth/core
-    const decoded = await decode({ token, secret: env.NEXTAUTH_SECRET, salt });
+    // Same options NextAuth v4 uses internally (jwtDecrypt also validates `exp`)
+    const { payload } = await jwtDecrypt(token, encryptionKey, { clockTolerance: 15 });
 
-    if (!decoded?.sub || !decoded.email) return null;
+    if (typeof payload.sub !== "string" || typeof payload.email !== "string") return null;
 
     return {
-      id: decoded.sub,
-      email: decoded.email,
-      name: decoded.name ?? null,
+      id: payload.sub,
+      email: payload.email,
+      name: typeof payload.name === "string" ? payload.name : null,
     };
   } catch {
     // Token is invalid, expired, or tampered with

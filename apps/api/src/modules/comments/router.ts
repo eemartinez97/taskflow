@@ -1,15 +1,15 @@
 import { z } from "zod";
-import { type Server } from "socket.io";
 import { idSchema } from "@taskflow/shared";
 import { createTRPCRouter, protectedProcedure, roleGuard } from "../../trpc/procedures";
 import { createCommentOnTask, deleteCommentById, listComments } from "./service";
+import type { AppServer } from "../../socket/events";
 
 const memberProcedure = protectedProcedure.use(roleGuard(["OWNER", "ADMIN", "MEMBER"]));
 
-const _buildCommentsRouter = (io: Server) =>
+const _buildCommentsRouter = (io: AppServer) =>
   createTRPCRouter({
-    list: protectedProcedure
-      .input(z.object({ taskId: idSchema }))
+    list: memberProcedure
+      .input(z.object({ orgId: idSchema, taskId: idSchema }))
       .query(async ({ ctx, input }) => listComments(ctx.db, input.taskId)),
 
     create: memberProcedure
@@ -25,15 +25,17 @@ const _buildCommentsRouter = (io: Server) =>
         createCommentOnTask(ctx.db, io, input.projectId, input.taskId, ctx.user.id, input.body),
       ),
 
-    delete: protectedProcedure
-      .input(z.object({ commentId: idSchema }))
-      .mutation(async ({ ctx, input }) => deleteCommentById(ctx.db, input.commentId, ctx.user.id)),
+    delete: memberProcedure
+      .input(z.object({ orgId: idSchema, projectId: idSchema, commentId: idSchema }))
+      .mutation(async ({ ctx, input }) =>
+        deleteCommentById(ctx.db, io, input.projectId, input.commentId, ctx.user.id),
+      ),
   });
 
 /** Inferred Router type - used by createAppRouter for the `comments` key. */
 export type CommentRouter = ReturnType<typeof _buildCommentsRouter>;
 
 /** Factory that injects the Socket.IO server into all task mutations. */
-export function createCommentsRouter(io: Server): CommentRouter {
+export function createCommentsRouter(io: AppServer): CommentRouter {
   return _buildCommentsRouter(io);
 }

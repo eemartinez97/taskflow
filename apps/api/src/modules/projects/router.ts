@@ -17,8 +17,8 @@ export const projectsRouter = createTRPCRouter({
     .input(z.object({ orgId: idSchema }))
     .query(async ({ ctx, input }) => listProjects(ctx.db, input.orgId)),
 
-  get: protectedProcedure
-    .input(z.object({ projectId: idSchema }))
+  get: memberProcedure
+    .input(z.object({ orgId: idSchema, projectId: idSchema }))
     .query(async ({ ctx, input }) => getProject(ctx.db, input.projectId)),
 
   create: memberProcedure

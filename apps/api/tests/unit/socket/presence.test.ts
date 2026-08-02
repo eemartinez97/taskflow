@@ -1,225 +1,299 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-import { HEX_COLOR_REGEX, SOCKET_EVENTS, SOCKET_ROOM_PREFIX } from "@taskflow/shared";
+import {
+  presenceCursorSchema,
+  presenceUserSchema,
+  SOCKET_BOARD_ROOM_PREFIX,
+  SOCKET_EVENTS,
+} from "@taskflow/shared";
 
 import {
+  makePeer,
+  makeSocketMock,
+  mockAppServer,
+  mockEmit,
+  mockExcept,
+  mockTo,
+  setRoomPeers,
+} from "../../mocks/socket";
+import {
+  announceOfflineIfLast,
+  announceOnlineIfFirst,
+  buildOnlineSync,
   createPresenceHelpers,
+  PRESENCE_COLORS,
   registerPresenceHandlers,
   resolveColor,
 } from "../../../src/socket/presence";
+import { ANOTHER_UUID, VALID_ORG_ID, VALID_PROJECT_ID, VALID_USER } from "../../helpers";
+import { shouldDropPresencePacket } from "../../../src/socket/rate-limit";
+import type * as sharedModule from "@taskflow/shared";
+import { mockLogger } from "../../mocks/logger";
 
-import { makeSocketMock, mockAppServer, mockTo } from "../../mocks/socket";
-import { mockEmit } from "../../mocks/socket";
-import { VALID_USER } from "../../helpers";
+vi.mock("../../../src/socket/rate-limit");
 
-const MOCK_CURSOR_PAYLOAD = { userId: VALID_USER.id, x: 100, y: 200 };
+vi.mock("@taskflow/shared", async (importOriginal) => {
+  const actual = await importOriginal<typeof sharedModule>();
+
+  return {
+    ...actual,
+    // Schema validation belongs to the shared package's own tests; here we
+    // only care that presence.ts honours success/failure.
+    presenceCursorSchema: { safeParse: vi.fn() },
+    presenceUserSchema: { safeParse: vi.fn() },
+  };
+});
+
+const ROOM = `${SOCKET_BOARD_ROOM_PREFIX}${VALID_PROJECT_ID}`;
+const cursorParse = vi.mocked(presenceCursorSchema.safeParse);
+const userParse = vi.mocked(presenceUserSchema.safeParse);
+
+const PRESENCE_USER = { userId: VALID_USER.id, name: "Alice", color: "#3B82F6" };
+
+beforeEach(() => {
+  vi.mocked(shouldDropPresencePacket).mockReturnValue(false);
+  cursorParse.mockReturnValue({ success: true, data: { x: 1, y: 2 } } as never);
+  userParse.mockReturnValue({ success: true, data: PRESENCE_USER } as never);
+});
 
 describe("resolveColor", () => {
-  it("returns a valid 6-digit hex color", () => {
-    expect(resolveColor("user-abc")).toMatch(HEX_COLOR_REGEX);
+  it("is deterministic for the same userId", () => {
+    expect(resolveColor(VALID_USER.id)).toBe(resolveColor(VALID_USER.id));
   });
 
-  it("is deterministic - same userId always returns the same color", () => {
-    expect(resolveColor("user-123")).toBe(resolveColor("user-123"));
+  it("always returns a color from the palette", () => {
+    const palette = new Set<string>(PRESENCE_COLORS);
+
+    for (const id of ["", "a", VALID_USER.id, ANOTHER_UUID, "x".repeat(200)]) {
+      expect(palette.has(resolveColor(id))).toBe(true);
+    }
   });
 
-  it("two users with different ids may get different colors", () => {
-    // We can't guarantee they differ (8-slot palette), but both must be valid
-    expect(resolveColor("aaaa")).toMatch(HEX_COLOR_REGEX);
-    expect(resolveColor("zzzz")).toMatch(HEX_COLOR_REGEX);
-  });
+  it("spreads different users across the palette", () => {
+    const colors = new Set(Array.from({ length: 50 }, (_, i) => resolveColor(`user-${String(i)}`)));
 
-  it("does not throw for an empty string userId", () => {
-    expect(() => resolveColor("")).not.toThrow();
+    expect(colors.size).toBeGreaterThan(1);
   });
 });
 
-describe("createPresenceHelpers - joinProjectRoom", () => {
-  beforeEach(() => vi.clearAllMocks());
+describe("registerPresenceHandlers", () => {
+  it("registers exactly the three expected listeners", () => {
+    const { socket, handlerNames } = makeSocketMock({ rooms: [ROOM] });
 
-  it("joins the correct room", () => {
-    const { socket, joinMock } = makeSocketMock();
-    const { joinProjectRoom } = createPresenceHelpers(mockAppServer, socket);
+    registerPresenceHandlers(mockAppServer, socket);
 
-    joinProjectRoom("proj-1");
-
-    expect(joinMock).toHaveBeenCalledWith(`${SOCKET_ROOM_PREFIX}proj-1`);
-  });
-
-  it("broadcast presence:join with userId, name, and color", () => {
-    const data = { userName: "Alice", color: "#EF4444" };
-    const { socket, broadcastToMock } = makeSocketMock(data);
-    const { joinProjectRoom } = createPresenceHelpers(mockAppServer, socket);
-
-    joinProjectRoom("proj-1");
-
-    expect(broadcastToMock).toHaveBeenCalledWith(`${SOCKET_ROOM_PREFIX}proj-1`);
-    expect(mockEmit).toHaveBeenCalledWith(
-      SOCKET_EVENTS.PRESENCE_JOIN,
-      expect.objectContaining({
-        userId: socket.data.userId,
-        name: data.userName,
-        color: data.color,
-      }),
+    expect(handlerNames().sort()).toEqual(
+      [
+        SOCKET_EVENTS.TASK_TYPING,
+        SOCKET_EVENTS.PRESENCE_CURSOR,
+        SOCKET_EVENTS.PRESENCE_CURSOR_LEAVE,
+        "disconnecting",
+      ].sort(),
     );
   });
 
-  it("does not emit when color is invalid (safeParse fails)", () => {
-    const { socket } = makeSocketMock({ color: "not-a-hex-color" });
-    const { joinProjectRoom } = createPresenceHelpers(mockAppServer, socket);
-
-    joinProjectRoom("proj-bad");
-
-    expect(mockEmit).not.toHaveBeenCalled();
-  });
-});
-
-describe("createPresenceHelpers - leaveProjectRoom", () => {
-  it("broadcast presence:leave then leaves the room", () => {
-    const { socket, broadcastToMock, leaveMock } = makeSocketMock();
-    const { leaveProjectRoom } = createPresenceHelpers(mockAppServer, socket);
-
-    leaveProjectRoom("proj-2");
-
-    expect(broadcastToMock).toHaveBeenCalledWith(`${SOCKET_ROOM_PREFIX}proj-2`);
-    expect(mockEmit).toHaveBeenCalledWith(SOCKET_EVENTS.PRESENCE_LEAVE, {
-      userId: socket.data.userId,
-    });
-    expect(leaveMock).toHaveBeenCalledWith(`${SOCKET_ROOM_PREFIX}proj-2`);
-  });
-});
-
-describe("registerPresenceHandlers - task:typing", () => {
-  it("delays task:typing with userId to all project rooms", () => {
-    const { socket, handlers, rooms, broadcastToMock } = makeSocketMock();
-    rooms.add(`${SOCKET_ROOM_PREFIX}proj-A`);
-    rooms.add(`${SOCKET_ROOM_PREFIX}proj-B`);
-
+  it("relays task:typing to each project room with the server-side userId", () => {
+    const { socket, fire, broadcastToMock } = makeSocketMock({ rooms: [ROOM] });
     registerPresenceHandlers(mockAppServer, socket);
-    handlers[SOCKET_EVENTS.TASK_TYPING]?.({ taskId: "task-1", projectId: "proj-A" });
 
-    expect(broadcastToMock).toHaveBeenCalledWith(`${SOCKET_ROOM_PREFIX}proj-A`);
-    expect(broadcastToMock).toHaveBeenCalledWith(`${SOCKET_ROOM_PREFIX}proj-B`);
+    fire(SOCKET_EVENTS.TASK_TYPING, { taskId: "t1", userId: "SPOOFED" });
+
+    expect(broadcastToMock).toHaveBeenCalledWith(ROOM);
     expect(mockEmit).toHaveBeenCalledWith(SOCKET_EVENTS.TASK_TYPING, {
-      taskId: "task-1",
-      userId: socket.data.userId,
+      taskId: "t1",
+      userId: VALID_USER.id, // never trusts the client-supplied id
     });
   });
 
-  it("does not relay when socket is in no project rooms", () => {
-    const { socket, handlers } = makeSocketMock();
-
+  it("drops malformed presence:cursor packets silently", () => {
+    cursorParse.mockReturnValue({ success: false, error: {} } as never);
+    const { socket, fire } = makeSocketMock({ rooms: [ROOM] });
     registerPresenceHandlers(mockAppServer, socket);
-    handlers[SOCKET_EVENTS.TASK_TYPING]?.({ taskId: "t-1", projectId: "any" });
 
-    expect(mockEmit).not.toHaveBeenCalled();
-  });
-});
-
-describe("registerPresenceHandler - presence:cursor", () => {
-  it("relays a valid cursor payload to project rooms", () => {
-    const { socket, handlers, rooms, broadcastToMock } = makeSocketMock();
-    rooms.add(`${SOCKET_ROOM_PREFIX}proj-C`);
-
-    registerPresenceHandlers(mockAppServer, socket);
-    handlers[SOCKET_EVENTS.PRESENCE_CURSOR]?.(MOCK_CURSOR_PAYLOAD);
-
-    expect(broadcastToMock).toHaveBeenCalledWith(`${SOCKET_ROOM_PREFIX}proj-C`);
-    expect(mockEmit).toHaveBeenCalledWith(SOCKET_EVENTS.PRESENCE_CURSOR, MOCK_CURSOR_PAYLOAD);
-  });
-
-  it("silently drops a malformed cursor payload", () => {
-    const { socket, handlers } = makeSocketMock();
-
-    registerPresenceHandlers(mockAppServer, socket);
-    // x and y missing - presenceCursorSchema.safeParse fails
-    handlers[SOCKET_EVENTS.PRESENCE_CURSOR]?.({ userId: VALID_USER.id });
+    fire(SOCKET_EVENTS.PRESENCE_CURSOR, { junk: true });
 
     expect(mockEmit).not.toHaveBeenCalled();
   });
 
-  it("drops packets after 30/s rate limit is exceeded", () => {
-    const { socket, handlers, rooms } = makeSocketMock();
-    rooms.add(`${SOCKET_ROOM_PREFIX}proj-rl`);
-
+  it("relays a valid presence:cursor packet", () => {
+    const { socket, fire, broadcastToMock } = makeSocketMock({ rooms: [ROOM] });
     registerPresenceHandlers(mockAppServer, socket);
 
-    for (let i = 0; i < 31; i++) {
-      handlers[SOCKET_EVENTS.PRESENCE_CURSOR]?.(MOCK_CURSOR_PAYLOAD);
-    }
+    fire(SOCKET_EVENTS.PRESENCE_CURSOR, { x: 1, y: 2 });
 
-    // 30 allowed, 31st dropped
-    expect(mockEmit).toHaveBeenCalledTimes(30);
-  });
-});
-
-describe("registerPresenceHandlers - disconnecting", () => {
-  it("registers 'disconnecting' - NOT 'disconnect'", () => {
-    const { socket, onMock } = makeSocketMock();
-
-    registerPresenceHandlers(mockAppServer, socket);
-
-    const registeredEvents = vi.mocked(onMock).mock.calls.map(([event]) => event);
-    expect(registeredEvents).toContain("disconnecting");
-    expect(registeredEvents).not.toContain("disconnect");
+    expect(broadcastToMock).toHaveBeenCalledWith(ROOM);
+    expect(mockEmit).toHaveBeenCalledWith(SOCKET_EVENTS.PRESENCE_CURSOR, { x: 1, y: 2 });
   });
 
-  it("broadcast presence:leave to all project rooms", () => {
-    const { socket, handlers, rooms, broadcastToMock } = makeSocketMock();
-    rooms.add(`${SOCKET_ROOM_PREFIX}proj-A`);
-    rooms.add(`${SOCKET_ROOM_PREFIX}proj-B`);
-
+  it("drops rate-limited cursor packets and logs at debug level", () => {
+    vi.mocked(shouldDropPresencePacket).mockReturnValue(true);
+    const { socket, fire } = makeSocketMock({ rooms: [ROOM] });
     registerPresenceHandlers(mockAppServer, socket);
-    handlers.disconnecting?.();
 
-    expect(broadcastToMock).toHaveBeenCalledWith(`${SOCKET_ROOM_PREFIX}proj-A`);
-    expect(broadcastToMock).toHaveBeenCalledWith(`${SOCKET_ROOM_PREFIX}proj-B`);
+    fire(SOCKET_EVENTS.PRESENCE_CURSOR, { x: 1, y: 2 });
+
+    expect(mockEmit).not.toHaveBeenCalled();
+    expect(mockLogger.debug).toHaveBeenCalledWith(
+      { room: ROOM, userId: VALID_USER.id },
+      "Presence packet dropped (rate limit)",
+    );
+  });
+
+  it("broadcasts presence:leave for every project room on disconnecting", async () => {
+    const secondRoom = `${SOCKET_BOARD_ROOM_PREFIX}other`;
+    const { socket, fire } = makeSocketMock({ rooms: [ROOM, secondRoom] });
+    registerPresenceHandlers(mockAppServer, socket);
+
+    fire("disconnecting");
+    await vi.waitFor(() => {
+      expect(mockExcept).toHaveBeenCalledTimes(2);
+    });
+
+    expect(mockTo).toHaveBeenCalledWith(ROOM);
+    expect(mockTo).toHaveBeenCalledWith(secondRoom);
     expect(mockEmit).toHaveBeenCalledWith(SOCKET_EVENTS.PRESENCE_LEAVE, {
-      userId: socket.data.userId,
+      userId: VALID_USER.id,
+    });
+  });
+});
+
+describe("announceOnlineIfFirst", () => {
+  it("broadcasts presence:online to every org room on the first socket", async () => {
+    const { socket } = makeSocketMock();
+    setRoomPeers([]); // personal room empty -> first socket
+
+    await announceOnlineIfFirst(mockAppServer, socket, [VALID_ORG_ID, ANOTHER_UUID]);
+
+    expect(mockTo).toHaveBeenCalledWith(`org:${VALID_ORG_ID}`);
+    expect(mockTo).toHaveBeenCalledWith(`org:${ANOTHER_UUID}`);
+    expect(mockExcept).toHaveBeenCalledWith(socket.id);
+    expect(mockEmit).toHaveBeenCalledWith(SOCKET_EVENTS.PRESENCE_ONLINE, {
+      userId: VALID_USER.id,
     });
   });
 
-  it("does not emit when socket has no project rooms", () => {
-    const { socket, handlers } = makeSocketMock();
+  it("stays silent when another socket of the same user is already online", async () => {
+    const { socket } = makeSocketMock();
+    setRoomPeers([makePeer({ id: "other-tab", userId: VALID_USER.id })]);
 
-    registerPresenceHandlers(mockAppServer, socket);
-    handlers.disconnecting?.();
+    await announceOnlineIfFirst(mockAppServer, socket, [VALID_ORG_ID]);
 
     expect(mockEmit).not.toHaveBeenCalled();
   });
 
-  it("ignores not-project rooms", () => {
-    const { socket, handlers, rooms, broadcastToMock } = makeSocketMock();
-    rooms.add("admin:internal");
-    rooms.add(`${SOCKET_ROOM_PREFIX}proj-C`);
+  it("emits nothing when the user has no orgs", async () => {
+    const { socket } = makeSocketMock();
+    setRoomPeers([]); // first socket, but no orgs to notify
 
-    registerPresenceHandlers(mockAppServer, socket);
-    handlers.disconnecting?.();
+    await announceOnlineIfFirst(mockAppServer, socket, []);
 
-    expect(broadcastToMock).not.toHaveBeenCalledWith("admin:internal");
-    expect(broadcastToMock).toHaveBeenCalledWith(`${SOCKET_ROOM_PREFIX}proj-C`);
-    expect(mockEmit).toHaveBeenCalledTimes(1);
+    expect(mockTo).not.toHaveBeenCalled();
   });
 });
 
-describe("registerPresenceHandlers - event registration", () => {
-  it("registers exactly 3 handlers: task:typing, presence:cursor, disconnecting", () => {
-    const { socket, onMock } = makeSocketMock();
+describe("announceOfflineIfLast", () => {
+  it("broadcasts presence:offline (excluding self) on the last socket", async () => {
+    const { socket } = makeSocketMock();
+    setRoomPeers([]); // no other socket of this user -> last socket
 
-    registerPresenceHandlers(mockAppServer, socket);
+    await announceOfflineIfLast(mockAppServer, socket, [VALID_ORG_ID]);
 
-    expect(onMock).toHaveBeenCalledTimes(3);
-    expect(onMock).toHaveBeenCalledWith(SOCKET_EVENTS.TASK_TYPING, expect.any(Function));
-    expect(onMock).toHaveBeenCalledWith(SOCKET_EVENTS.PRESENCE_CURSOR, expect.any(Function));
-    expect(onMock).toHaveBeenCalledWith("disconnecting", expect.any(Function));
+    expect(mockTo).toHaveBeenCalledWith(`org:${VALID_ORG_ID}`);
+    expect(mockExcept).toHaveBeenCalledWith(socket.id);
+    expect(mockEmit).toHaveBeenCalledWith(SOCKET_EVENTS.PRESENCE_OFFLINE, {
+      userId: VALID_USER.id,
+    });
+  });
+
+  it("stays silent while another tab of the same user is still connected", async () => {
+    const { socket } = makeSocketMock();
+    setRoomPeers([makePeer({ id: "other-tab", userId: VALID_USER.id })]);
+
+    await announceOfflineIfLast(mockAppServer, socket, [VALID_ORG_ID]);
+
+    expect(mockEmit).not.toHaveBeenCalled();
   });
 });
 
-describe("mockAppServer shape (used by createPresenceHelpers via io.to)", () => {
-  it("mockServerTo delegates to mockEmit", () => {
-    mockAppServer.to("any-room").emit(SOCKET_EVENTS.TASK_DELETED, { taskId: "task-1" });
+describe("buildOnlineSync", () => {
+  it("emits the deduped set of online users, excluding self", async () => {
+    const { socket, emitMock } = makeSocketMock();
+    setRoomPeers([
+      makePeer({ id: "a", userId: ANOTHER_UUID }),
+      makePeer({ id: "b", userId: ANOTHER_UUID }), // same user, different tab
+      makePeer({ id: socket.id }), // self must be filtered out
+    ]);
 
-    expect(mockTo);
-    expect(mockEmit).toHaveBeenCalledWith(SOCKET_EVENTS.TASK_DELETED, { taskId: "task-1" });
+    await buildOnlineSync(mockAppServer, socket, [VALID_ORG_ID]);
+
+    expect(emitMock).toHaveBeenCalledWith(SOCKET_EVENTS.PRESENCE_ONLINE_SYNC, {
+      userIds: [ANOTHER_UUID],
+    });
+  });
+
+  it("emits an empty roster when no orgs are provided", async () => {
+    const { socket, emitMock } = makeSocketMock();
+
+    await buildOnlineSync(mockAppServer, socket, []);
+
+    expect(emitMock).toHaveBeenCalledWith(SOCKET_EVENTS.PRESENCE_ONLINE_SYNC, { userIds: [] });
+  });
+});
+
+describe("PRESENCE_CURSOR_LEAVE handler", () => {
+  it("relays cursor leave to every project room with server-side userId", () => {
+    const { socket, fire, broadcastToMock } = makeSocketMock({ rooms: [ROOM] });
+    registerPresenceHandlers(mockAppServer, socket);
+
+    fire(SOCKET_EVENTS.PRESENCE_CURSOR_LEAVE);
+
+    expect(broadcastToMock).toHaveBeenCalledWith(ROOM);
+    expect(mockEmit).toHaveBeenCalledWith(SOCKET_EVENTS.PRESENCE_CURSOR_LEAVE, {
+      userId: VALID_USER.id,
+    });
+  });
+
+  it("relays to multiple board rooms", () => {
+    const secondRoom = `${SOCKET_BOARD_ROOM_PREFIX}other`;
+    const { socket, fire, broadcastToMock } = makeSocketMock({ rooms: [ROOM, secondRoom] });
+    registerPresenceHandlers(mockAppServer, socket);
+
+    fire(SOCKET_EVENTS.PRESENCE_CURSOR_LEAVE);
+
+    expect(broadcastToMock).toHaveBeenCalledWith(ROOM);
+    expect(broadcastToMock).toHaveBeenCalledWith(secondRoom);
+    expect(mockEmit).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("createPresenceHelpers", () => {
+  it("joinBoardRoom broadcasts presence:join and syncs roster on valid payload", async () => {
+    const { socket, broadcastToMock, emitMock } = makeSocketMock({ rooms: [] });
+    setRoomPeers([
+      makePeer({ id: "peer-1", userId: ANOTHER_UUID }),
+      makePeer({ id: socket.id, userId: VALID_USER.id }),
+    ]);
+
+    const { joinBoardRoom } = createPresenceHelpers(mockAppServer, socket);
+
+    await joinBoardRoom(VALID_PROJECT_ID);
+
+    expect(broadcastToMock).toHaveBeenCalledWith(ROOM);
+    expect(mockEmit).toHaveBeenCalledWith(SOCKET_EVENTS.PRESENCE_JOIN, PRESENCE_USER);
+    expect(emitMock).toHaveBeenCalledWith(SOCKET_EVENTS.PRESENCE_SYNC, {
+      users: [expect.objectContaining({ userId: ANOTHER_UUID })],
+    });
+  });
+
+  it("joinBoardRoom returns early when presence payload is invalid", async () => {
+    userParse.mockReturnValue({ success: false, error: {} } as never);
+    const { socket, broadcastToMock, emitMock } = makeSocketMock({ rooms: [] });
+    setRoomPeers([]);
+
+    const { joinBoardRoom } = createPresenceHelpers(mockAppServer, socket);
+
+    await joinBoardRoom(VALID_PROJECT_ID);
+
+    expect(broadcastToMock).not.toHaveBeenCalled();
+    expect(emitMock).not.toHaveBeenCalledWith(SOCKET_EVENTS.PRESENCE_SYNC, expect.anything());
   });
 });

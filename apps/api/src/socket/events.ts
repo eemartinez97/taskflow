@@ -1,3 +1,6 @@
+import type { ClientToServerEvents, ServerToClientEvents } from "@taskflow/shared";
+import type { Server, Socket } from "socket.io";
+
 /**
  * Per-socket data attached during the auth handshake and readable in
  * all event handlers via socket.data.
@@ -18,3 +21,19 @@ export interface SocketData {
 export interface InterServerEvents {
   ping: () => void;
 }
+
+// Typed aliases
+
+export type AppSocket = Socket<
+  ClientToServerEvents,
+  ServerToClientEvents,
+  InterServerEvents,
+  SocketData
+>;
+
+export type AppServer = Server<
+  ClientToServerEvents,
+  ServerToClientEvents,
+  InterServerEvents,
+  SocketData
+>;

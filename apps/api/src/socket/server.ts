@@ -1,12 +1,26 @@
 import { Server } from "socket.io";
 import type { Server as HttpServer } from "node:http";
 
-import type { AppSocket, AppServer } from "./presence";
-import { createPresenceHelpers, registerPresenceHandlers, resolveColor } from "./presence";
+import {
+  announceOfflineIfLast,
+  announceOnlineIfFirst,
+  buildOnlineSync,
+  createPresenceHelpers,
+  registerPresenceHandlers,
+  resolveColor,
+} from "./presence";
 import { env } from "../config/env";
 import { logger } from "../config/logger";
 import { getSessionUser } from "../utils/auth";
 import { appCollectors } from "../metrics";
+import {
+  SOCKET_ORG_ROOM_PREFIX,
+  SOCKET_ROOM_PREFIX,
+  SOCKET_USER_ROOM_PREFIX,
+} from "@taskflow/shared";
+import type { AppServer, AppSocket } from "./events";
+import { findUserOrgIds } from "./presence-repo";
+import { prisma } from "@taskflow/database";
 
 /**
  * Extracted for two reasons:
@@ -74,16 +88,49 @@ export function createSocketServer(httpServer: HttpServer): AppServer {
   io.on("connection", (socket) => {
     logger.debug({ userId: socket.data.userId, socketId: socket.id }, "Socket connected");
 
-    // increment gauge when client connects
-    appCollectors.socketConnectedClients.inc();
+    // Set (not inc) from the authoritative namespace size: with
+    // connectionStateRecovery a recovered session re-fires "connection"
+    // without a matching "disconnect", which made inc/dec drift.
+    appCollectors.socketConnectedClients.set(getConnectedCount(io));
+
+    // Personal room for user-scoped pushes (notifications). Joined on every
+    // connection regardless of project - the recipient may be anywhere.
+    void socket.join(`${SOCKET_USER_ROOM_PREFIX}${socket.data.userId}`);
+
+    // Global org presence: join the user's org rooms, announce online on the
+    // first live socket, and push the current online roster to the joiner.
+    // The disconnecting handler mirrors it (offline on the last socket).
+    void (async () => {
+      const orgIds = await findUserOrgIds(prisma, socket.data.userId);
+      for (const orgId of orgIds) {
+        void socket.join(`${SOCKET_ORG_ROOM_PREFIX}${orgId}`);
+      }
+      await announceOnlineIfFirst(io, socket, orgIds);
+      await buildOnlineSync(io, socket, orgIds);
+
+      socket.on("disconnecting", () => {
+        void announceOfflineIfLast(io, socket, orgIds);
+      });
+    })();
 
     // Built join/leave helpers bound to this socket
-    const { joinProjectRoom } = createPresenceHelpers(io, socket);
+    const { joinBoardRoom } = createPresenceHelpers(io, socket);
 
-    // Join the project helpers bound to this socket
-    const { projectId } = socket.handshake.query;
+    const { projectId, boardId } = socket.handshake.query;
+
+    // Silent join: needed so project-wide task/board mutation events
+    // (TASK_*, BOARD_UPDATED, COMMENT_*) keep reaching this socket regardless
+    // of which board is being viewed. No presence is tied to this room.
     if (typeof projectId === "string" && projectId.length > 0) {
-      joinProjectRoom(projectId);
+      void socket.join(`${SOCKET_ROOM_PREFIX}${projectId}`);
+    }
+
+    // Board-scoped presence + live cursors + typing - isolated per board so
+    // two users on DIFFERENT boards of the same project never see each
+    // other's viewer avatars or pointers (previously both leaked at the
+    // project-wide room).
+    if (typeof boardId === "string" && boardId.length > 0) {
+      void joinBoardRoom(boardId);
     }
 
     // Register ongoing event handlers (typing, cursor, disconnecting)
@@ -91,7 +138,7 @@ export function createSocketServer(httpServer: HttpServer): AppServer {
 
     // Decrement gauge when client disconnects
     socket.on("disconnect", () => {
-      appCollectors.socketConnectedClients.dec();
+      appCollectors.socketConnectedClients.set(getConnectedCount(io));
       logger.debug({ userId: socket.data.userId, socketId: socket.id }, "Socket disconnected");
     });
   });

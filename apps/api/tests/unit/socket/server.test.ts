@@ -1,279 +1,224 @@
-import { beforeEach, describe, expect, vi, it, afterEach } from "vitest";
-
-vi.mock("../../../src/utils/auth", () => ({
-  getSessionUser: vi.fn(),
-}));
-vi.mock("socket.io", () => import("../../mocks/socket-io-module"));
-vi.mock("../../../src/config/env");
-
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Server as HttpServer } from "node:http";
+import { Server } from "socket.io";
+import { SOCKET_ROOM_PREFIX, SOCKET_USER_ROOM_PREFIX } from "@taskflow/shared";
 
-import { HEX_COLOR_REGEX, SOCKET_EVENTS, SOCKET_ROOM_PREFIX } from "@taskflow/shared";
-
+import { appCollectors } from "../../../src/metrics";
+import {
+  announceOfflineIfLast,
+  announceOnlineIfFirst,
+  buildOnlineSync,
+  createPresenceHelpers,
+  registerPresenceHandlers,
+  resolveColor,
+} from "../../../src/socket/presence";
 import {
   authenticateSocket,
   createSocketServer,
   getConnectedCount,
 } from "../../../src/socket/server";
-import { makeMockNext, VALID_USER, makeSessionUser } from "../../helpers";
-import { getMockIoInstance, Server } from "../../mocks/socket-io-module";
+import { makeSessionUser, VALID_ORG_ID, VALID_PROJECT_ID, VALID_USER } from "../../helpers";
+import type * as presenceModule from "../../../src/socket/presence";
+vi.mock("socket.io", () => import("../../mocks/socket-io-module"));
+import { getMockIoInstance } from "../../mocks/socket-io-module";
 import { makeIoMock, makeSocketMock } from "../../mocks/socket";
 import { getSessionUser } from "../../../src/utils/auth";
-import { appCollectors } from "../../../src/metrics";
+import { mockLogger } from "../../mocks/logger";
+import { findUserOrgIds } from "../../../src/socket/presence-repo";
 
-const fakeHttpServer = {} as HttpServer;
+vi.mock("../../../src/utils/auth");
+
+const joinBoardRoom = vi.fn();
+
+vi.mock("../../../src/socket/presence", async (importOriginal) => {
+  const actual = await importOriginal<typeof presenceModule>();
+
+  return {
+    ...actual,
+    // resolveColor stays real - authenticateSocket depends on it
+    createPresenceHelpers: vi.fn(() => ({ joinBoardRoom })),
+    registerPresenceHandlers: vi.fn(),
+    announceOnlineIfFirst: vi.fn(),
+    announceOfflineIfLast: vi.fn(),
+    buildOnlineSync: vi.fn(),
+  };
+});
+
+vi.mock("../../../src/socket/presence-repo", () => ({
+  findUserOrgIds: vi.fn(() => [VALID_ORG_ID]),
+}));
+
+const inst = getMockIoInstance();
+const httpServer = {} as HttpServer;
+
+beforeEach(() => {
+  inst._reset();
+  joinBoardRoom.mockReset();
+  appCollectors.socketConnectedClients.reset();
+});
 
 describe("authenticateSocket", () => {
-  beforeEach(() => vi.resetAllMocks());
+  it("attaches identity and color to socket.data on success", async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(makeSessionUser());
+    const { socket } = makeSocketMock({ cookie: "next-auth.session-token=abc" });
+    const next = vi.fn();
 
-  function makeAuthSocket(cookie: string | undefined): ReturnType<typeof makeSocketMock>["socket"] {
-    const { socket } = makeSocketMock();
-    // @ts-expect-error: overwriting readonly handshake.headers for test purposes
-    socket.handshake = { headers: { cookie }, query: {} };
-    return socket;
-  }
+    await authenticateSocket(socket, next);
 
-  it("calls next(UNAUTHORIZED) when no cookie header is present", async () => {
-    vi.mocked(getSessionUser).mockResolvedValueOnce(null);
-    const next = makeMockNext();
-
-    await authenticateSocket(makeAuthSocket(undefined), next);
-
-    expect(next).toHaveBeenCalledWith(new Error("UNAUTHORIZED"));
-    expect(getSessionUser).toHaveBeenCalledWith(undefined);
-  });
-
-  it("calls next(UNAUTHORIZED) when getSessionUser returns null (invalid/expired JWT)", async () => {
-    vi.mocked(getSessionUser).mockResolvedValueOnce(null);
-    const next = makeMockNext();
-
-    await authenticateSocket(makeAuthSocket("next-auth.session-token=ghost"), next);
-
-    expect(next).toHaveBeenCalledWith(new Error("UNAUTHORIZED"));
-  });
-
-  it("calls next() with no args on a valid session", async () => {
-    vi.mocked(getSessionUser).mockResolvedValueOnce(makeSessionUser());
-    const next = makeMockNext();
-
-    await authenticateSocket(makeAuthSocket("next-auth.session-token=valid-token"), next);
-
+    expect(getSessionUser).toHaveBeenCalledWith("next-auth.session-token=abc");
+    expect(socket.data).toEqual({
+      userId: VALID_USER.id,
+      userEmail: VALID_USER.email,
+      userName: "Alice",
+      color: resolveColor(VALID_USER.id),
+    });
     expect(next).toHaveBeenCalledWith();
-    expect(next).toHaveBeenCalledOnce();
   });
 
-  it("attaches userId, userEmail, userName, color to socket.data on success", async () => {
-    vi.mocked(getSessionUser).mockResolvedValueOnce(makeSessionUser({ name: "Alice" }));
-    const socket = makeAuthSocket("next-auth.session-token=data-token");
+  it("keeps a null display name", async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(makeSessionUser({ name: null }));
+    const { socket } = makeSocketMock({ cookie: "c=1" });
 
-    await authenticateSocket(socket, makeMockNext());
-
-    expect(socket.data.userId).toBe(VALID_USER.id);
-    expect(socket.data.userEmail).toBe(VALID_USER.email);
-    expect(socket.data.userName).toBe("Alice");
-    expect(socket.data.color).toMatch(HEX_COLOR_REGEX);
-  });
-
-  it("resolves userName to null when user has no display name", async () => {
-    vi.mocked(getSessionUser).mockResolvedValueOnce(makeSessionUser({ name: null }));
-    const socket = makeAuthSocket(`next-auth.session-token=null-name-token`);
-
-    await authenticateSocket(socket, makeMockNext());
+    await authenticateSocket(socket, vi.fn());
 
     expect(socket.data.userName).toBeNull();
   });
 
-  it("calls next(UNAUTHORIZED) when getSessionUser throws", async () => {
-    vi.mocked(getSessionUser).mockRejectedValueOnce(new Error("JWT decode failed"));
-    const next = makeMockNext();
+  it("rejects handshakes without a valid session", async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(null);
+    const next = vi.fn();
 
-    await authenticateSocket(makeAuthSocket(`next-auth.session-token=any`), next);
+    await authenticateSocket(makeSocketMock().socket, next);
 
-    expect(next).toHaveBeenCalledWith(new Error("UNAUTHORIZED"));
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ message: "UNAUTHORIZED" }));
   });
 
-  it("passes the raw cookie header to getSessionUser for __Secure- prefixed token", async () => {
-    const token = "secure-socket-token";
-    const cookieHeader = `__Secure-next-auth.session-token=${token}`;
-    vi.mocked(getSessionUser).mockResolvedValueOnce(makeSessionUser());
-    const next = makeMockNext();
+  it("logs and rejects when session verification throws", async () => {
+    const boom = new Error("jose exploded");
+    vi.mocked(getSessionUser).mockRejectedValue(boom);
+    const next = vi.fn();
 
-    await authenticateSocket(makeAuthSocket(cookieHeader), next);
+    await authenticateSocket(makeSocketMock().socket, next);
 
-    expect(next).toHaveBeenCalledWith();
-    expect(getSessionUser).toHaveBeenCalledWith(cookieHeader);
+    expect(mockLogger.error).toHaveBeenCalledWith({ err: boom }, "Socket auth error");
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ message: "UNAUTHORIZED" }));
   });
 });
 
 describe("createSocketServer", () => {
-  beforeEach(() => {
-    vi.resetAllMocks();
-    getMockIoInstance()._reset();
+  it("configures CORS and connection state recovery", () => {
+    createSocketServer(httpServer);
+
+    expect(Server).toHaveBeenCalledWith(httpServer, {
+      cors: { origin: "http://localhost:3000", credentials: true },
+      connectionStateRecovery: {},
+    });
   });
 
-  it("constructs Server with WEB_ORIGIN in CORS config", () => {
-    createSocketServer(fakeHttpServer);
-    expect(Server).toHaveBeenCalledWith(
-      fakeHttpServer,
-      expect.objectContaining({
-        cors: expect.objectContaining({
-          origin: "http://localhost:3000",
-          credentials: true,
-        }) as unknown,
-      }),
+  it("registers the handshake auth middleware", async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(makeSessionUser());
+    createSocketServer(httpServer);
+
+    const { socket } = makeSocketMock({ cookie: "c=1" });
+    const next = vi.fn();
+    inst._useHandlers[0]?.(socket, next);
+
+    await vi.waitFor(() => {
+      expect(next).toHaveBeenCalledWith();
+    });
+  });
+
+  it("joins the personal room and registers presence handlers on connection", () => {
+    const io = createSocketServer(httpServer);
+    const { socket, joinMock } = makeSocketMock();
+
+    inst._connectionHandlers[0]?.(socket);
+
+    expect(joinMock).toHaveBeenCalledWith(`${SOCKET_USER_ROOM_PREFIX}${VALID_USER.id}`);
+    expect(createPresenceHelpers).toHaveBeenCalledWith(io, socket);
+    expect(registerPresenceHandlers).toHaveBeenCalledWith(io, socket);
+  });
+
+  it("joins the project room when the handshake carries a projectId", () => {
+    createSocketServer(httpServer);
+    const { socket, joinMock } = makeSocketMock({ projectId: VALID_PROJECT_ID });
+    inst._connectionHandlers[0]?.(socket);
+    expect(joinMock).toHaveBeenCalledWith(`${SOCKET_ROOM_PREFIX}${VALID_PROJECT_ID}`);
+  });
+
+  it.each([
+    ["no projectId in the query", {}],
+    ["an empty projectId", { projectId: "" }],
+  ])("does not join a project room with %s", (_name, opts) => {
+    createSocketServer(httpServer);
+    const { socket, joinMock } = makeSocketMock(opts);
+    inst._connectionHandlers[0]?.(socket);
+    expect(joinMock).not.toHaveBeenCalledWith(`${SOCKET_ROOM_PREFIX}${VALID_PROJECT_ID}`);
+  });
+
+  it("tracks the connected-clients gauge", async () => {
+    createSocketServer(httpServer);
+    const { socket, fire } = makeSocketMock();
+
+    inst._setConnectedCount(1);
+    inst._connectionHandlers[0]?.(socket);
+    expect((await appCollectors.socketConnectedClients.get()).values[0]?.value).toBe(1);
+
+    inst._setConnectedCount(0);
+    fire("disconnect");
+    expect((await appCollectors.socketConnectedClients.get()).values[0]?.value).toBe(0);
+  });
+
+  it("logs connect and disconnect at debug level", () => {
+    createSocketServer(httpServer);
+    const { socket, fire } = makeSocketMock();
+
+    inst._connectionHandlers[0]?.(socket);
+    fire("disconnect");
+
+    expect(mockLogger.debug).toHaveBeenCalledWith(
+      { userId: VALID_USER.id, socketId: socket.id },
+      "Socket connected",
     );
-  });
-
-  it("registers exactly one io.use() auth middleware", () => {
-    createSocketServer(fakeHttpServer);
-    expect(getMockIoInstance().use).toHaveBeenCalledOnce();
-  });
-
-  it("registers io.on('connection') handler", () => {
-    createSocketServer(fakeHttpServer);
-    expect(getMockIoInstance().on).toHaveBeenCalledWith("connection", expect.any(Function));
-  });
-
-  it("returns the io instance", () => {
-    const result = createSocketServer(fakeHttpServer);
-    expect(result).toBeDefined();
-    expect(result).toHaveProperty("use");
-  });
-
-  describe("io.use() wrapper - delegates to authenticateSocket", () => {
-    it("calls next(UNAUTHORIZED) via the wrapper when no cookies is present", async () => {
-      vi.mocked(getSessionUser).mockResolvedValueOnce(null);
-      createSocketServer(fakeHttpServer);
-
-      const inst = getMockIoInstance();
-      const authWrapper = inst._useHandlers[0];
-      if (!authWrapper) throw new Error("auth middleware not registered");
-
-      const { socket } = makeSocketMock();
-      // @ts-expect-error: overwriting handshake for test purposes
-      socket.handshake = { headers: {}, query: {} };
-      const next = makeMockNext();
-
-      authWrapper(socket, next);
-      // Two microtask ticks: one for the async function, one for the void wrapper
-      await Promise.resolve();
-      await Promise.resolve();
-
-      expect(next).toHaveBeenCalledWith(new Error("UNAUTHORIZED"));
-    });
-  });
-
-  describe("io.on('connection') handler", () => {
-    it("joins projectId room when present in handshake query", () => {
-      createSocketServer(fakeHttpServer);
-      const [handler] = getMockIoInstance()._connectionHandlers;
-      if (!handler) throw new Error("connection handler not registered");
-
-      const { socket, joinMock } = makeSocketMock({ projectId: "proj-abc" });
-      handler(socket);
-
-      expect(joinMock).toHaveBeenCalledWith(`${SOCKET_ROOM_PREFIX}proj-abc`);
-    });
-
-    it("skips join when projectId is absent", () => {
-      createSocketServer(fakeHttpServer);
-      const [handler] = getMockIoInstance()._connectionHandlers;
-      if (!handler) throw new Error("connection handler not registered");
-
-      const { socket, joinMock } = makeSocketMock();
-      handler(socket);
-
-      expect(joinMock).not.toHaveBeenCalled();
-    });
-
-    it("skips join when projectId is an empty string", () => {
-      createSocketServer(fakeHttpServer);
-      const [handler] = getMockIoInstance()._connectionHandlers;
-      if (!handler) throw new Error("connection handler not registered");
-
-      const { socket, joinMock } = makeSocketMock({ projectId: "" });
-      handler(socket);
-
-      expect(joinMock).not.toHaveBeenCalled();
-    });
-
-    it("registers 3 presence handlers per connection", () => {
-      createSocketServer(fakeHttpServer);
-      const [handler] = getMockIoInstance()._connectionHandlers;
-      if (!handler) throw new Error("connection handler not registered");
-
-      const { socket, onMock } = makeSocketMock();
-      handler(socket);
-
-      expect(onMock).toHaveBeenCalledTimes(4);
-
-      const registeredEvents = vi.mocked(onMock).mock.calls.map(([event]) => event);
-      expect(registeredEvents).toContain(SOCKET_EVENTS.TASK_TYPING);
-      expect(registeredEvents).toContain(SOCKET_EVENTS.PRESENCE_CURSOR);
-      expect(registeredEvents).toContain("disconnecting");
-      expect(registeredEvents).toContain("disconnect");
-    });
+    expect(mockLogger.debug).toHaveBeenCalledWith(
+      { userId: VALID_USER.id, socketId: socket.id },
+      "Socket disconnected",
+    );
   });
 });
 
 describe("getConnectedCount", () => {
-  it("returns the number of connected sockets via Namespace.sockets.size", () => {
-    expect(getConnectedCount(makeIoMock(5))).toBe(5);
-  });
-
-  it("returns 0 when no sockets are connected", () => {
-    expect(getConnectedCount(makeIoMock(0))).toBe(0);
-  });
-
-  it("handles large connection counts without overflow", () => {
-    expect(getConnectedCount(makeIoMock(10_000))).toBe(10_000);
-  });
-
-  it("uses Namespace.sockets.size - NOT the removed Namespace.connected", () => {
-    // Mock has no `.connected` property - if getConnectedCount tried to use it the
-    // test would return undefined, making the assertion fail
-    expect(getConnectedCount(makeIoMock(3))).toBe(3);
+  it.each([0, 1, 42])("reports %i sockets on the default namespace", (size) => {
+    expect(getConnectedCount(makeIoMock(size))).toBe(size);
   });
 });
 
-describe("socket connection - metrics tracking", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
+describe("global org presence", () => {
+  it("joins the user's org rooms and announces online + sync on connection", async () => {
+    const io = createSocketServer(httpServer);
+    const { socket, joinMock } = makeSocketMock();
+
+    inst._connectionHandlers[0]?.(socket);
+
+    await vi.waitFor(() => {
+      expect(findUserOrgIds).toHaveBeenCalledWith(expect.anything(), VALID_USER.id);
+      expect(joinMock).toHaveBeenCalledWith(`org:${VALID_ORG_ID}`);
+      expect(announceOnlineIfFirst).toHaveBeenCalledWith(io, socket, [VALID_ORG_ID]);
+      expect(buildOnlineSync).toHaveBeenCalledWith(io, socket, [VALID_ORG_ID]);
+    });
   });
 
-  beforeEach(() => {
-    vi.resetAllMocks();
-    getMockIoInstance()._reset();
-  });
+  it("announces offline on disconnecting", async () => {
+    const io = createSocketServer(httpServer);
+    const { socket, fire, handlerNames } = makeSocketMock();
 
-  it("increments socketConnectedClients gauge on connection", () => {
-    // Import is already mocked via vi.mock("socket.io") above
-    // We just verify the connection handler calls appCollectors.socketConnectedClients.inc
-    const incSpy = vi.spyOn(appCollectors.socketConnectedClients, "inc");
+    inst._connectionHandlers[0]?.(socket);
+    await vi.waitFor(() => {
+      expect(handlerNames()).toContain("disconnecting");
+    });
 
-    createSocketServer(fakeHttpServer);
-    const [handler] = getMockIoInstance()._connectionHandlers;
-    if (!handler) throw new Error("connection handler not registered");
+    fire("disconnecting");
 
-    const { socket } = makeSocketMock();
-    handler(socket);
-
-    expect(incSpy).toHaveBeenCalledOnce();
-  });
-
-  it("decrements socketConnectedClients gauge on disconnect", () => {
-    const decSpy = vi.spyOn(appCollectors.socketConnectedClients, "dec");
-
-    createSocketServer(fakeHttpServer);
-    const [handler] = getMockIoInstance()._connectionHandlers;
-    if (!handler) throw new Error("connection handler not registered");
-
-    const { socket, handlers } = makeSocketMock();
-    handler(socket);
-
-    // Simulate disconnect event
-    handlers.disconnect?.();
-
-    expect(decSpy).toHaveBeenCalledOnce();
+    expect(announceOfflineIfLast).toHaveBeenCalledWith(io, socket, [VALID_ORG_ID]);
   });
 });

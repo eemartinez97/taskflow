@@ -6,11 +6,11 @@ import { getToken } from "next-auth/jwt";
 const PUBLIC_AUTH_ROUTES = ["/", "/login", "/register"];
 
 /**
- * Next.js 16 proxy (replaces middleware.ts — deprecated in Next.js 16).
+ * Next.js 16 proxy (replaces middleware.ts - deprecated in Next.js 16).
  * Runs on the Edge Runtime before any rendering.
  *
  * Redirects unauthenticated users to /login for all protected routes.
- * Uses getToken() from next-auth/jwt — reads + decodes the JWT session
+ * Uses getToken() from next-auth/jwt - reads + decodes the JWT session
  * cookie directly with no DB round-trip and no Server Component blocking.
  */
 

@@ -9,13 +9,13 @@ export default defineConfig([
   // 1. Shared TypeScript + no-explicit-any rules from packages/config
   ...baseConfig,
 
-  // 2. React — jsx-runtime flat config (React 17+ / React 19)
+  // 2. React - jsx-runtime flat config (React 17+ / React 19)
   {
     ...reactPlugin.configs.flat["jsx-runtime"],
     files: ["**/*.{ts,tsx,js,jsx}"],
   },
 
-  // 3. React Hooks v7.0.1+ — spread configs.flat.recommended directly
+  // 3. React Hooks v7.0.1+ - spread configs.flat.recommended directly
   {
     ...reactHooksPlugin.configs.flat["recommended-latest"],
     files: ["**/*.{ts,tsx}"],
@@ -65,6 +65,22 @@ export default defineConfig([
           },
         },
       ],
+    },
+  },
+
+  // 5b. Playwright E2E test files
+  {
+    files: ["tests/e2e/**/*.ts"],
+    rules: {
+      "react-hooks/rules-of-hooks": "off",
+    },
+  },
+
+  // 5c.
+  {
+    files: ["tests/**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/unbound-method": "off",
     },
   },
 

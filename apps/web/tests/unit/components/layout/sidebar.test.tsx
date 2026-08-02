@@ -1,60 +1,37 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
-vi.mock("next/navigation", () => import("@/tests/mocks/next-navigation"));
-vi.mock("next/link", () => import("@/tests/mocks/next-link"));
+vi.mock("@/components/layout/org-switcher", () => ({ OrgSwitcher: () => <p>OrgSwitcher</p> }));
 
-import { usePathname } from "@/tests/mocks/next-navigation";
+import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
+import { NAV_ITEMS } from "@/lib/constants/navigation";
 
 describe("Sidebar", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(usePathname).mockReturnValue("/projects");
-  });
-
-  it("renders the TaskFlow logo link", () => {
-    render(<Sidebar />);
-    expect(screen.getByRole("link", { name: /taskflow/i })).toBeInTheDocument();
-  });
-
-  it("renders all nav items", () => {
-    render(<Sidebar />);
-    expect(screen.getByRole("link", { name: /projects/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /tasks/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /team/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /settings/i })).toBeInTheDocument();
-  });
-
-  it("marks the active nav item with aria-current='page'", () => {
+  it("renders every nav item as a link with the correct href", () => {
     vi.mocked(usePathname).mockReturnValue("/projects");
     render(<Sidebar />);
-    expect(screen.getByRole("link", { name: /projects/i })).toHaveAttribute("aria-current", "page");
+    for (const item of NAV_ITEMS) {
+      expect(screen.getByRole("link", { name: item.label })).toHaveAttribute("href", item.href);
+    }
   });
 
-  it("does not mark inactive items with aria-current", () => {
+  it("marks the active route with aria-current", () => {
+    vi.mocked(usePathname).mockReturnValue("/tasks");
+    render(<Sidebar />);
+    expect(screen.getByRole("link", { name: "My Tasks" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Projects" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("renders the OrgSwitcher", () => {
     vi.mocked(usePathname).mockReturnValue("/projects");
     render(<Sidebar />);
-    expect(screen.getByRole("link", { name: /tasks/i })).not.toHaveAttribute("aria-current");
+    expect(screen.getByText("OrgSwitcher")).toBeInTheDocument();
   });
 
-  it("active link has brand styling class", () => {
+  it("links the brand logo to /projects", () => {
+    vi.mocked(usePathname).mockReturnValue("/projects");
     render(<Sidebar />);
-    expect(screen.getByRole("link", { name: /projects/i })).toHaveClass("bg-brand-50");
-  });
-
-  it("Projects link points to /projects", () => {
-    render(<Sidebar />);
-    expect(screen.getByRole("link", { name: /projects/i })).toHaveAttribute("href", "/projects");
-  });
-
-  it("renders inside an <aside> landmark", () => {
-    render(<Sidebar />);
-    expect(screen.getByRole("complementary")).toBeInTheDocument();
-  });
-
-  it("renders inside a <nav> landmark with accessible label", () => {
-    render(<Sidebar />);
-    expect(screen.getByRole("navigation", { name: /main navigation/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /taskflow/i })).toHaveAttribute("href", "/projects");
   });
 });

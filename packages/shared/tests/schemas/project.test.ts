@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createProjectSchema, projectSchema, updateProjectSchema } from "@taskflow/shared";
-import { validProjectPayload, expectSchema } from "./fixtures";
+import { validProjectPayload } from "./fixtures";
 
 describe("createProjectSchema", () => {
   it("accepts a valid project", () => {

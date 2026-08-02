@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { idSchema } from "./common";
+import { nameField } from "../utils/normalize";
 
 export const boardSchema = z.object({
   id: idSchema,
   projectId: idSchema,
-  name: z.string().min(1).max(100),
+  name: nameField(1, 100),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -19,7 +20,7 @@ export const updateBoardSchema = createBoardSchema.partial();
 export const columnSchema = z.object({
   id: idSchema,
   boardId: idSchema,
-  name: z.string().min(1).max(100),
+  name: nameField(1, 100),
   position: z.number(),
   createdAt: z.date(),
   updatedAt: z.date(),

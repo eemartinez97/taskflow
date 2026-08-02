@@ -20,6 +20,7 @@ export const validTaskPayload = {
   status: "IN_PROGRESS" as const,
   position: 1000,
   dueDate: null,
+  creatorId: VALID_UUID,
   createdAt: FIXED_DATE,
   updatedAt: FIXED_DATE,
 };
@@ -90,6 +91,12 @@ export const validCommentPayload = {
   taskId: ANOTHER_UUID,
   authorId: ANOTHER_UUID,
   body: "LGTM",
+  author: {
+    id: VALID_UUID,
+    name: "Alice",
+    email: "alice@example.com",
+    image: "https://example.com/avatar.png",
+  },
   createdAt: FIXED_DATE,
   updatedAt: FIXED_DATE,
 };

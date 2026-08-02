@@ -8,7 +8,7 @@ import {
   socketTaskMovedSchema,
   socketCommentCreatedSchema,
 } from "@taskflow/shared";
-import { expectSchema, VALID_UUID, validCommentPayload, validTaskPayload } from "./fixtures";
+import { VALID_UUID, validCommentPayload, validTaskPayload } from "./fixtures";
 
 describe("socketTaskCreatedSchema", () => {
   it("accepts a valid task:created payload", () => {

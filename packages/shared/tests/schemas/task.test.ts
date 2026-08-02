@@ -7,7 +7,7 @@ import {
   taskStatusSchema,
   updateTaskSchema,
 } from "@taskflow/shared";
-import { expectSchema, ANOTHER_UUID, VALID_UUID, validTaskPayload } from "./fixtures";
+import { ANOTHER_UUID, VALID_UUID, validTaskPayload } from "./fixtures";
 
 describe("taskPrioritySchema", () => {
   it("accepts all valid priorities", () => {
@@ -165,12 +165,12 @@ describe("updateTaskSchema", () => {
     expect(() => updateTaskSchema.parse({ description: "a".repeat(10_001) })).toThrow();
   });
 
-  it("does not accept columnId — column moves use moveTaskSchema", () => {
+  it("does not accept columnId - column moves use moveTaskSchema", () => {
     // columnId is intentionally omitted from updateTaskSchema
     // Passing it should be silently stripped (Zod strips unknown keys by default)
     const result = updateTaskSchema.parse({
       title: "Task",
-      columnId: VALID_UUID, // unknown key — Zod strips it
+      columnId: VALID_UUID, // unknown key - Zod strips it
     });
     expect(result).not.toHaveProperty("columnId");
     expect(result.title).toBe("Task");

@@ -16,6 +16,9 @@ export const taskSchema = z.object({
   // Fractional float for 0(1) lexorank-style reordering
   position: z.number(),
   dueDate: z.date().nullable(),
+  // Nullable: the creator account may have been deleted. Mirrors the Prisma
+  // `Task.creatorId` column so `SocketTask` stays structurally equal to `Task`.
+  creatorId: idSchema.nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -37,6 +40,7 @@ export const updateTaskSchema = createTaskSchema
   .extend({
     priority: taskPrioritySchema.optional(),
     assigneeId: idSchema.nullable().optional(),
+    description: z.string().max(10_000).nullable().optional(),
     status: taskStatusSchema.optional(),
     dueDate: z.date().nullable().optional(),
   })

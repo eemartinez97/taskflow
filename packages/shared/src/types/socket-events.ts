@@ -7,7 +7,11 @@
  */
 import type { z } from "zod";
 import type {
+  boardSchema,
+  columnSchema,
   commentSchema,
+  labelSchema,
+  notificationSchema,
   presenceCursorSchema,
   presenceUserSchema,
   taskSchema,
@@ -15,13 +19,20 @@ import type {
 import type { SOCKET_EVENTS } from "../constants";
 
 export type SocketTask = z.infer<typeof taskSchema>;
+export type SocketLabel = z.infer<typeof labelSchema>;
 export type SocketComment = z.infer<typeof commentSchema>;
-export type SocketPresenceUser = z.infer<typeof presenceUserSchema>;
 export type SocketCursor = z.infer<typeof presenceCursorSchema>;
+export type SocketNotification = z.infer<typeof notificationSchema>;
+export type SocketPresenceUser = z.infer<typeof presenceUserSchema>;
+export type SocketColumn = z.infer<typeof columnSchema>;
+export type SocketBoard = z.infer<typeof boardSchema> & { columns: SocketColumn[] };
 
 /** Events emitted FROM the client TO the server. */
 export interface ClientToServerEvents {
   [SOCKET_EVENTS.PRESENCE_CURSOR]: (payload: SocketCursor) => void;
+  /** Signals the pointer left the tracked board area - no payload; the
+   * server attaches the real userId, mirroring TASK_TYPING's pattern. */
+  [SOCKET_EVENTS.PRESENCE_CURSOR_LEAVE]: () => void;
   [SOCKET_EVENTS.TASK_TYPING]: (payload: { taskId: string; userId: string }) => void;
 }
 
@@ -31,9 +42,18 @@ export interface ServerToClientEvents {
   [SOCKET_EVENTS.TASK_UPDATED]: (payload: { task: SocketTask }) => void;
   [SOCKET_EVENTS.TASK_MOVED]: (payload: { task: SocketTask }) => void;
   [SOCKET_EVENTS.TASK_DELETED]: (payload: { taskId: string }) => void;
+  [SOCKET_EVENTS.TASK_LABELS_CHANGED]: (payload: { taskId: string; labels: SocketLabel[] }) => void;
+  [SOCKET_EVENTS.BOARD_UPDATED]: (payload: { board: SocketBoard }) => void;
   [SOCKET_EVENTS.TASK_TYPING]: (payload: { taskId: string; userId: string }) => void;
   [SOCKET_EVENTS.COMMENT_CREATED]: (payload: { comment: SocketComment }) => void;
+  [SOCKET_EVENTS.COMMENT_DELETED]: (payload: { commentId: string; taskId: string }) => void;
+  [SOCKET_EVENTS.NOTIFICATION_CREATED]: (payload: { notification: SocketNotification }) => void;
   [SOCKET_EVENTS.PRESENCE_JOIN]: (payload: SocketPresenceUser) => void;
   [SOCKET_EVENTS.PRESENCE_LEAVE]: (payload: { userId: string }) => void;
   [SOCKET_EVENTS.PRESENCE_CURSOR]: (payload: SocketCursor) => void;
+  [SOCKET_EVENTS.PRESENCE_CURSOR_LEAVE]: (payload: { userId: string }) => void;
+  [SOCKET_EVENTS.PRESENCE_SYNC]: (payload: { users: SocketPresenceUser[] }) => void;
+  [SOCKET_EVENTS.PRESENCE_ONLINE]: (payload: { userId: string }) => void;
+  [SOCKET_EVENTS.PRESENCE_OFFLINE]: (payload: { userId: string }) => void;
+  [SOCKET_EVENTS.PRESENCE_ONLINE_SYNC]: (payload: { userIds: string[] }) => void;
 }

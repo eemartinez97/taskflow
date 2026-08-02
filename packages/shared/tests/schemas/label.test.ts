@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createLabelSchema, labelSchema } from "@taskflow/shared";
-import { expectSchema, validLabelPayload } from "./fixtures";
+import { validLabelPayload } from "./fixtures";
 
 describe("createLabelSchema", () => {
   it("accepts a valid label", () => {

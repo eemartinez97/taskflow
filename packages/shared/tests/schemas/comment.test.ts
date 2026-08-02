@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { validCommentPayload, expectSchema, VALID_UUID } from "./fixtures";
+import { validCommentPayload } from "./fixtures";
 import { commentSchema, createCommentSchema } from "@taskflow/shared";
 
 describe("createCommentSchema", () => {

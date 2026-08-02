@@ -1,5 +1,4 @@
-import { mergeConfig, baseVitestConfig } from "@taskflow/config/vitest/base";
-import { defineConfig } from "vitest/config";
+import { baseVitestConfig, defineConfig, mergeConfig } from "@taskflow/config/vitest/base";
 
 export default mergeConfig(
   baseVitestConfig,
@@ -8,15 +7,9 @@ export default mergeConfig(
       environment: "node",
       include: ["tests/**/*.test.ts"],
       coverage: {
-        // packages/shared must hit >= 90% coverage
-        thresholds: {
-          lines: 90,
-          functions: 90,
-          branches: 90,
-          statements: 90,
-        },
-        exclude: ["src/types/socket-events.ts"],
         include: ["src/**/*.ts"],
+        exclude: ["src/types/socket-events.ts"],
+        thresholds: { lines: 90, functions: 90, branches: 90, statements: 90 },
       },
     },
   }),

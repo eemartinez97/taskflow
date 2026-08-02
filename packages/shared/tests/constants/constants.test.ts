@@ -89,8 +89,8 @@ describe("POSITION_STEP", () => {
 });
 
 describe("SOCKET_EVENTS", () => {
-  it("contains all 9 socket event strings", () => {
-    expect(Object.keys(SOCKET_EVENTS)).toHaveLength(9);
+  it("contains all socket event strings", () => {
+    expect(Object.keys(SOCKET_EVENTS)).toHaveLength(18);
   });
 
   it("task events use task: prefix", () => {
@@ -103,6 +103,7 @@ describe("SOCKET_EVENTS", () => {
 
   it("comment events use comment: prefix", () => {
     expect(SOCKET_EVENTS.COMMENT_CREATED).toBe("comment:created");
+    expect(SOCKET_EVENTS.COMMENT_DELETED).toBe("comment:deleted");
   });
 
   it("presence events use presence: prefix", () => {
@@ -113,7 +114,7 @@ describe("SOCKET_EVENTS", () => {
 
   it("all values are lowercase strings with colon separator", () => {
     for (const value of Object.values(SOCKET_EVENTS)) {
-      expect(value).toMatch(/^[a-z]+:[a-z]+$/);
+      expect(value).toMatch(/^[a-z]+(:[a-z_-]+)+$/);
     }
   });
 });

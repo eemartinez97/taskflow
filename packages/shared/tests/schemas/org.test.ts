@@ -7,7 +7,7 @@ import {
   roleSchema,
   updateOrgSchema,
 } from "@taskflow/shared";
-import { validMembershipPayload, validOrgPayload, expectSchema } from "./fixtures";
+import { validMembershipPayload, validOrgPayload } from "./fixtures";
 
 describe("roleSchema", () => {
   it("accepts all valid roles", () => {

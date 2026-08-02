@@ -38,6 +38,7 @@ import type {
   notificationSchema,
   notificationTypeSchema,
   sessionUserSchema,
+  updateMemberRoleSchema,
 } from "../schemas";
 
 // User
@@ -52,6 +53,7 @@ export type CreateOrg = z.infer<typeof createOrgSchema>;
 export type UpdateOrg = z.infer<typeof updateOrgSchema>;
 export type Membership = z.infer<typeof membershipSchema>;
 export type InviteMember = z.infer<typeof inviteMemberSchema>;
+export type UpdateMemberRole = z.infer<typeof updateMemberRoleSchema>;
 
 // Project
 export type Project = z.infer<typeof projectSchema>;
@@ -77,6 +79,7 @@ export type MoveTask = z.infer<typeof moveTaskSchema>;
 
 // Comment
 export type Comment = z.infer<typeof commentSchema>;
+export type CommentAuthor = z.infer<typeof sessionUserSchema>;
 export type CreateComment = z.infer<typeof createCommentSchema>;
 
 // Label
@@ -113,6 +116,10 @@ export type {
   ServerToClientEvents,
   SocketCursor,
   SocketComment,
+  SocketLabel,
+  SocketNotification,
   SocketTask,
   SocketPresenceUser,
+  SocketBoard,
+  SocketColumn,
 } from "./socket-events";

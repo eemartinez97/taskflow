@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { idSchema, slugSchema } from "./common";
+import { nameField } from "../utils/normalize";
 
 const projectKeySchema = z
   .string()
@@ -10,7 +11,7 @@ const projectKeySchema = z
 export const projectSchema = z.object({
   id: idSchema,
   orgId: idSchema,
-  name: z.string().min(1).max(100),
+  name: nameField(1, 100),
   key: projectKeySchema,
   description: z.string().max(500).nullable(),
   slug: slugSchema,

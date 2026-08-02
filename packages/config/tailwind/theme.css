@@ -3,7 +3,7 @@
  * Consumed via @import in each app's globals.css.
  *
  * Tailwind 4 is CSS-first: tokens are defined inside @theme {}.
- * No tailwind.config.js — this file IS the config.
+ * No tailwind.config.js - this file IS the config.
  */
 
 @import "tailwindcss";

@@ -3,7 +3,7 @@
 -- NOTE: schema creation is ALSO done in the Prisma initial migration
 -- (migrations/..._init/migration.sql) so it works in Prisma's shadow database.
 -- This file only runs once on first postgres container start via
--- docker-entrypoint-initdb.d — it does NOT run in the shadow database.
+-- docker-entrypoint-initdb.d - it does NOT run in the shadow database.
 -- Both files must stay in sync.
 
 CREATE SCHEMA IF NOT EXISTS taskflow;

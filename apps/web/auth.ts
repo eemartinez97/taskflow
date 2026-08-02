@@ -1,17 +1,17 @@
 import "server-only";
-import type { NextAuthOptions, Session, User } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { prisma } from "@taskflow/database";
+import type { NextAuthOptions, Session, User } from "next-auth";
 import { authorizeCredentials } from "@/lib/auth/credentials";
 import { serverEnv } from "@/lib/env.server";
+import { prisma } from "@taskflow/database";
 import type { JWT } from "next-auth/jwt";
 
 /**
- * NextAuth v4 — JWT strategy (required for CredentialsProvider).
+ * NextAuth v4 - JWT strategy (required for CredentialsProvider).
  *
  * KEY CONSTRAINTS:
- * - NO adapter: PrismaAdapter — incompatible with Credentials + JWT
- * - strategy: "jwt" — mandatory with CredentialsProvider
+ * - NO adapter: PrismaAdapter - incompatible with Credentials + JWT
+ * - strategy: "jwt" - mandatory with CredentialsProvider
  * - session callback receives `token`, NOT `user` (database strategy only)
  * - NEXTAUTH_SECRET (not AUTH_SECRET)
  * - getServerSession(authOptions) for server access
@@ -46,12 +46,30 @@ export const authOptions: NextAuthOptions = {
 
   callbacks: {
     /**
-     * JWT callback — runs on every sign-in and every session read.
+     * JWT callback - runs on every sign-in and every session read.
      * `user` is only present on the initial sign-in.
      * Persist user.id onto the token so session callback can read it.
      */
-    jwt({ token, user }): JWT {
-      token.id ??= user.id;
+    jwt({
+      token,
+      user,
+      trigger,
+      session,
+    }: {
+      token: JWT;
+      user?: User | null;
+      trigger?: "signIn" | "signUp" | "update";
+      session?: { name?: string | null; image?: string | null };
+    }): JWT {
+      if (user) token.id = user.id;
+
+      // useSession().update({...}) from the profile form lands here, so the
+      // header reflects the new name/avatar without a re-login.
+      if (trigger === "update" && session) {
+        if (session.name !== undefined) token.name = session.name;
+        if (session.image !== undefined) token.picture = session.image;
+      }
+
       return token;
     },
 
@@ -60,7 +78,7 @@ export const authOptions: NextAuthOptions = {
      * procedures can read it without an extra DB query.
      *
      * `session.user` already has name/email/image from the adapter.
-     * Whe only extend with `id` - never add sensitive fields here.
+     * We only extend with `id` - never add sensitive fields here.
      */
     session({ session, token }): Session {
       if (token.id) {

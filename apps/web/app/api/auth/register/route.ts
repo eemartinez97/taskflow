@@ -12,10 +12,10 @@ import { hashPassword } from "@/lib/auth/password";
  * Zod's `z.email()` correctly rejects email with leading/trailing spaces
  * (they are technically invalid). However, browser autofill and password managers
  * sometimes pad fields with whitespaces. We trim email BEFORE Zod so the user
- * gets an seamless experience, and the stored email is always normalized.
+ * gets a seamless experience, and the stored email is always normalized.
  *
  * Only email trimming happens here. Lowercase normalization happens after
- * Zod parses the validated date.
+ * Zod parses the validated data.
  */
 function preprocessBody(body: unknown): unknown {
   if (body === null || typeof body !== "object") return body;
@@ -62,7 +62,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const { name, email, password } = parsed.data;
-  const normalizedEmail = email.trim().toLowerCase();
+  // `email` was already trimmed by preprocessBody before Zod validated it.
+  const normalizedEmail = email.toLowerCase();
 
   try {
     const existing = await prisma.user.findUnique({

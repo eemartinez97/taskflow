@@ -1,24 +1,19 @@
-import { baseVitestConfig, mergeConfig } from "@taskflow/config/vitest/base";
-import { defineConfig } from "vitest/config";
+import { baseVitestConfig, mergeConfig, defineConfig } from "@taskflow/config/vitest/base";
+import react from "@vitejs/plugin-react";
 
 export default mergeConfig(
   baseVitestConfig,
   defineConfig({
+    plugins: [react()],
     test: {
       environment: "jsdom",
       globals: true,
       include: ["tests/**/*.test.{ts,tsx}"],
       setupFiles: ["./tests/setup.ts"],
       coverage: {
-        // packages/shared must hit >= 90% coverage
-        thresholds: {
-          lines: 90,
-          functions: 90,
-          branches: 90,
-          statements: 90,
-        },
         include: ["src/**/*.{ts,tsx}"],
         exclude: ["src/index.ts", "src/theme.css"],
+        thresholds: { lines: 100, functions: 100, branches: 100, statements: 100 },
       },
     },
   }),

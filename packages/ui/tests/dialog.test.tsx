@@ -53,7 +53,7 @@ describe("Dialog", () => {
     expect(screen.queryByText("This cannot be undone.")).not.toBeInTheDocument();
   });
 
-  it("applies flex classes when open=true (Fix #10 — no open: Tailwind variant)", () => {
+  it("applies flex classes when open=true (Fix #10 - no open: Tailwind variant)", () => {
     render(
       <Dialog open onClose={vi.fn()} title="Open dialog">
         <span>Content</span>
@@ -76,7 +76,7 @@ describe("Dialog", () => {
     expect(dialog).not.toHaveClass("flex");
   });
 
-  it("uses correct backdrop class (Fix #10 — bg-black/40, not bg-black.40)", () => {
+  it("uses correct backdrop class (Fix #10 - bg-black/40, not bg-black.40)", () => {
     render(
       <Dialog open onClose={vi.fn()} title="Backdrop test">
         <span />
@@ -170,5 +170,36 @@ describe("Dialog", () => {
 
     expect(closeSpy).toHaveBeenCalled();
     closeSpy.mockRestore();
+  });
+
+  it("renders footer wrapper with correct classes when footer prop is provided", () => {
+    render(
+      <Dialog open onClose={vi.fn()} title="Footer test" footer={<button>Confirm</button>}>
+        <span />
+      </Dialog>,
+    );
+
+    const confirmButton = screen.getByRole("button", { name: "Confirm" });
+    const footerWrapper = confirmButton.parentElement;
+
+    expect(footerWrapper).toHaveClass(
+      "flex",
+      "items-center",
+      "justify-end",
+      "gap-2",
+      "border-t",
+      "border-gray-200",
+      "px-6",
+      "py-4",
+      "shrink-0",
+    );
+  });
+
+  it("renders without children wrapper when children is not provided", () => {
+    render(<Dialog open onClose={vi.fn()} title="Empty Dialog" />);
+
+    const dialog = screen.getByRole("dialog");
+    const childrenWrapper = dialog.querySelector(".flex-1.overflow-y-auto");
+    expect(childrenWrapper).not.toBeInTheDocument();
   });
 });

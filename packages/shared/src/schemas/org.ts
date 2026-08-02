@@ -1,12 +1,13 @@
 import { z } from "zod";
 import { ROLES } from "../constants";
 import { idSchema, slugSchema } from "./common";
+import { nameField } from "../utils/normalize";
 
 export const roleSchema = z.enum(ROLES);
 
 export const orgSchema = z.object({
   id: idSchema,
-  name: z.string().min(1).max(100),
+  name: nameField(1, 100),
   slug: slugSchema,
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -32,3 +33,5 @@ export const inviteMemberSchema = z.object({
   email: z.email(),
   role: roleSchema.exclude(["OWNER"]),
 });
+
+export const updateMemberRoleSchema = inviteMemberSchema.pick({ role: true });

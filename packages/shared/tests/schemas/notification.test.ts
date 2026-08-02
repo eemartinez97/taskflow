@@ -7,7 +7,7 @@ import {
   notificationSchema,
   notificationTypeSchema,
 } from "@taskflow/shared";
-import { ANOTHER_UUID, expectSchema, VALID_UUID, validNotification } from "./fixtures";
+import { ANOTHER_UUID, VALID_UUID, validNotification } from "./fixtures";
 
 describe("notificationTypeSchema", () => {
   it("is derived from the NOTIFICATION_TYPES constant (single source of truth)", () => {
@@ -114,7 +114,7 @@ describe("notificationSchema", () => {
   it("rejects entityType exceeding 50 characters", () => {
     expect(() => {
       notificationSchema.parse({ ...validNotification, entityType: "x".repeat(51) });
-    });
+    }).toThrow();
   });
 
   it("rejects non-UUID id", () => {
@@ -196,7 +196,7 @@ describe("createNotificationSchema", () => {
 
   it("rejects entityType exceeding 50 characters", () => {
     expect(() =>
-      createNotificationSchema.parse({ validNotification, entityType: "x".repeat(51) }),
+      createNotificationSchema.parse({ ...validNotification, entityType: "x".repeat(51) }),
     ).toThrow();
   });
 

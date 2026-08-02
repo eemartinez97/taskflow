@@ -8,7 +8,7 @@ import {
   updateBoardSchema,
   updateColumnSchema,
 } from "@taskflow/shared";
-import { expectSchema, VALID_UUID, validBoardPayload, validColumnPayload } from "./fixtures";
+import { VALID_UUID, validBoardPayload, validColumnPayload } from "./fixtures";
 
 describe("boardSchema", () => {
   it("parses a valid board", () => {

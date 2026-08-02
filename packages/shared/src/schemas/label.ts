@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { colorSchema, idSchema } from "./common";
+import { nameField } from "../utils/normalize";
 
 export const labelSchema = z.object({
   id: idSchema,
   orgId: idSchema,
-  name: z.string().min(1).max(50),
+  name: nameField(1, 50),
   color: colorSchema,
   createdAt: z.date(),
   updatedAt: z.date(),

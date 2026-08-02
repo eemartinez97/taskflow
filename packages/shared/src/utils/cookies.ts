@@ -7,7 +7,7 @@ import { parseCookie } from "cookie";
  *   - next-auth.session-token          (http)
  *   - __Secure-next-auth.session-token (https)
  *
- * Pure function — no side effects, no external dependencies.
+ * Pure function - no side effects, no external dependencies.
  * Single source of truth shared by apps/api and apps/web.
  */
 export function parseCookieToken(rawCookies: string | null): string | null {

@@ -4,6 +4,7 @@ import type {
   Org,
   OrgWithMembership,
   PrismaClient,
+  Role,
 } from "@taskflow/database";
 import { membershipWithUser, orgWithMembership } from "@taskflow/database";
 import type { CreateOrg, InviteMember, UpdateOrg } from "@taskflow/shared";
@@ -58,6 +59,13 @@ export async function findMembers(db: PrismaClient, orgId: string): Promise<Memb
   });
 }
 
+export class UserNotFoundError extends Error {
+  constructor(public readonly email: string) {
+    super(`No account found for ${email}`);
+    this.name = "UserNotFoundError";
+  }
+}
+
 export async function inviteMember(
   db: PrismaClient,
   orgId: string,
@@ -65,7 +73,7 @@ export async function inviteMember(
 ): Promise<Membership> {
   const user = await db.user.findUnique({ where: { email: data.email } });
 
-  if (!user) throw new Error(`NO_USER:${data.email}`);
+  if (!user) throw new UserNotFoundError(data.email);
 
   return db.membership.create({
     data: { orgId, userId: user.id, role: data.role },
@@ -75,5 +83,25 @@ export async function inviteMember(
 export async function removeMember(db: PrismaClient, orgId: string, userId: string): Promise<void> {
   await db.membership.delete({
     where: { orgId_userId: { orgId, userId } },
+  });
+}
+
+export async function findMembership(
+  db: PrismaClient,
+  orgId: string,
+  userId: string,
+): Promise<Membership | null> {
+  return db.membership.findUnique({ where: { orgId_userId: { orgId, userId } } });
+}
+
+export async function updateMembershipRole(
+  db: PrismaClient,
+  orgId: string,
+  userId: string,
+  role: Role,
+): Promise<Membership> {
+  return db.membership.update({
+    where: { orgId_userId: { orgId, userId } },
+    data: { role },
   });
 }

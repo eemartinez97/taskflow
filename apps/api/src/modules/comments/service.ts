@@ -1,35 +1,39 @@
-import type { Server } from "socket.io";
-import type { Comment, PrismaClient } from "@taskflow/database";
-import { SOCKET_EVENTS, SOCKET_ROOM_PREFIX } from "@taskflow/shared";
+import type { CommentWithAuthor, PrismaClient } from "@taskflow/database";
 import { TRPCError } from "../../trpc/init";
 import { createComment, deleteComment, findCommentById, findCommentsByTask } from "./repo";
 import { notifyCommentCreated } from "../notifications/service";
+import { emitToProject } from "../../socket/emit";
+import { SOCKET_EVENTS } from "@taskflow/shared";
+import type { AppServer } from "../../socket/events";
 
-export async function listComments(db: PrismaClient, taskId: string): Promise<Comment[]> {
+export async function listComments(db: PrismaClient, taskId: string): Promise<CommentWithAuthor[]> {
   return findCommentsByTask(db, taskId);
 }
 
 export async function createCommentOnTask(
   db: PrismaClient,
-  io: Server,
+  io: AppServer,
   projectId: string,
   taskId: string,
   authorId: string,
   body: string,
-): Promise<Comment> {
-  const comment = await createComment(db, taskId, authorId, body);
-
-  io.to(`${SOCKET_ROOM_PREFIX}${projectId}`).emit(SOCKET_EVENTS.COMMENT_CREATED, { comment });
-
+): Promise<CommentWithAuthor> {
   const task = await db.task.findUnique({
     where: { id: taskId },
-    select: { assigneeId: true, title: true },
+    select: { assigneeId: true, creatorId: true, title: true },
   });
 
-  await notifyCommentCreated(db, {
+  if (!task) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found." });
+
+  const comment = await createComment(db, taskId, authorId, body);
+
+  emitToProject(io, projectId, SOCKET_EVENTS.COMMENT_CREATED, { comment });
+
+  await notifyCommentCreated(db, io, {
     taskId,
-    taskTitle: task?.title ?? "",
-    assigneeId: task?.assigneeId ?? null,
+    taskTitle: task.title,
+    assigneeId: task.assigneeId,
+    creatorId: task.creatorId,
     actorId: authorId,
   });
 
@@ -38,6 +42,8 @@ export async function createCommentOnTask(
 
 export async function deleteCommentById(
   db: PrismaClient,
+  io: AppServer,
+  projectId: string,
   commentId: string,
   requesterId: string,
 ): Promise<{ success: true }> {
@@ -51,6 +57,11 @@ export async function deleteCommentById(
   }
 
   await deleteComment(db, commentId);
+
+  emitToProject(io, projectId, SOCKET_EVENTS.COMMENT_DELETED, {
+    commentId,
+    taskId: comment.taskId,
+  });
 
   return { success: true };
 }

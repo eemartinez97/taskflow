@@ -1,5 +1,13 @@
 import type { PrismaClient } from "@taskflow/database";
-import type { SessionUser } from "@taskflow/shared";
+import type { SessionUser, UpdateUser } from "@taskflow/shared";
+import { stripUndefined } from "../../utils/prisma";
+
+const userSessionSelect = {
+  id: true,
+  email: true,
+  name: true,
+  image: true,
+} as const;
 
 /**
  * Finds a user by id for the `me` procedure.
@@ -8,7 +16,7 @@ import type { SessionUser } from "@taskflow/shared";
 export async function findUserById(db: PrismaClient, userId: string): Promise<SessionUser | null> {
   return db.user.findUnique({
     where: { id: userId },
-    select: { id: true, email: true, name: true, image: true },
+    select: userSessionSelect,
   });
 }
 
@@ -19,4 +27,16 @@ export async function findUserById(db: PrismaClient, userId: string): Promise<Se
  */
 export async function deleteUserSessions(db: PrismaClient, userId: string): Promise<void> {
   await db.session.deleteMany({ where: { userId } });
+}
+
+export async function updateUser(
+  db: PrismaClient,
+  userId: string,
+  data: UpdateUser,
+): Promise<SessionUser> {
+  return db.user.update({
+    where: { id: userId },
+    data: stripUndefined(data),
+    select: userSessionSelect,
+  });
 }

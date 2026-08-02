@@ -1,218 +1,109 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { JWT } from "@auth/core/jwt";
+import { describe, expect, it, vi } from "vitest";
+import { EncryptJWT } from "jose";
 
-vi.mock("@taskflow/shared", () => ({ parseCookieToken: vi.fn() }));
-vi.mock("@auth/core/jwt", () => ({ decode: vi.fn() }));
-vi.mock("../../../src/config/env");
-
-import { decode } from "@auth/core/jwt";
-import { parseCookieToken } from "@taskflow/shared";
-import { isProduction, env } from "../../../src/config/env";
-import { getSessionUser, type AuthSession } from "../../../src/utils/auth";
-import { VALID_USER } from "../../helpers";
-
-// -- Typed mock references for IDE autocomplete and strict assertions --
-
-const mockDecode = vi.mocked(decode);
-const mockParseCookieToken = vi.mocked(parseCookieToken);
-const mockIsProduction = vi.mocked(isProduction);
-
-// -- Fixtures --
-
-const RAW_COOKIE = "next-auth.session-token=abc123";
-const EXTRACTED_TOKEN = "abc123";
-
-// Primitive constants — single source of truth for both fixtures below
-
-/** Minimal valid decoded JWT that satisfies the getSessionUser checks */
-const VALID_DECODED_TOKEN: JWT = {
-  sub: VALID_USER.id,
-  name: VALID_USER.name,
-  email: VALID_USER.email,
-};
-
-/** Expected AuthSession derived from VALID_DECODED_TOKEN */
-const EXPECTED_SESSION: AuthSession = VALID_USER;
-
-// -- Helpers --
-
-/**
- * Sets up the happy-path mocks so individual tests only override
- * the specific mock they need to exercise. Keeps each `it` block minimal.
- *
- * Default state:
- *  - parseCookieToken  -> returns EXTRACTED_TOKEN
- *  - decode            -> returns VALID_DECODED_TOKEN
- *  - isProduction      -> returns false (dev environment)
- */
-function setupHappyPath(): void {
-  mockParseCookieToken.mockReturnValue(EXTRACTED_TOKEN);
-  mockDecode.mockResolvedValue(VALID_DECODED_TOKEN);
-  mockIsProduction.mockReturnValue(false);
-}
-
-/**
- * Asserts that decode() was called with the correct arguments.
- * Centralizes the assertion so changing the salt naming convention
- * only requires a single update here.
- */
-function assertDecodeCalledWith(expectedSalt: string): void {
-  expect(mockDecode).toHaveBeenCalledExactlyOnceWith({
-    token: EXTRACTED_TOKEN,
-    secret: env.NEXTAUTH_SECRET,
-    salt: expectedSalt,
-  });
-}
+import { getSessionUser } from "../../../src/utils/auth";
+import {
+  deriveTestKey,
+  makeCookieHeader,
+  makeSessionToken,
+  TEST_SECRET,
+  VALID_USER,
+} from "../../helpers";
 
 describe("getSessionUser", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+  it.each([
+    ["undefined cookie header", undefined],
+    ["null cookie header", null],
+    ["empty cookie header", ""],
+  ])("returns null for %s", async (_name, header) => {
+    await expect(getSessionUser(header)).resolves.toBeNull();
   });
 
-  // -- Early-exit guards --
-
-  describe("when cookieHeader is absent", () => {
-    it("returns null for undefined", async () => {
-      expect(await getSessionUser(undefined)).toBeNull();
-    });
-
-    it("returns null for null", async () => {
-      expect(await getSessionUser(null)).toBeNull();
-    });
-
-    it("returns null for empty string", async () => {
-      mockParseCookieToken.mockReturnValue(null);
-      expect(await getSessionUser("")).toBeNull();
-    });
-
-    it("never calls decode when header is absent", async () => {
-      await getSessionUser(undefined);
-      expect(mockDecode).not.toHaveBeenCalled();
-    });
+  it("returns null when the session cookie is absent", async () => {
+    await expect(getSessionUser("theme=dark; locale=es")).resolves.toBeNull();
   });
 
-  describe("when parseCookieToken returns null", () => {
-    beforeEach(() => {
-      mockParseCookieToken.mockReturnValue(null);
-    });
+  it.each([
+    ["next-auth.session-token (http)", "next-auth.session-token"],
+    ["__Secure-next-auth.session-token (https)", "__Secure-next-auth.session-token"],
+  ])("decrypts a valid session token from cookie name: %s", async (_label, cookieName) => {
+    const token = await makeSessionToken();
+    const cookieHeader = `${cookieName}=${token}`;
 
-    it("returns null", async () => {
-      expect(await getSessionUser(RAW_COOKIE)).toBeNull();
-    });
-
-    it("never calls decode", async () => {
-      await getSessionUser(RAW_COOKIE);
-      expect(mockDecode).not.toHaveBeenCalled();
+    await expect(getSessionUser(cookieHeader)).resolves.toEqual({
+      id: VALID_USER.id,
+      email: VALID_USER.email,
+      name: "Sofia",
     });
   });
 
-  // -- Salt selection --
+  it("decrypts a valid NextAuth v4 session token", async () => {
+    const cookie = makeCookieHeader(await makeSessionToken());
 
-  describe("salt selection", () => {
-    it("uses the insecure cookie name in development", async () => {
-      setupHappyPath();
-      mockIsProduction.mockReturnValue(false);
-
-      await getSessionUser(RAW_COOKIE);
-
-      assertDecodeCalledWith("next-auth.session-token");
-    });
-
-    it("uses the __Secure- prefixed cookie name in production", async () => {
-      setupHappyPath();
-      mockIsProduction.mockReturnValue(true);
-
-      await getSessionUser(RAW_COOKIE);
-
-      assertDecodeCalledWith("__Secure-next-auth.session-token");
+    await expect(getSessionUser(cookie)).resolves.toEqual({
+      id: VALID_USER.id,
+      email: VALID_USER.email,
+      name: "Sofia",
     });
   });
 
-  // -- Happy path --
-
-  describe("when the token is valid", () => {
-    beforeEach(setupHappyPath);
-
-    it("returns the correct AuthSession", async () => {
-      expect(await getSessionUser(RAW_COOKIE)).toEqual(EXPECTED_SESSION);
+  it("normalizes a non-string name to null", async () => {
+    const token = await makeSessionToken({
+      sub: VALID_USER.id,
+      email: VALID_USER.email,
+      name: 42,
     });
 
-    it("passes raw cookie header through parseCookieToken", async () => {
-      await getSessionUser(RAW_COOKIE);
-      expect(mockParseCookieToken).toHaveBeenCalledExactlyOnceWith(RAW_COOKIE);
-    });
-
-    it("maps decoded.sub -> id", async () => {
-      const result = await getSessionUser(RAW_COOKIE);
-      expect(result?.id).toBe(VALID_DECODED_TOKEN.sub);
-    });
-
-    it("maps decoded.email -> email", async () => {
-      const result = await getSessionUser(RAW_COOKIE);
-      expect(result?.email).toBe(VALID_DECODED_TOKEN.email);
-    });
-
-    it("maps decoded.name -> name when present", async () => {
-      const result = await getSessionUser(RAW_COOKIE);
-      expect(result?.name).toBe(VALID_DECODED_TOKEN.name);
-    });
-
-    it("coerces undefined decoded.name to null", async () => {
-      mockDecode.mockResolvedValue({ ...VALID_DECODED_TOKEN, name: undefined });
-      const result = await getSessionUser(RAW_COOKIE);
-      expect(result?.name).toBeNull();
-    });
+    await expect(getSessionUser(makeCookieHeader(token))).resolves.toMatchObject({ name: null });
   });
 
-  // -- Missing required JWT fields --
+  it.each([
+    ["sub is missing", { email: VALID_USER.email }],
+    ["sub is not a string", { sub: 1, email: VALID_USER.email }],
+    ["email is missing", { sub: VALID_USER.id }],
+    ["email is not a string", { sub: VALID_USER.id, email: 7 }],
+  ])("returns null when %s", async (_name, payload) => {
+    const token = await makeSessionToken(payload);
 
-  describe("when decoded token is missing required fields", () => {
-    beforeEach(setupHappyPath);
-
-    it("returns null when decoded is null", async () => {
-      mockDecode.mockResolvedValue(null);
-      expect(await getSessionUser(RAW_COOKIE)).toBeNull();
-    });
-
-    it("returns null when sub is missing", async () => {
-      mockDecode.mockResolvedValue({ email: "alice@taskflow.dev" });
-      expect(await getSessionUser(RAW_COOKIE)).toBeNull();
-    });
-
-    it("returns null when email is missing", async () => {
-      mockDecode.mockResolvedValue({ sub: "user-id-001" });
-      expect(await getSessionUser(RAW_COOKIE)).toBeNull();
-    });
-
-    it("returns null when both sub and email are missing", async () => {
-      mockDecode.mockResolvedValue({});
-      expect(await getSessionUser(RAW_COOKIE)).toBeNull();
-    });
+    await expect(getSessionUser(makeCookieHeader(token))).resolves.toBeNull();
   });
 
-  // -- decode() throws --
+  it("returns null for an expired token (jwtDecrypt validates exp)", async () => {
+    const token = await new EncryptJWT({ sub: VALID_USER.id, email: VALID_USER.email })
+      .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
+      .setIssuedAt(Math.floor(Date.now() / 1000) - 7200)
+      .setExpirationTime(Math.floor(Date.now() / 1000) - 3600)
+      .encrypt(deriveTestKey());
 
-  describe("when decode throws", () => {
-    beforeEach(setupHappyPath);
+    await expect(getSessionUser(makeCookieHeader(token))).resolves.toBeNull();
+  });
 
-    it("returns null on a generic error", async () => {
-      mockDecode.mockRejectedValue(new Error("invalid signature"));
-      expect(await getSessionUser(RAW_COOKIE)).toBeNull();
+  it("returns null for a token signed with a different secret", async () => {
+    const token = await makeSessionToken(undefined, {
+      secret: "a-completely-different-secret-value",
     });
 
-    it("returns null on an expired token error", async () => {
-      mockDecode.mockRejectedValue(new Error("jwt expired"));
-      expect(await getSessionUser(RAW_COOKIE)).toBeNull();
-    });
+    await expect(getSessionUser(makeCookieHeader(token))).resolves.toBeNull();
+  });
 
-    it("returns null on a non-Error thrown value", async () => {
-      mockDecode.mockRejectedValue("unexpected string error");
-      expect(await getSessionUser(RAW_COOKIE)).toBeNull();
-    });
+  it("returns null for a tampered token", async () => {
+    const token = await makeSessionToken();
+    const tampered = `${token.slice(0, -4)}AAAA`;
 
-    it("never propagates the error to the caller", async () => {
-      mockDecode.mockRejectedValue(new Error("tampered"));
-      await expect(getSessionUser(RAW_COOKIE)).resolves.not.toThrow();
-    });
+    await expect(getSessionUser(makeCookieHeader(tampered))).resolves.toBeNull();
+  });
+
+  it("does not leak the failure reason", async () => {
+    const spy = vi.spyOn(console, "error");
+
+    await getSessionUser(makeCookieHeader("garbage"));
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("derives the key exactly like NextAuth v4", () => {
+    // Regression guard: @auth/core v5 uses a different HKDF info string and
+    // would silently stop decrypting v4 cookies.
+    expect(deriveTestKey(TEST_SECRET)).toHaveLength(32);
   });
 });

@@ -8,6 +8,10 @@ export async function findLabelsByOrg(db: PrismaClient, orgId: string): Promise<
   });
 }
 
+export async function findLabelById(db: PrismaClient, labelId: string): Promise<Label | null> {
+  return db.label.findUnique({ where: { id: labelId } });
+}
+
 export async function createLabel(
   db: PrismaClient,
   orgId: string,

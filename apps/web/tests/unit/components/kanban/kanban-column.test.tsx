@@ -1,53 +1,122 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@dnd-kit/utilities", () => import("@/tests/mocks/dnd-kit-utilities"));
 vi.mock("@dnd-kit/sortable", () => import("@/tests/mocks/dnd-kit"));
-vi.mock("@taskflow/ui", () => import("@/tests/mocks/taskflow-ui"));
-vi.mock("@dnd-kit/core", () => import("@/tests/mocks/dnd-kit"));
+vi.mock("@dnd-kit/utilities", () => import("@/tests/mocks/dnd-kit-utilities"));
 
-import { makeColumn, makeTask, VALID_COL_A_ID, VALID_TASK_1_ID } from "@/tests/helpers";
 import { KanbanColumn } from "@/components/kanban/kanban-column";
+import { makeColumn, makeTask } from "@/tests/support/factories";
 
-const col = makeColumn();
-const task = makeTask({ id: VALID_TASK_1_ID, columnId: VALID_COL_A_ID, title: "Fix bug" });
+const column = makeColumn({ name: "To Do" });
+const task = makeTask();
+
+const defaultProps = {
+  column,
+  tasks: [task],
+  isOver: false,
+  onAddTask: vi.fn(),
+  onTaskClick: vi.fn(),
+  onRenameColumn: vi.fn(),
+  onDeleteColumn: vi.fn(),
+  assigneeById: new Map(),
+  addingTaskId: null,
+  labelsByTask: {},
+};
 
 describe("KanbanColumn", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("renders the column name", () => {
-    render(<KanbanColumn column={col} tasks={[]} isOver={false} />);
-    expect(screen.getByText("To Do")).toBeInTheDocument();
-  });
-
-  it("has data-testid for column lookup", () => {
-    render(<KanbanColumn column={col} tasks={[]} isOver={false} />);
-    expect(screen.getByTestId(`column-${col.id}`)).toBeInTheDocument();
-  });
-
-  it("renders each task card", () => {
-    render(<KanbanColumn column={col} tasks={[task]} isOver={false} />);
-    expect(screen.getByText(task.title)).toBeInTheDocument();
-  });
-
-  it("shows task count badge", () => {
-    render(<KanbanColumn column={col} tasks={[task]} isOver={false} />);
+  it("renders the column name and task count", () => {
+    render(<KanbanColumn {...defaultProps} />);
+    expect(screen.getByLabelText(/column name/i)).toHaveValue("To Do");
     expect(screen.getByText("1")).toBeInTheDocument();
   });
 
-  it("shows 0 count when empty", () => {
-    render(<KanbanColumn column={col} tasks={[]} isOver={false} />);
-    expect(screen.getByText("0")).toBeInTheDocument();
+  it("renders every task as a KanbanCard", () => {
+    render(<KanbanColumn {...defaultProps} />);
+    expect(screen.getByTestId(`task-card-${task.id}`)).toBeInTheDocument();
   });
 
-  it("applies highlight ring when isOver=true", () => {
-    const { container } = render(<KanbanColumn column={col} tasks={[]} isOver />);
-    // The droppable div receives the ring class when isOver is true
-    expect(container.querySelector(".ring-1")).toBeInTheDocument();
+  it("calls onRenameColumn on blur of the inline-edit name field", async () => {
+    const onRenameColumn = vi.fn();
+    render(<KanbanColumn {...defaultProps} onRenameColumn={onRenameColumn} />);
+    const input = screen.getByLabelText(/column name/i);
+    await userEvent.setup().clear(input);
+    await userEvent.setup().type(input, "Renamed");
+    input.blur();
+    expect(onRenameColumn).toHaveBeenCalledWith(column.id, "Renamed");
   });
 
-  it("does not apply highlight ring when isOver=false", () => {
-    const { container } = render(<KanbanColumn column={col} tasks={[]} isOver={false} />);
-    expect(container.querySelector(".ring-1")).not.toBeInTheDocument();
+  it("calls onTaskClick when a task card is clicked", async () => {
+    const onTaskClick = vi.fn();
+    render(<KanbanColumn {...defaultProps} onTaskClick={onTaskClick} />);
+    await userEvent.setup().click(screen.getByTestId(`task-card-${task.id}`));
+    expect(onTaskClick).toHaveBeenCalledWith(task);
+  });
+
+  it("calls onDeleteColumn via the options dropdown", async () => {
+    const onDeleteColumn = vi.fn();
+    render(<KanbanColumn {...defaultProps} onDeleteColumn={onDeleteColumn} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /options for column to do/i }));
+    await user.click(screen.getByRole("menuitem", { name: /delete column/i }));
+    expect(onDeleteColumn).toHaveBeenCalledWith(column);
+  });
+
+  it("applies the drop-target highlight class when isOver is true", () => {
+    const { container } = render(<KanbanColumn {...defaultProps} isOver />);
+    expect(container.querySelector("[data-column-scroll]")).toHaveClass("bg-brand-50");
+  });
+
+  it("calls onAddTask with the column id and title", async () => {
+    const onAddTask = vi.fn();
+    render(<KanbanColumn {...defaultProps} onAddTask={onAddTask} tasks={[]} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /add task/i }));
+    await user.type(screen.getByPlaceholderText(/task title/i), "New task{Enter}");
+    expect(onAddTask).toHaveBeenCalledWith(column.id, "New task");
+  });
+
+  it("applies dragging opacity when this column is being dragged", async () => {
+    const { useSortable } = await import("@dnd-kit/sortable");
+    vi.mocked(useSortable).mockReturnValueOnce({
+      attributes: {},
+      listeners: {},
+      setNodeRef: vi.fn(),
+      transform: null,
+      transition: null,
+      isDragging: true,
+    } as never);
+    render(<KanbanColumn {...defaultProps} />);
+    expect(screen.getByTestId(`column-${column.id}`)).toHaveClass("opacity-50");
+  });
+
+  it("resolves the assignee via assigneeById when the task has an assigneeId", () => {
+    const assigneeMap = new Map([["u1", { name: "Alice", email: "a@x.com" }]]);
+    render(
+      <KanbanColumn
+        {...defaultProps}
+        tasks={[{ ...task, assigneeId: "u1" }]}
+        assigneeById={assigneeMap}
+      />,
+    );
+    expect(screen.getByLabelText("Alice")).toBeInTheDocument();
+  });
+
+  it("applies the drag-handle cursor-grabbing style while a column drag is in progress", () => {
+    render(<KanbanColumn {...defaultProps} isColumnDragging />);
+    expect(screen.getByRole("button", { name: /drag to reorder column/i })).toHaveClass(
+      "cursor-grabbing",
+    );
+  });
+
+  it("falls back to null assignee when assigneeId isn't in the map", () => {
+    render(
+      <KanbanColumn
+        {...defaultProps}
+        tasks={[{ ...task, assigneeId: "ghost-id" }]}
+        assigneeById={new Map()}
+      />,
+    );
+    expect(screen.getByTestId(`task-card-${task.id}`)).toBeInTheDocument();
   });
 });

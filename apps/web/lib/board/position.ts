@@ -19,16 +19,3 @@ export function calculateNewPosition(
 
   return POSITION_STEP;
 }
-
-/**
- * Returns the prev/next positions around `targetIndex` in an ordered array.
- * Used by useBoardDnD to compute the dropped task's new position.
- */
-export function getSurroundingPositions(
-  positions: number[],
-  targetIndex: number,
-): { prev: number | null; next: number | null } {
-  const prev = positions[targetIndex - 1] ?? null;
-  const next = positions[targetIndex] ?? null;
-  return { prev, next };
-}

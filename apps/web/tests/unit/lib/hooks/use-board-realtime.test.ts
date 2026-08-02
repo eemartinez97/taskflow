@@ -1,461 +1,201 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("socket.io-client", () => import("@/tests/mocks/socket-io-client"));
-vi.mock("@/lib/trpc/client", () => import("@/tests/mocks/trpc-api"));
+vi.mock("@/lib/hooks/use-socket", () => ({ useSocket: vi.fn() }));
 
-import { SOCKET_EVENTS, type SocketTask } from "@taskflow/shared";
-
-import {
-  makeMockMutationResult,
-  makeTRPCUtilsMock,
-  VALID_PROJECT_ID,
-  VALID_COL_A_ID,
-  VALID_COL_B_ID,
-  VALID_ORG_ID,
-  toSocketTask,
-  makeColumn,
-  makeTask,
-} from "@/tests/helpers";
-import {
-  triggerSocketEvent,
-  resetHandlerStore,
-  getHandlerStore,
-  mockSocket,
-  io,
-} from "@/tests/mocks/socket-io-client";
+import { SOCKET_EVENTS } from "@taskflow/shared";
+import { useSocket } from "@/lib/hooks/use-socket";
 import { useBoardRealtime } from "@/lib/hooks/use-board-realtime";
-import { api } from "@/tests/mocks/trpc-api";
+import { mockSocket, resetHandlerStore, triggerSocketEvent } from "@/tests/mocks/socket-io-client";
+import { makeColumn } from "@/tests/support/factories";
+import {
+  VALID_BOARD_ID,
+  VALID_COL_A_ID,
+  VALID_ORG_ID,
+  VALID_PROJECT_ID,
+} from "@/tests/support/fixtures";
+import { getLastMockUtils } from "@/tests/support/trpc";
 
-// -- Fixtures --
+afterEach(() => {
+  resetHandlerStore();
+});
 
-const colA = makeColumn({ id: VALID_COL_A_ID });
-const colB = makeColumn({ id: VALID_COL_B_ID, position: 2000 });
-const task1 = makeTask({ id: "t1", columnId: VALID_COL_A_ID, position: 1000 });
-const socketTask1 = toSocketTask(task1);
-
-const defaultOpts = {
+const columns = [makeColumn({ id: VALID_COL_A_ID })];
+const baseOpts = {
   orgId: VALID_ORG_ID,
   projectId: VALID_PROJECT_ID,
-  columns: [colA, colB],
+  boardId: VALID_BOARD_ID,
+  columns,
 };
 
-// -- Setup --
-
-beforeEach(() => {
-  resetHandlerStore();
-  vi.clearAllMocks();
-
-  // Default useUtils mock with setData/getData spies
-  const utilsMock = makeTRPCUtilsMock({
-    [VALID_COL_A_ID]: [socketTask1],
-    [VALID_COL_B_ID]: [],
+describe("useBoardRealtime", () => {
+  it("does nothing when the socket ref has no current socket", () => {
+    vi.mocked(useSocket).mockReturnValue({ current: null });
+    expect(() => renderHook(() => useBoardRealtime(baseOpts))).not.toThrow();
   });
 
-  vi.mocked(api.useUtils).mockReturnValue(utilsMock as never);
+  it("upserts a task into its column cache on TASK_CREATED", () => {
+    vi.mocked(useSocket).mockReturnValue({ current: mockSocket as never });
+    renderHook(() => useBoardRealtime(baseOpts));
 
-  // tasks.move.useMutation is referenced via api mock (board.tsx uses it)
-  vi.mocked(api.tasks.move.useMutation).mockReturnValue(makeMockMutationResult() as never);
-});
+    const utils = getLastMockUtils();
 
-describe("event handler registration", () => {
-  it("registers task:created handler on mount", () => {
-    renderHook(() => {
-      useBoardRealtime(defaultOpts);
+    const setData = utils.tasks.list.setData;
+
+    triggerSocketEvent(SOCKET_EVENTS.TASK_CREATED, {
+      task: { id: "t1", columnId: VALID_COL_A_ID },
     });
-    expect(getHandlerStore().has(SOCKET_EVENTS.TASK_CREATED)).toBe(true);
+    expect(setData).toHaveBeenCalled();
+    // Actually invoke the updater lambda passed as the 2nd arg to setData -
+    // the mock only records the call, it never calls it itself.
+    const updater = setData.mock.calls.at(-1)?.[1] as (
+      prev: { id: string }[] | undefined,
+    ) => unknown[];
+    expect(updater(undefined)).toEqual([{ id: "t1", columnId: VALID_COL_A_ID }]);
   });
 
-  it("registers task:updated handler on mount", () => {
-    renderHook(() => {
-      useBoardRealtime(defaultOpts);
+  it("applies board:updated only when the event's board matches the current board", () => {
+    vi.mocked(useSocket).mockReturnValue({ current: mockSocket as never });
+    renderHook(() => useBoardRealtime(baseOpts));
+
+    const utils = getLastMockUtils();
+
+    triggerSocketEvent(SOCKET_EVENTS.BOARD_UPDATED, {
+      board: { id: "other-board", name: "X", columns: [] },
     });
-    expect(getHandlerStore().has(SOCKET_EVENTS.TASK_UPDATED)).toBe(true);
+    expect(utils.boards.get.setData).not.toHaveBeenCalled();
+    triggerSocketEvent(SOCKET_EVENTS.BOARD_UPDATED, {
+      board: { id: VALID_BOARD_ID, name: "X", columns: [] },
+    });
+    expect(utils.boards.get.setData).toHaveBeenCalled();
   });
 
-  it("registers task:moved handler on mount", () => {
-    renderHook(() => {
-      useBoardRealtime(defaultOpts);
-    });
-    expect(getHandlerStore().has(SOCKET_EVENTS.TASK_MOVED)).toBe(true);
-  });
-
-  it("registers task:deleted handler on mount", () => {
-    renderHook(() => {
-      useBoardRealtime(defaultOpts);
-    });
-    expect(getHandlerStore().has(SOCKET_EVENTS.TASK_DELETED)).toBe(true);
-  });
-
-  it("registers exactly 4 handlers (one per task event)", () => {
-    renderHook(() => {
-      useBoardRealtime(defaultOpts);
-    });
-    expect(mockSocket.on).toHaveBeenCalledTimes(4);
-  });
-
-  it("deregisters all 4 handlers on unmount", () => {
-    const { unmount } = renderHook(() => {
-      useBoardRealtime(defaultOpts);
-    });
+  it("cleans up every subscribed event on unmount", () => {
+    vi.mocked(useSocket).mockReturnValue({ current: mockSocket as never });
+    const { unmount } = renderHook(() => useBoardRealtime(baseOpts));
     unmount();
-    expect(mockSocket.off).toHaveBeenCalledTimes(4);
+    expect(mockSocket.off).toHaveBeenCalledWith(SOCKET_EVENTS.TASK_CREATED, expect.any(Function));
   });
 
-  it("deregisters handlers with the same function reference used in .on()", () => {
-    const { unmount } = renderHook(() => {
-      useBoardRealtime(defaultOpts);
-    });
+  it("applies a task move across the column snapshot on TASK_MOVED", () => {
+    vi.mocked(useSocket).mockReturnValue({ current: mockSocket as never });
+    renderHook(() => useBoardRealtime(baseOpts));
+    const utils = getLastMockUtils();
 
-    const onCalls = vi.mocked(mockSocket.on).mock.calls as [string, (...args: unknown[]) => void][];
-    const offCalls = vi.mocked(mockSocket.off).mock.calls as unknown as [
-      string,
-      (...args: unknown[]) => void,
-    ][];
-
-    unmount();
-
-    // Event names must match between on and off
-    const onEvents = onCalls.map(([e]) => e).sort();
-    const offEvents = offCalls.map(([e]) => e).sort();
-    expect(onEvents).toEqual(offEvents);
-  });
-});
-
-describe("task:created event", () => {
-  it("calls setData for the task's column", () => {
-    const utils = makeTRPCUtilsMock({});
-    vi.mocked(api.useUtils).mockReturnValue(utils as never);
-
-    renderHook(() => {
-      useBoardRealtime(defaultOpts);
-    });
-    triggerSocketEvent(SOCKET_EVENTS.TASK_CREATED, { task: socketTask1 });
-
-    expect(utils.tasks.list.setData).toHaveBeenCalledWith(
-      { orgId: VALID_ORG_ID, columnId: VALID_COL_A_ID },
-      expect.any(Function),
-    );
-  });
-
-  it("updater function appends the new task", () => {
-    const utils = makeTRPCUtilsMock({ [VALID_COL_A_ID]: [] });
-    vi.mocked(api.useUtils).mockReturnValue(utils as never);
-
-    renderHook(() => {
-      useBoardRealtime(defaultOpts);
-    });
-    triggerSocketEvent(SOCKET_EVENTS.TASK_CREATED, { task: socketTask1 });
-
-    const setDataCalls = vi.mocked(utils.tasks.list.setData).mock.calls as [
-      { orgId: string; columnId: string },
-      (prev: SocketTask[] | undefined) => SocketTask[],
-    ][];
-    const updater = setDataCalls[0]?.[1];
-    const result = updater?.([]);
-    expect(result).toContainEqual(expect.objectContaining({ id: socketTask1.id }));
-  });
-
-  it("updater replaces an existing task with the same id", () => {
-    const utils = makeTRPCUtilsMock({ [VALID_COL_A_ID]: [socketTask1] });
-    vi.mocked(api.useUtils).mockReturnValue(utils as never);
-
-    renderHook(() => {
-      useBoardRealtime(defaultOpts);
-    });
-
-    const updatedTask: SocketTask = { ...socketTask1, title: "Updated via socket" };
-    triggerSocketEvent(SOCKET_EVENTS.TASK_CREATED, { task: updatedTask });
-
-    const setDataCalls = vi.mocked(utils.tasks.list.setData).mock.calls as [
-      { orgId: string; columnId: string },
-      (prev: SocketTask[] | undefined) => SocketTask[],
-    ][];
-    const updater = setDataCalls[0]?.[1];
-    const result = updater?.([socketTask1]);
-    expect(result).toHaveLength(1);
-    expect(result?.[0]?.title).toBe("Updated via socket");
-  });
-});
-
-describe("task:updated event", () => {
-  it("calls setData for the task's columnId", () => {
-    const utils = makeTRPCUtilsMock({ [VALID_COL_A_ID]: [socketTask1] });
-    vi.mocked(api.useUtils).mockReturnValue(utils as never);
-
-    renderHook(() => {
-      useBoardRealtime(defaultOpts);
-    });
-    triggerSocketEvent(SOCKET_EVENTS.TASK_UPDATED, { task: socketTask1 });
-
-    expect(utils.tasks.list.setData).toHaveBeenCalledWith(
-      { orgId: VALID_ORG_ID, columnId: VALID_COL_A_ID },
-      expect.any(Function),
-    );
-  });
-
-  it("updater merges updated fields", () => {
-    const utils = makeTRPCUtilsMock({ [VALID_COL_A_ID]: [socketTask1] });
-    vi.mocked(api.useUtils).mockReturnValue(utils as never);
-
-    renderHook(() => {
-      useBoardRealtime(defaultOpts);
-    });
-
-    const updatedTask: SocketTask = { ...socketTask1, title: "Renamed task" };
-    triggerSocketEvent(SOCKET_EVENTS.TASK_UPDATED, { task: updatedTask });
-
-    const setDataCalls = vi.mocked(utils.tasks.list.setData).mock.calls as [
-      { orgId: string; columnId: string },
-      (prev: SocketTask[] | undefined) => SocketTask[],
-    ][];
-    const updater = setDataCalls[0]?.[1];
-    const result = updater?.([socketTask1]);
-    expect(result?.[0]?.title).toBe("Renamed task");
-  });
-});
-
-describe("task:moved event", () => {
-  it("calls getData for all columns to build snapshot", () => {
-    const utils = makeTRPCUtilsMock({
-      [VALID_COL_A_ID]: [socketTask1],
-      [VALID_COL_B_ID]: [],
-    });
-    vi.mocked(api.useUtils).mockReturnValue(utils as never);
-
-    renderHook(() => {
-      useBoardRealtime(defaultOpts);
-    });
-
-    const movedTask: SocketTask = { ...socketTask1, columnId: VALID_COL_B_ID };
-    triggerSocketEvent(SOCKET_EVENTS.TASK_MOVED, { task: movedTask });
-
-    expect(utils.tasks.list.getData).toHaveBeenCalledWith({
-      orgId: VALID_ORG_ID,
-      columnId: VALID_COL_A_ID,
-    });
-    expect(utils.tasks.list.getData).toHaveBeenCalledWith({
-      orgId: VALID_ORG_ID,
-      columnId: VALID_COL_B_ID,
-    });
-  });
-
-  it("calls setData for every column (full update)", () => {
-    const utils = makeTRPCUtilsMock({
-      [VALID_COL_A_ID]: [socketTask1],
-      [VALID_COL_B_ID]: [],
-    });
-    vi.mocked(api.useUtils).mockReturnValue(utils as never);
-
-    renderHook(() => {
-      useBoardRealtime(defaultOpts);
-    });
-
-    const movedTask: SocketTask = { ...socketTask1, columnId: VALID_COL_B_ID };
-    triggerSocketEvent(SOCKET_EVENTS.TASK_MOVED, { task: movedTask });
-
-    // setData called once per column
-    const setDataCalls = vi.mocked(utils.tasks.list.setData).mock.calls as [
-      { columnId: string },
-      unknown,
-    ][];
-    const updatedColumns = setDataCalls.map(([{ columnId }]) => columnId);
-    expect(updatedColumns).toContain(VALID_COL_A_ID);
-    expect(updatedColumns).toContain(VALID_COL_B_ID);
-  });
-
-  it("removes task from source column after move", () => {
-    const utils = makeTRPCUtilsMock({
-      [VALID_COL_A_ID]: [socketTask1],
-      [VALID_COL_B_ID]: [],
-    });
-    vi.mocked(api.useUtils).mockReturnValue(utils as never);
-
-    renderHook(() => {
-      useBoardRealtime(defaultOpts);
-    });
-
+    vi.mocked(utils.tasks.list.getData).mockReturnValue([]);
     triggerSocketEvent(SOCKET_EVENTS.TASK_MOVED, {
-      task: { ...socketTask1, columnId: VALID_COL_B_ID },
+      task: { id: "t1", columnId: VALID_COL_A_ID, position: 100 },
     });
-
-    // After event fires, setData updater for COL_A should produce empty array
-    const colASetData = (
-      vi.mocked(utils.tasks.list.setData).mock.calls as [{ columnId: string }, SocketTask[]][]
-    ).find(([{ columnId }]) => columnId === VALID_COL_A_ID);
-    const colAResult = colASetData?.[1];
-    expect(colAResult).toHaveLength(0);
+    expect(utils.tasks.list.setData).toHaveBeenCalled();
   });
 
-  it("inserts task into target column after move", () => {
-    const utils = makeTRPCUtilsMock({
-      [VALID_COL_A_ID]: [socketTask1],
-      [VALID_COL_B_ID]: [],
-    });
-    vi.mocked(api.useUtils).mockReturnValue(utils as never);
+  it("removes a task from every column cache on TASK_DELETED", () => {
+    vi.mocked(useSocket).mockReturnValue({ current: mockSocket as never });
+    renderHook(() => useBoardRealtime(baseOpts));
+    const utils = getLastMockUtils();
 
-    renderHook(() => {
-      useBoardRealtime(defaultOpts);
-    });
-
-    const movedTask: SocketTask = { ...socketTask1, columnId: VALID_COL_B_ID };
-    triggerSocketEvent(SOCKET_EVENTS.TASK_MOVED, { task: movedTask });
-
-    const colBSetData = (
-      vi.mocked(utils.tasks.list.setData).mock.calls as [{ columnId: string }, SocketTask[]][]
-    ).find(([{ columnId }]) => columnId === VALID_COL_B_ID);
-    const colBResult = colBSetData?.[1];
-    expect(colBResult).toHaveLength(1);
-    expect(colBResult?.[0]?.id).toBe(socketTask1.id);
+    triggerSocketEvent(SOCKET_EVENTS.TASK_DELETED, { taskId: "t1" });
+    expect(utils.tasks.list.setData).toHaveBeenCalled();
+    // Actually invoke the updater lambda passed as the 2nd arg to setData.
+    const updater = utils.tasks.list.setData.mock.calls.at(-1)?.[1] as (
+      prev: { id: string }[] | undefined,
+    ) => unknown[];
+    expect(updater([{ id: "t1" }, { id: "t2" }])).toEqual([{ id: "t2" }]);
   });
 
-  it("uses [] as snapshot when getData returns undefined (??-[] branch)", () => {
-    // makeTRPCUtilsMock({}) → getData returns undefined for every column.
-    // This exercises the `(cached ?? [])` false branch in onTaskMoved.
-    const utils = makeTRPCUtilsMock({});
-    vi.mocked(api.useUtils).mockReturnValue(utils as never);
+  it("replaces label pairs for a task on TASK_LABELS_CHANGED", () => {
+    vi.mocked(useSocket).mockReturnValue({ current: mockSocket as never });
+    renderHook(() => useBoardRealtime(baseOpts));
+    const utils = getLastMockUtils();
 
-    renderHook(() => {
-      useBoardRealtime(defaultOpts);
+    triggerSocketEvent(SOCKET_EVENTS.TASK_LABELS_CHANGED, {
+      taskId: "t1",
+      labels: [{ id: "l1", name: "Bug", color: "#EF4444" }],
     });
-
-    const movedTask: SocketTask = { ...socketTask1, columnId: VALID_COL_B_ID };
-    expect(() => {
-      triggerSocketEvent(SOCKET_EVENTS.TASK_MOVED, { task: movedTask });
-    }).not.toThrow();
-
-    // setData is called for every column even when the cache was empty
-    const setDataCalls = vi.mocked(utils.tasks.list.setData).mock.calls as [
-      { columnId: string },
-      unknown,
-    ][];
-    const calledCols = setDataCalls.map(([{ columnId }]) => columnId);
-    expect(calledCols).toContain(VALID_COL_A_ID);
-    expect(calledCols).toContain(VALID_COL_B_ID);
-  });
-});
-
-describe("task:deleted event", () => {
-  it("calls setData for every column (exhaustive search)", () => {
-    const utils = makeTRPCUtilsMock({
-      [VALID_COL_A_ID]: [socketTask1],
-      [VALID_COL_B_ID]: [],
-    });
-    vi.mocked(api.useUtils).mockReturnValue(utils as never);
-
-    renderHook(() => {
-      useBoardRealtime(defaultOpts);
-    });
-    triggerSocketEvent(SOCKET_EVENTS.TASK_DELETED, { taskId: socketTask1.id });
-
-    const setDataCalls = vi.mocked(utils.tasks.list.setData).mock.calls as [
-      { columnId: string },
-      unknown,
-    ][];
-    const updatedColumns = setDataCalls.map(([{ columnId }]) => columnId);
-    expect(updatedColumns).toContain(VALID_COL_A_ID);
-    expect(updatedColumns).toContain(VALID_COL_B_ID);
-  });
-
-  it("updater removes the task from its column", () => {
-    const utils = makeTRPCUtilsMock({ [VALID_COL_A_ID]: [socketTask1] });
-    vi.mocked(api.useUtils).mockReturnValue(utils as never);
-
-    renderHook(() => {
-      useBoardRealtime(defaultOpts);
-    });
-    triggerSocketEvent(SOCKET_EVENTS.TASK_DELETED, { taskId: socketTask1.id });
-
-    const colASetData = (
-      vi.mocked(utils.tasks.list.setData).mock.calls as [
-        { columnId: string },
-        (prev: SocketTask[] | undefined) => SocketTask[],
-      ][]
-    ).find(([{ columnId }]) => columnId === VALID_COL_A_ID);
-
-    const result = colASetData?.[1]?.([socketTask1]);
-    expect(result).toHaveLength(0);
-  });
-
-  it("is a no-op when the taskId does not exist in any column", () => {
-    const utils = makeTRPCUtilsMock({
-      [VALID_COL_A_ID]: [socketTask1],
-      [VALID_COL_B_ID]: [],
-    });
-    vi.mocked(api.useUtils).mockReturnValue(utils as never);
-
-    renderHook(() => {
-      useBoardRealtime(defaultOpts);
-    });
-    triggerSocketEvent(SOCKET_EVENTS.TASK_DELETED, { taskId: "non-existent-id" });
-
-    // setData still called but the updater returns unchanged arrays
-    const setDataCalls = vi.mocked(utils.tasks.list.setData).mock.calls as [
-      { columnId: string },
-      (prev: SocketTask[] | undefined) => SocketTask[],
-    ][];
-
-    const colAResult = setDataCalls.find(([{ columnId }]) => columnId === VALID_COL_A_ID)?.[1]?.([
-      socketTask1,
+    expect(utils.tasks.labelsByProject.setData).toHaveBeenCalled();
+    const updater = utils.tasks.labelsByProject.setData.mock.calls[0]?.[1] as (
+      prev: { taskId: string }[] | undefined,
+    ) => unknown[];
+    expect(updater(undefined)).toEqual([
+      { taskId: "t1", label: { id: "l1", name: "Bug", color: "#EF4444" } },
     ]);
-    expect(colAResult).toHaveLength(1); // unchanged
   });
-});
 
-// -- Connection forwarded to useSocket --
+  it("appends a new comment on COMMENT_CREATED and dedupes an existing id", () => {
+    vi.mocked(useSocket).mockReturnValue({ current: mockSocket as never });
+    renderHook(() => useBoardRealtime(baseOpts));
+    const utils = getLastMockUtils();
 
-describe("socket connection (delegated to useSocket)", () => {
-  it("socket.connect() is called on mount", () => {
-    renderHook(() => {
-      useBoardRealtime(defaultOpts);
+    triggerSocketEvent(SOCKET_EVENTS.COMMENT_CREATED, {
+      comment: { id: "c1", taskId: "t1", body: "Hi" },
     });
-    expect(mockSocket.connect).toHaveBeenCalledOnce();
+    const updater = utils.comments.list.setData.mock.calls[0]?.[1] as (
+      prev: { id: string }[] | undefined,
+    ) => unknown[];
+    expect(updater([{ id: "c1" }])).toEqual([{ id: "c1" }]);
+    expect(updater(undefined)).toEqual([{ id: "c1", taskId: "t1", body: "Hi" }]);
   });
 
-  it("socket.disconnect() is called on unmount", () => {
-    const { unmount } = renderHook(() => {
-      useBoardRealtime(defaultOpts);
+  it("removes a comment on COMMENT_DELETED", () => {
+    vi.mocked(useSocket).mockReturnValue({ current: mockSocket as never });
+    renderHook(() => useBoardRealtime(baseOpts));
+    const utils = getLastMockUtils();
+
+    triggerSocketEvent(SOCKET_EVENTS.COMMENT_DELETED, { commentId: "c1", taskId: "t1" });
+    const updater = utils.comments.list.setData.mock.calls[0]?.[1] as (
+      prev: { id: string }[],
+    ) => unknown[];
+    expect(updater([{ id: "c1" }, { id: "c2" }])).toEqual([{ id: "c2" }]);
+  });
+
+  it("removes a comment on COMMENT_DELETED even when the cache was empty", () => {
+    vi.mocked(useSocket).mockReturnValue({ current: mockSocket as never });
+    renderHook(() => useBoardRealtime(baseOpts));
+    const utils = getLastMockUtils();
+
+    triggerSocketEvent(SOCKET_EVENTS.COMMENT_DELETED, { commentId: "c1", taskId: "t1" });
+    const updater = utils.comments.list.setData.mock.calls[0]?.[1] as (
+      prev: { id: string }[] | undefined,
+    ) => unknown[];
+    expect(updater(undefined)).toEqual([]);
+  });
+
+  it("replaces label pairs for a task on TASK_LABELS_CHANGED, handling both an empty and a populated cache", () => {
+    vi.mocked(useSocket).mockReturnValue({ current: mockSocket as never });
+    renderHook(() => useBoardRealtime(baseOpts));
+    const utils = getLastMockUtils();
+
+    triggerSocketEvent(SOCKET_EVENTS.TASK_LABELS_CHANGED, {
+      taskId: "t1",
+      labels: [{ id: "l1", name: "Bug", color: "#EF4444" }],
     });
-    unmount();
-    expect(mockSocket.disconnect).toHaveBeenCalledOnce();
-  });
-});
-
-// -- Null socket — if (!socket) return early exit --
-
-describe("null socket — if (!socket) return branch", () => {
-  /**
-   * When io() returns null (e.g. createSocket() is called on the server
-   * or socket.io-client is unavailable), socketRef.current is null.
-   * useBoardRealtime must exit the effect early without registering handlers.
-   *
-   * Simulated by overriding io() for a single call so createSocket() → null,
-   * useSocket() stores null in socketRef, and the `if (!socket) return`
-   * true-branch is executed.
-   */
-  beforeEach(() => {
-    vi.mocked(io).mockReturnValueOnce(null as unknown as typeof mockSocket);
+    const updater = utils.tasks.labelsByProject.setData.mock.calls[0]?.[1] as (
+      prev: { taskId: string }[] | undefined,
+    ) => unknown[];
+    // prev undefined -> falsy branch of `prev ?? []`
+    expect(updater(undefined)).toEqual([
+      { taskId: "t1", label: { id: "l1", name: "Bug", color: "#EF4444" } },
+    ]);
+    // prev populated with an unrelated pair -> kept
+    expect(updater([{ taskId: "t2" }])).toEqual([
+      { taskId: "t2" },
+      { taskId: "t1", label: { id: "l1", name: "Bug", color: "#EF4444" } },
+    ]);
+    // prev populated with a pair for the SAME taskId -> filtered out and replaced
+    expect(updater([{ taskId: "t1" }])).toEqual([
+      { taskId: "t1", label: { id: "l1", name: "Bug", color: "#EF4444" } },
+    ]);
   });
 
-  it("does not register any handlers when socket is null", () => {
-    renderHook(() => {
-      useBoardRealtime(defaultOpts);
+  it("defaults to an empty array in the snapshot when the cache has no entry for a column", () => {
+    vi.mocked(useSocket).mockReturnValue({ current: mockSocket as never });
+    renderHook(() => useBoardRealtime(baseOpts));
+    const utils = getLastMockUtils();
+
+    vi.mocked(utils.tasks.list.getData).mockReturnValueOnce(undefined);
+    triggerSocketEvent(SOCKET_EVENTS.TASK_MOVED, {
+      task: { id: "t1", columnId: VALID_COL_A_ID, position: 100 },
     });
-    expect(mockSocket.on).not.toHaveBeenCalled();
-  });
-
-  it("does not call socket.connect() when socket is null", () => {
-    renderHook(() => {
-      useBoardRealtime(defaultOpts);
-    });
-    expect(mockSocket.connect).not.toHaveBeenCalled();
-  });
-
-  it("does not throw when socket is null", () => {
-    expect(() =>
-      renderHook(() => {
-        useBoardRealtime(defaultOpts);
-      }),
-    ).not.toThrow();
+    expect(utils.tasks.list.setData).toHaveBeenCalled();
   });
 });

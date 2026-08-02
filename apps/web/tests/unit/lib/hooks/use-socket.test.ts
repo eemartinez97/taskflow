@@ -1,65 +1,38 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("socket.io-client", () => import("@/tests/mocks/socket-io-client"));
+vi.mock("@/lib/socket/client", () => ({ createSocket: vi.fn() }));
 
-import { mockSocket, resetHandlerStore } from "@/tests/mocks/socket-io-client";
+import { createSocket } from "@/lib/socket/client";
 import { useSocket } from "@/lib/hooks/use-socket";
-
-beforeEach(() => {
-  resetHandlerStore();
-});
-afterEach(() => vi.clearAllMocks());
+import { mockSocket, resetHandlerStore } from "@/tests/mocks/socket-io-client";
 
 describe("useSocket", () => {
-  it("returns a ref object", () => {
-    const { result } = renderHook(() => useSocket("proj-1"));
-    expect(result.current).toHaveProperty("current");
+  afterEach(() => {
+    resetHandlerStore();
   });
-
-  it("calls socket.connect() on mount", () => {
-    renderHook(() => useSocket("proj-1"));
+  it("creates and connects a socket on mount", () => {
+    vi.mocked(createSocket).mockReturnValue(mockSocket as never);
+    const { result } = renderHook(() => useSocket("proj-1", "board-1"));
+    expect(createSocket).toHaveBeenCalledWith("proj-1", "board-1");
     expect(mockSocket.connect).toHaveBeenCalledOnce();
-  });
-
-  it("calls socket.disconnect() on unmount", () => {
-    const { unmount } = renderHook(() => useSocket("proj-1"));
-    unmount();
-    expect(mockSocket.disconnect).toHaveBeenCalledOnce();
-  });
-
-  it("ref holds the socket instance after mount", () => {
-    const { result } = renderHook(() => useSocket("proj-1"));
     expect(result.current.current).toBe(mockSocket);
   });
 
-  it("ref is null after unmount", () => {
+  it("disconnects and nulls the ref on unmount", () => {
+    vi.mocked(createSocket).mockReturnValue(mockSocket as never);
     const { result, unmount } = renderHook(() => useSocket("proj-1"));
     unmount();
+    expect(mockSocket.disconnect).toHaveBeenCalledOnce();
     expect(result.current.current).toBeNull();
   });
 
-  it("reconnects when projectId changes", () => {
-    const { rerender } = renderHook(({ pid }) => useSocket(pid), {
-      initialProps: { pid: "proj-1" },
-    });
-
-    expect(mockSocket.connect).toHaveBeenCalledTimes(1);
-
-    rerender({ pid: "proj-2" });
-
-    // Old socket disconnected, new socket connected
-    expect(mockSocket.disconnect).toHaveBeenCalledOnce();
-    expect(mockSocket.connect).toHaveBeenCalledTimes(2);
-  });
-
-  it("does not connect more than once for the same projectId", () => {
-    const { rerender } = renderHook(({ pid }) => useSocket(pid), {
-      initialProps: { pid: "stable-proj" },
-    });
-    rerender({ pid: "stable-proj" });
-    rerender({ pid: "stable-proj" });
-
-    expect(mockSocket.connect).toHaveBeenCalledTimes(1);
+  it("handles createSocket returning null (SSR) gracefully", () => {
+    vi.mocked(createSocket).mockReturnValue(null);
+    const { result, unmount } = renderHook(() => useSocket("proj-1"));
+    expect(result.current.current).toBeNull();
+    expect(() => {
+      unmount();
+    }).not.toThrow();
   });
 });

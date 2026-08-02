@@ -1,18 +1,12 @@
 import { describe, expect, it } from "vitest";
-
 import { noOpIo } from "@/lib/trpc/no-op-io";
+import { SOCKET_EVENTS } from "@taskflow/shared";
 
 describe("noOpIo", () => {
-  it("to().emit() is callable and returns falsy (no real socket)", () => {
-    expect(noOpIo.to("project:123").emit("task:created", {})).toBe(false);
-  });
-
-  it("accepts any room name and event without throwing", () => {
-    expect(() => noOpIo.to("any-room").emit("any-event", { data: 1 })).not.toThrow();
-  });
-
-  it("exposes the expected { to: fn } shape", () => {
-    expect(typeof noOpIo.to).toBe("function");
-    expect(typeof noOpIo.to("x").emit).toBe("function");
+  it("to(room).emit() always returns false and never throws", () => {
+    const result = noOpIo
+      .to("room-1")
+      .emit(SOCKET_EVENTS.TASK_CREATED, { any: "payload" } as never);
+    expect(result).toBe(false);
   });
 });

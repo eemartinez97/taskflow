@@ -3,6 +3,10 @@ import type { SocketTask } from "@taskflow/shared";
 /**
  * Pure cache-update helpers for task lists stored in TanStack Query.
  *
+ * They operate on the full Prisma `Task` (the shape stored in the
+ * `tasks.list` cache). Socket payloads (`SocketTask`) are a structural
+ * subset and are narrowed by the caller before being passed in.
+ *
  * WHY pure functions (not methods on a class):
  * - Trivially testable with no mocks.
  * - SRP: each function does exactly one thing.
@@ -32,7 +36,7 @@ export function removeTask(prev: SocketTask[] | undefined, taskId: string): Sock
  * The function returns a NEW TasksMap (never mutates) so TanStack Query
  * can correctly detect the reference change.
  *
- * @param tasksMap  - Current map of { columnId → tasks[] }
+ * @param tasksMap  - Current map of { columnId -> tasks[] }
  * @param task      - Updated task with the new `columnId` set by the server
  * @param columnIds - All column ids in the board (needed for exhaustive search)
  */

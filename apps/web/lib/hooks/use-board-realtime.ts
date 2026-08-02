@@ -1,18 +1,20 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { type RefObject, useEffect, useMemo } from "react";
 
 import type { ServerToClientEvents, SocketTask } from "@taskflow/shared";
 import type { Column } from "@taskflow/database";
 import { SOCKET_EVENTS } from "@taskflow/shared";
 
 import { upsertTask, removeTask, applyTaskMove } from "@/lib/socket/task-cache";
+import type { AppSocket } from "../socket/client";
 import { useSocket } from "./use-socket";
 import { api } from "@/lib/trpc/client";
 
 interface UseBoardRealtimeOptions {
   orgId: string;
   projectId: string;
+  boardId: string;
   columns: Column[];
 }
 
@@ -33,10 +35,19 @@ interface UseBoardRealtimeOptions {
  *
  * TanStack Query v5: `setData` updater receives `prev | undefined`.
  * `upsertTask` / `removeTask` handle the undefined case internally.
+ *
+ * NOTE: these events are only reachable now that browser mutations run
+ * against apps/api (see lib/trpc/client.tsx) - the Next.js route handler
+ * built the router with `noOpIo`, so nothing was ever emitted.
  */
 
-export function useBoardRealtime({ orgId, projectId, columns }: UseBoardRealtimeOptions): void {
-  const socketRef = useSocket(projectId);
+export function useBoardRealtime({
+  orgId,
+  projectId,
+  boardId,
+  columns,
+}: UseBoardRealtimeOptions): RefObject<AppSocket | null> {
+  const socketRef = useSocket(projectId, boardId);
   const utils = api.useUtils();
 
   // Memoized IDs to keep the effect dependency array clean and stable
@@ -68,11 +79,10 @@ export function useBoardRealtime({ orgId, projectId, columns }: UseBoardRealtime
 
       const updated = applyTaskMove(snapshot, task, columnIds);
 
-      // Write each affected column back into the cache
+      // Write every column back into the cache. applyTaskMove always returns
+      // fresh array references (removeTask uses .filter()), so writing
+      // unconditionally is correct and avoids a pointless dirty-check.
       for (const colId of columnIds) {
-        // Write every column back — applyTaskMove always returns new references
-        // (removeTask uses .filter(), so the optimization snapshot !== updated is
-        //  always true — removing the check eliminates dead branches)
         utils.tasks.list.setData(getCacheKey(colId), updated[colId]);
       }
     };
@@ -85,12 +95,61 @@ export function useBoardRealtime({ orgId, projectId, columns }: UseBoardRealtime
       }
     };
 
+    // -- Handler: task:labels_changed --
+    // Replaces every (taskId, label) pair of that task with the fresh list
+    const onTaskLabelsChanged: ServerToClientEvents[typeof SOCKET_EVENTS.TASK_LABELS_CHANGED] = ({
+      taskId,
+      labels,
+    }) => {
+      utils.tasks.labelsByProject.setData({ orgId, projectId }, (prev) => [
+        ...(prev ?? []).filter((pair) => pair.taskId !== taskId),
+        ...labels.map((label) => ({ taskId, label })),
+      ]);
+    };
+
+    // -- Handler: board:updated --
+    // Server truth for the board name + columns after ANY board/column
+    // mutation by anyone. Replaces the cache wholesale - same key that
+    // feeds the whole board since the live-board refactor.
+    const onBoardUpdated: ServerToClientEvents[typeof SOCKET_EVENTS.BOARD_UPDATED] = ({
+      board,
+    }) => {
+      if (board.id === boardId) {
+        utils.boards.get.setData({ orgId, boardId }, board);
+      }
+    };
+
+    // -- Handler: comment:created --
+    const onCommentCreated: ServerToClientEvents[typeof SOCKET_EVENTS.COMMENT_CREATED] = ({
+      comment,
+    }) => {
+      utils.comments.list.setData({ orgId, taskId: comment.taskId }, (prev) => {
+        const existing = prev ?? [];
+        if (existing.some((c) => c.id === comment.id)) return existing;
+        return [...existing, comment];
+      });
+    };
+
+    // -- Handler: comment:deleted --
+    const onCommentDeleted: ServerToClientEvents[typeof SOCKET_EVENTS.COMMENT_DELETED] = ({
+      commentId,
+      taskId,
+    }) => {
+      utils.comments.list.setData({ orgId, taskId }, (prev) =>
+        (prev ?? []).filter((c) => c.id !== commentId),
+      );
+    };
+
     // Map events to handlers for dynamic subscribe/unsubscribe
     const eventHandlers = [
       [SOCKET_EVENTS.TASK_CREATED, onTaskUpserted],
       [SOCKET_EVENTS.TASK_UPDATED, onTaskUpserted],
       [SOCKET_EVENTS.TASK_MOVED, onTaskMoved],
       [SOCKET_EVENTS.TASK_DELETED, onTaskDeleted],
+      [SOCKET_EVENTS.COMMENT_DELETED, onCommentDeleted],
+      [SOCKET_EVENTS.COMMENT_CREATED, onCommentCreated],
+      [SOCKET_EVENTS.TASK_LABELS_CHANGED, onTaskLabelsChanged],
+      [SOCKET_EVENTS.BOARD_UPDATED, onBoardUpdated],
     ] as const;
 
     for (const [event, handler] of eventHandlers) {
@@ -105,5 +164,6 @@ export function useBoardRealtime({ orgId, projectId, columns }: UseBoardRealtime
 
     // columnIds is derived from columns - stable as long as columns don't change
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [socketRef, utils, orgId, projectId, columnIdsKey]);
+  }, [socketRef, utils, orgId, projectId, boardId, columnIdsKey]);
+  return socketRef;
 }

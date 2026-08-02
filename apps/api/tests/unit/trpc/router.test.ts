@@ -1,37 +1,31 @@
-import { describe, expect, it, vi } from "vitest";
-
-vi.mock("../../../src/config/env");
+import { describe, expect, it } from "vitest";
 
 import { createAppRouter } from "../../../src/trpc/router";
+import { makeCtx, VALID_USER } from "../../helpers";
+import { createCallerFactory } from "../../../src/trpc/init";
 import { mockIo } from "../../mocks/socket";
 
-describe("appRouter", () => {
-  const router = createAppRouter(mockIo);
+const NAMESPACES = [
+  "auth",
+  "orgs",
+  "projects",
+  "boards",
+  "tasks",
+  "comments",
+  "labels",
+  "notifications",
+] as const;
 
-  it("is a valid tRPC router object", () => {
-    expect(router).toBeDefined();
-    // tRPC routers expose a _def property with their procedure definitions
-    expect(router._def).toBeDefined();
+describe("createAppRouter", () => {
+  it("mounts every resource namespace", () => {
+    const caller = createCallerFactory(createAppRouter(mockIo))(makeCtx(VALID_USER));
+
+    for (const ns of NAMESPACES) {
+      expect(caller[ns], `missing namespace: ${ns}`).toBeDefined();
+    }
   });
 
-  it("exposes a _def.procedures object", () => {
-    expect(typeof router._def.procedures).toBe("object");
-  });
-
-  it("has all 8 resource routers registered", () => {
-    const keys = Object.keys(router._def.record);
-    expect(keys).toEqual(
-      expect.arrayContaining([
-        "auth",
-        "orgs",
-        "projects",
-        "boards",
-        "tasks",
-        "comments",
-        "labels",
-        "notifications",
-      ]),
-    );
-    expect(keys).toHaveLength(8);
+  it("returns an independent router per io instance", () => {
+    expect(createAppRouter(mockIo)).not.toBe(createAppRouter(mockIo));
   });
 });

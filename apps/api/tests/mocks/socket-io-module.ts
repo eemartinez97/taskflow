@@ -2,7 +2,7 @@
  * Manual mock for the "socket.io" module.
  *
  * Activated in test via:
- *  vi.mock("socket.io", () => import("../mocks/socket-io-module));
+ *  vi.mock("socket.io", () => import("@/tests/mocks/socket-io-module));
  *
  * HOW to access the captured handlers in tests:
  *  import { getMockIoInstance } from "../mocks/socket-io-module
@@ -16,6 +16,8 @@ import { vi } from "vitest";
 // the same reference that the Server constructor registered into.
 const useHandlers: ((socket: unknown, next: (err?: Error) => void) => void)[] = [];
 const connectionHandlers: ((socket: unknown) => void)[] = [];
+// Tracks connected sockets for getConnectedCount() -> io.of("/").sockets.size
+const socketsMap = new Map<string, unknown>();
 
 export const mockIoInstance = {
   use: vi.fn((fn: (socket: unknown, next: (err?: Error) => void) => void) => {
@@ -26,20 +28,30 @@ export const mockIoInstance = {
       connectionHandlers.push(fn);
     }
 
-    return { sockets: { size: 0 } };
+    // The real Server.on() returns `this` for chaining.
+    return mockIoInstance;
   }),
   close: vi.fn((cb: () => void) => {
     cb();
   }),
+  // Implements io.of("/") so getConnectedCount(io) resolves correctly
+  of: vi.fn(() => ({ sockets: socketsMap })),
 
   // Internal helpers for test assertions - not part of the real Server API
   _useHandlers: useHandlers,
   _connectionHandlers: connectionHandlers,
   _reset: (): void => {
     useHandlers.length = 0;
+    socketsMap.clear();
     connectionHandlers.length = 0;
     vi.mocked(mockIoInstance.use).mockClear();
     vi.mocked(mockIoInstance.on).mockClear();
+    vi.mocked(mockIoInstance.of).mockClear();
+  },
+  // Simulates N connected sockets - used by gauge tests
+  _setConnectedCount: (n: number): void => {
+    socketsMap.clear();
+    for (let i = 0; i < n; i++) socketsMap.set(String(i), {});
   },
 };
 

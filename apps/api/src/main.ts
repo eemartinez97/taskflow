@@ -3,5 +3,6 @@ import dotenv from "dotenv";
 // Must run before any other import reads process.env.
 dotenv.config({ quiet: true });
 
-// Side-effect import: bootstraps the HTTP server
-await import("./server");
+const { start } = await import("./server");
+
+start();

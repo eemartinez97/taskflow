@@ -1,18 +1,22 @@
 /**
  * Unit test global setup.
  *
- * MODULE RESOLUTION (important for understanding test behavior):
+ * MODULE RESOLUTION
  * ─────────────────────────────────────────────────────────────
- * @taskflow/database -> tests/mocks/database-mock.ts  (alias, unit project only)
- * src/config/env.js  -> real module by default; tests that need mock call vi.mock()
- * src/config/logger  -> tests/mocks/logger.ts          (vi.mock global)
- * pino-http         -> tests/mocks/http.ts             (vi.mock global)
+ * @taskflow/database -> tests/mocks/database-mock.ts  (alias, "unit" project only)
+ * src/config/env     -> real module by default; tests opt in with
+ *                       vi.mock("…/config/env") which picks up
+ *                       src/config/__mocks__/env.ts automatically
+ * src/config/logger  -> tests/mocks/logger.ts   (vi.mock global)
+ * pino-http          -> tests/mocks/http.ts     (vi.mock global)
  *
- * Integration tests (tests/integration/) bypass the database alias
- * and connect to a real Postgres 18 via Testcontainers.
+ * Integration tests live in tests/integration/ and run under a separate Vitest
+ * project with no alias - they hit a real Postgres via Testcontainers.
  */
 
-// Provide minimum valid env vars before any module reads process.env
+// Must run before any module reads process.env.
+// KEEP NEXTAUTH_SECRET IN SYNC with src/config/__mocks__/env.ts
+
 process.env.NODE_ENV = "test";
 process.env.DATABASE_URL = "postgresql://taskflow:changeme@localhost:5432/taskflow_test";
 process.env.NEXTAUTH_SECRET = "test-secret-value-at-least-16-chars";
@@ -20,11 +24,16 @@ process.env.WEB_ORIGIN = "http://localhost:3000";
 process.env.API_PORT = "8001";
 process.env.API_LOG_LEVEL = "silent";
 
-import { vi } from "vitest";
+import { beforeEach, vi } from "vitest";
 import { mockLogger } from "./mocks/logger";
+import { resetAllTestMocks } from "./support/reset";
 
 // Global mocks
-
 vi.mock("../src/config/logger", () => ({ logger: mockLogger }));
-
 vi.mock("pino-http", () => import("./mocks/http"));
+
+// Runs BEFORE every per-file beforeEach (setup-file hooks register first),
+// so tests can safely configure mocks in their own beforeEach.
+beforeEach(() => {
+  resetAllTestMocks();
+});

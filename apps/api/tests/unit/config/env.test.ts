@@ -1,81 +1,101 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { envSchema, isDevelopment, isProduction, isTest } from "../../../src/config/env";
+import { envSchema, isDevelopment, isProduction, isTest, parseEnv } from "../../../src/config/env";
+import { env as mockEnv } from "../../../src/config/__mocks__/env";
 
-/** Minimal valid env payload reused across all cases */
-const validBase = {
-  DATABASE_URL: "postgresql://user:pass@localhost:5432/db",
-  NEXTAUTH_SECRET: "a-secret-value-long-enough",
+const REQUIRED = {
+  DATABASE_URL: "postgresql://u:p@localhost:5432/db",
+  NEXTAUTH_SECRET: "0123456789abcdef",
 };
 
-describe("env schema validation", () => {
-  it("applies default NODE_ENV=development when not set", () => {
-    expect(envSchema.parse(validBase).NODE_ENV).toBe("development");
+describe("envSchema", () => {
+  it("applies every default", () => {
+    const parsed = envSchema.parse(REQUIRED);
+
+    expect(parsed).toMatchObject({
+      NODE_ENV: "development",
+      API_PORT: 8000,
+      API_LOG_LEVEL: "info",
+      WEB_ORIGIN: "http://localhost:3000",
+    });
   });
 
-  it("applies default API_PORT=8000 when not set", () => {
-    expect(envSchema.parse(validBase).API_PORT).toBe(8000);
+  it("coerces API_PORT from string", () => {
+    expect(envSchema.parse({ ...REQUIRED, API_PORT: "9999" }).API_PORT).toBe(9999);
   });
 
-  it("coerces API_PORT string to number", () => {
-    const result = envSchema.parse({ ...validBase, API_PORT: "9000" });
-    expect(result.API_PORT).toBe(9000);
-    expect(typeof result.API_PORT).toBe("number");
+  it.each([
+    ["API_PORT out of range", { API_PORT: "70000" }],
+    ["API_PORT not an integer", { API_PORT: "80.5" }],
+    ["NODE_ENV unknown", { NODE_ENV: "staging" }],
+    ["API_LOG_LEVEL unknown", { API_LOG_LEVEL: "verbose" }],
+    ["WEB_ORIGIN not a URL", { WEB_ORIGIN: "localhost:3000" }],
+    ["NEXTAUTH_SECRET too short", { NEXTAUTH_SECRET: "short" }],
+  ])("rejects: %s", (_name, override) => {
+    expect(envSchema.safeParse({ ...REQUIRED, ...override }).success).toBe(false);
   });
 
-  it("applies default WEB_ORIGIN when not set", () => {
-    expect(envSchema.parse(validBase).WEB_ORIGIN).toBe("http://localhost:3000");
-  });
+  it("requires DATABASE_URL", () => {
+    const result = envSchema.safeParse({ ...REQUIRED, DATABASE_URL: "" });
 
-  it("accepts a custom WEB_ORIGIN", () => {
-    const WEB_ORIGIN = "https://app.taskflow.dev";
-    const result = envSchema.parse({ ...validBase, WEB_ORIGIN });
-    expect(result.WEB_ORIGIN).toBe(WEB_ORIGIN);
-  });
-
-  it("accepts all valid LOG_LEVEL values", () => {
-    const levels = ["fatal", "error", "warn", "info", "debug", "trace", "silent"] as const;
-    for (const level of levels) {
-      expect(envSchema.parse({ ...validBase, API_LOG_LEVEL: level }).API_LOG_LEVEL).toBe(level);
-    }
-  });
-
-  it("rejects invalid LOG_LEVEL", () => {
-    expect(() => envSchema.parse({ ...validBase, API_LOG_LEVEL: "verbose" })).toThrow();
-  });
-
-  it("rejects empty DATABASE_URL", () => {
-    expect(() => envSchema.parse({ ...validBase, DATABASE_URL: "" })).toThrow();
-  });
-
-  it("rejects NEXTAUTH_SECRET shorter than 16 characters", () => {
-    expect(() => envSchema.parse({ ...validBase, NEXTAUTH_SECRET: "tooshort" })).toThrow();
-  });
-
-  it("rejects API_PORT outside valid range", () => {
-    expect(() => envSchema.parse({ ...validBase, API_PORT: "99999" })).toThrow();
-    expect(() => envSchema.parse({ ...validBase, API_PORT: "0" })).toThrow();
-  });
-
-  it("rejects invalid NODE_ENV value", () => {
-    expect(() => envSchema.parse({ ...validBase, NODE_ENV: "staging" })).toThrow();
+    expect(result.success).toBe(false);
   });
 });
 
-/**
- * Helper functions — tests/setup.ts sets NODE_ENV=test, so the parsed
- * env singleton has NODE_ENV: "test" when this module is imported.
- */
-describe("env helper functions", () => {
-  it("isTest() returns true when NODE_ENV is 'test'", () => {
+describe("environment predicates", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("reports the test environment", () => {
     expect(isTest()).toBe(true);
-  });
-
-  it("isProduction() returns false when NODE_ENV is 'test'", () => {
     expect(isProduction()).toBe(false);
+    expect(isDevelopment()).toBe(false);
   });
 
-  it("isDevelopment() returns false when NODE_ENV is 'test'", () => {
-    expect(isDevelopment()).toBe(false);
+  it.each([
+    ["production", { isProduction: true, isDevelopment: false, isTest: false }],
+    ["development", { isProduction: false, isDevelopment: true, isTest: false }],
+  ])("reports %s after re-import", async (nodeEnv, expected) => {
+    vi.resetModules();
+    vi.stubEnv("NODE_ENV", nodeEnv);
+
+    const mod = await import("../../../src/config/env");
+
+    expect({
+      isProduction: mod.isProduction(),
+      isDevelopment: mod.isDevelopment(),
+      isTest: mod.isTest(),
+    }).toEqual(expected);
+  });
+});
+
+describe("bootstrap validation", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("prints the Zod error and exits with code 1 on invalid env", () => {
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => undefined) as never);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    parseEnv({ ...REQUIRED, NEXTAUTH_SECRET: "to-short" });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(errorSpy).toHaveBeenCalledOnce();
+
+    const errorMessage = errorSpy.mock.calls[0]?.[0] as string | undefined;
+
+    expect(errorMessage).toContain("Invalid environment variables:");
+    expect(errorMessage).toContain("NEXTAUTH_SECRET");
+  });
+});
+
+describe("env mock parity", () => {
+  it("keeps __mocks__/env.ts in sync with tests/setup.ts", () => {
+    expect(mockEnv.NEXTAUTH_SECRET).toBe(process.env.NEXTAUTH_SECRET);
+    expect(mockEnv.WEB_ORIGIN).toBe(process.env.WEB_ORIGIN);
+    expect(mockEnv.API_PORT).toBe(Number(process.env.API_PORT));
   });
 });

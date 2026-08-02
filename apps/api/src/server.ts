@@ -1,26 +1,30 @@
-import { createApp } from "./app";
 import http from "node:http";
+import type { Server as HttpServer } from "node:http";
+
+import { createApp } from "./app";
 import { env } from "./config/env";
 import { logger } from "./config/logger";
 import { createSocketServer } from "./socket/server";
+import type { AppServer } from "./socket/events";
 
-// Bootstrap
+export interface Bootstrapped {
+  httpServer: HttpServer;
+  io: AppServer;
+}
 
-// 1. Create Socket.IO server (attaches to the raw HTTP server)
-const httpServer = http.createServer();
-const io = createSocketServer(httpServer);
+/** Wires Socket.IO + Express onto a raw HTTP server. No side effects. */
+export function bootstrap(): Bootstrapped {
+  const httpServer = http.createServer();
+  const io = createSocketServer(httpServer);
 
-// 2. Wire Express + tRPC (io injected into task/comment routers)
-const app = createApp(io);
-httpServer.on("request", app);
+  const app = createApp(io);
+  httpServer.on("request", app);
 
-// Start listening
-httpServer.listen(env.API_PORT, () => {
-  logger.info({ port: env.API_PORT, env: env.NODE_ENV }, "API server started");
-});
+  return { httpServer, io };
+}
 
-// Graceful shutdown
-function shutdown(signal: string): void {
+/** Drains connections, then exists. Exported so it can be unit tested. */
+export function shutdown({ httpServer, io }: Bootstrapped, signal: string): void {
   logger.info({ signal }, "Shutdown signal received - draining connections");
 
   // Close Socket.IO first so in-flight events are flushed
@@ -38,11 +42,20 @@ function shutdown(signal: string): void {
   }, 10_000).unref();
 }
 
-process.on("SIGTERM", () => {
-  shutdown("SIGTERM");
-});
-process.on("SIGINT", () => {
-  shutdown("SIGINT");
-});
+/** Binds the port and registers signal handlers. Called only from main.ts. */
+export function start(): Bootstrapped {
+  const deps = bootstrap();
 
-export { httpServer, io };
+  deps.httpServer.listen(env.API_PORT, () => {
+    logger.info({ port: env.API_PORT, env: env.NODE_ENV }, "API server started");
+  });
+
+  process.on("SIGTERM", () => {
+    shutdown(deps, "SIGTERM");
+  });
+  process.on("SIGINT", () => {
+    shutdown(deps, "SIGINT");
+  });
+
+  return deps;
+}

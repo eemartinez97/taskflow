@@ -10,12 +10,19 @@ import { type MiddlewareBuilder } from "@trpc/server/unstable-core-do-not-import
 
 import { type Role } from "@taskflow/database";
 import { roleSchema } from "@taskflow/shared";
+import {
+  assertBoardInOrg,
+  assertColumnInOrg,
+  assertLabelInOrg,
+  assertProjectInOrg,
+  assertTaskInOrg,
+} from "../modules/shared/tenancy";
 
 /**
  * Returns null when rawInput is not an object or lacks a string `orgId`
  *
  *
- * Centralised here so both roleGuard and future middleware don't duplicate
+ * Centralized here so both roleGuard and future middleware don't duplicate
  * the same rawInput narrowing pattern
  */
 function extractOrgId(rawInput: unknown): string | null {
@@ -25,6 +32,41 @@ function extractOrgId(rawInput: unknown): string | null {
   const orgId = input.orgId;
 
   return typeof orgId === "string" && orgId.length > 0 ? orgId : null;
+}
+
+/**
+ * Maps an input key to the tenancy assertion that must hold for it.
+ * Adding a new scoped resource = one line here, zero changes elsewhere.
+ */
+const SCOPE_ASSERTIONS = {
+  projectId: assertProjectInOrg,
+  boardId: assertBoardInOrg,
+  columnId: assertColumnInOrg,
+  taskId: assertTaskInOrg,
+  labelId: assertLabelInOrg,
+} as const;
+
+/**
+ * Verifies every resource id present in the input actually lives inside
+ * `orgId`. Without this, membership of ANY org is enough to mutate ANY
+ * resource by id (IDOR across tenants).
+ */
+async function assertInputScopedToOrg(
+  db: TRPCContext["db"],
+  rawInput: unknown,
+  orgId: string,
+): Promise<void> {
+  /* v8 ignore next */
+  if (rawInput === null || typeof rawInput !== "object") return;
+
+  const input = rawInput as Record<string, unknown>;
+
+  for (const [key, assertFn] of Object.entries(SCOPE_ASSERTIONS)) {
+    const value = input[key];
+    if (typeof value === "string" && value.length > 0) {
+      await assertFn(db, value, orgId);
+    }
+  }
 }
 
 // isAuthed middleware
@@ -69,7 +111,7 @@ export const protectedProcedure = baseProcedure.use(isAuthed);
 /**
  * Composable role guard middleware factory.
  *
- * Usage (Open/Closed principle — extend by composing, not by editing):
+ * Usage (Open/Closed principle - extend by composing, not by editing):
  *
  *   const adminProcedure  = protectedProcedure.use(roleGuard(["OWNER", "ADMIN"]));
  *   const memberProcedure = protectedProcedure.use(roleGuard(["OWNER", "ADMIN", "MEMBER"]));
@@ -145,6 +187,9 @@ export function roleGuard(
         message: `This action requires one of the following roles: ${allowedRoles.join(", ")}`,
       });
     }
+
+    // Role is OK for this org - now make sure the ids in the payload belong to it
+    await assertInputScopedToOrg(ctx.db, rawInput, orgId);
 
     return next({
       ctx: {

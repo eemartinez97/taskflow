@@ -44,13 +44,3 @@ export function errorHandler(
     },
   });
 }
-
-/** Convenience factory for creating typed application errors. */
-export function createError(message: string, statusCode: number, code?: string): AppError {
-  const err: AppError = new Error(message);
-  err.statusCode = statusCode;
-
-  if (code !== undefined) err.code = code;
-
-  return err;
-}

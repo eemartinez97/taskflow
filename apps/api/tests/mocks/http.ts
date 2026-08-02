@@ -14,4 +14,14 @@ export const pinoHttp = vi.fn(() => (_req: Request, _res: Response, next: NextFu
   next();
 });
 
+/**
+ * Without this, `vi.resetAllMocks()` makes pinoHttp() return `undefined`
+ * and `app.use(undefined)` throws "requires a middleware function".
+ */
+export function armHttpMock(): void {
+  pinoHttp.mockImplementation(() => (_req: Request, _res: Response, next: NextFunction) => {
+    next();
+  });
+}
+
 export default pinoHttp;

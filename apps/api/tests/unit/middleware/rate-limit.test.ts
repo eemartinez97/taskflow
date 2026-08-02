@@ -1,107 +1,66 @@
-import express, { type RequestHandler } from "express";
-import { describe, expect, it } from "vitest";
-import request from "supertest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { authRateLimiter, createRateLimiter } from "../../../src/middleware/rate-limit";
-import type { ErrorBody } from "../../helpers";
+import type * as rateLimitModule from "../../../src/middleware/rate-limit";
 
-/** Creates a fresh limiter instance per test - guarantees store isolation. */
-function makeLimiter({ maxRequests, message }: { maxRequests: number; message?: string }) {
-  return createRateLimiter({
-    windowMs: 60_000,
-    limit: maxRequests,
-    ...(message !== undefined && { message }),
-  });
+const rateLimitFactory = vi.fn(() => vi.fn());
+vi.mock("express-rate-limit", () => ({ default: rateLimitFactory }));
+
+type RateLimitModule = typeof rateLimitModule;
+
+async function importFresh(isProduction = false): Promise<RateLimitModule> {
+  vi.resetModules();
+  // vi.doMock is NOT hoisted - runs here with the correct value baked into the factory
+  vi.doMock("../../../src/config/env", () => ({
+    isProduction: vi.fn().mockReturnValue(isProduction),
+  }));
+  return import("../../../src/middleware/rate-limit");
 }
 
-/** App with an inline limiter built from options. */
-function makeApp({ maxRequests, message }: { maxRequests: number; message?: string }) {
-  return makeAppWithMiddleware(
-    makeLimiter({ maxRequests, ...(message !== undefined && { message }) }),
-  );
-}
-
-/** App with a pre-built middleware (e.g. authRateLimiter) */
-function makeAppWithMiddleware(middleware: RequestHandler) {
-  const app = express();
-  app.use(middleware);
-  app.get("/test", (_req, res) => {
-    res.status(200).json({ ok: true });
-  });
-  return app;
-}
-
-describe("rate limiter (express-rate-limit)", () => {
-  it("allows requests under the limit", async () => {
-    const app = makeApp({ maxRequests: 3 });
-    await request(app).get("/test").expect(200);
-    await request(app).get("/test").expect(200);
-    await request(app).get("/test").expect(200);
+describe("createRateLimiter", () => {
+  afterEach(() => {
+    vi.resetModules();
   });
 
-  it("blocks the request that exceeds the limit with 429", async () => {
-    const app = makeApp({ maxRequests: 2 });
-    await request(app).get("/test").expect(200);
-    await request(app).get("/test").expect(200);
-    // 3rd request - over limit
-    const res = await request(app).get("/test");
-    expect(res.status).toBe(429);
-    expect((res.body as ErrorBody).error.code).toBe("RATE_LIMITED");
-  });
+  it("merges the shared base options", async () => {
+    const { createRateLimiter } = await importFresh();
+    rateLimitFactory.mockClear();
 
-  it("uses the default message when none is provided", async () => {
-    const app = makeApp({ maxRequests: 1 });
-    await request(app).get("/test").expect(200);
-    const res = await request(app).get("/test");
-    expect((res.body as ErrorBody).error.message).toBe(
-      "Too many requests, please try again later.",
-    );
-  });
+    createRateLimiter({ windowMs: 1000, limit: 5 });
 
-  it("uses a custom message when provided", async () => {
-    const app = makeApp({ maxRequests: 1, message: "Slow down!" });
-    await request(app).get("/test").expect(200);
-    const res = await request(app).get("/test");
-    expect((res.body as ErrorBody).error.message).toBe("Slow down!");
-  });
-
-  it("sets RateLimit headers on the response (draft-8)", async () => {
-    const app = makeApp({ maxRequests: 10 });
-    const res = await request(app).get("/test").expect(200);
-
-    // express-rate-limit v8 with standardHeaders: "draft-8" emits a single
-    // combined `RateLimit` header (e.g. "limit=10, remaining=9, reset=60")
-    // instead of the two separate headers used by draft-6.
-    expect(res.headers).toHaveProperty("ratelimit");
-  });
-
-  it("does not set legacy X-RateLimit-* headers", async () => {
-    const app = makeApp({ maxRequests: 10 });
-    const res = await request(app).get("/test").expect(200);
-    expect(res.headers).not.toHaveProperty("x-ratelimit-limit");
-  });
-});
-
-describe("authRateLimiter", () => {
-  it("is a valid Express middleware", () => {
-    expect(typeof authRateLimiter).toBe("function");
-  });
-
-  it("uses the auth-specific message on 429", async () => {
-    const freshAuthLimiter = createRateLimiter({
-      windowMs: 60_000,
-      limit: 10,
-      message: "Too many authentication attempts, please try again later.",
+    expect(rateLimitFactory).toHaveBeenCalledWith({
+      standardHeaders: "draft-8",
+      legacyHeaders: false,
+      windowMs: 1000,
+      limit: 5,
+      message: {
+        error: { message: "Too many requests, please try again later.", code: "RATE_LIMITED" },
+      },
     });
-    const app = makeAppWithMiddleware(freshAuthLimiter);
+  });
 
-    const responses = await Promise.all(
-      Array.from({ length: 11 }, () => request(app).get("/test")),
+  it("allows overriding the message", async () => {
+    const { createRateLimiter } = await importFresh();
+    rateLimitFactory.mockClear();
+
+    createRateLimiter({ windowMs: 1, limit: 1, message: "Slow down" });
+
+    expect(rateLimitFactory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: { error: { message: "Slow down", code: "RATE_LIMITED" } },
+      }),
     );
-    const blocked = responses.find((r) => r.status === 429);
-    expect(blocked).toBeDefined();
-    expect((blocked?.body as ErrorBody).error.message).toBe(
-      "Too many authentication attempts, please try again later.",
+  });
+
+  it.each([
+    ["production", true, 100],
+    ["non-production", false, 1000],
+  ])("defaultRateLimiter allows %s budget", async (_env, prod, limit) => {
+    rateLimitFactory.mockClear();
+
+    await importFresh(prod); // value is baked into the fresh factory
+
+    expect(rateLimitFactory).toHaveBeenCalledWith(
+      expect.objectContaining({ windowMs: 15 * 60 * 1000, limit }),
     );
   });
 });

@@ -19,7 +19,7 @@ import {
 } from "@taskflow/shared";
 import { createTRPCRouter, protectedProcedure, roleGuard } from "../../trpc/procedures";
 import type { AppServer } from "../../socket/events";
-import { nameField } from "../../../../../packages/shared/src/utils/normalize";
+import { nameField } from "@taskflow/shared";
 
 const memberProcedure = protectedProcedure.use(roleGuard(["OWNER", "ADMIN", "MEMBER"]));
 const adminProcedure = protectedProcedure.use(roleGuard(["OWNER", "ADMIN"]));

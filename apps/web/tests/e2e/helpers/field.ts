@@ -11,9 +11,9 @@ function labelPattern(label: string): RegExp {
 }
 
 /**
- * Use for fields on plain pages with no dialog on screen (e.g. /onboarding,
- * /settings' ProfileForm). Safe ONLY when no closed-but-mounted dialog with
- * a same-labeled field exists elsewhere on that page.
+ * Use for fields on plain pages with no dialog on screen (e.g. /settings'
+ * ProfileForm, /login, /register). Safe ONLY when no closed-but-mounted
+ * dialog with a same-labeled field exists elsewhere on that page.
  */
 export function fieldByLabel(page: Page, label: string): Locator {
   return page.getByLabel(labelPattern(label));

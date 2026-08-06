@@ -1,13 +1,39 @@
 import { hkdfSync } from "node:crypto";
 import { jwtDecrypt } from "jose";
 
-import { parseCookieToken } from "@taskflow/shared";
+import { createPasswordChangedAtCache, parseCookieToken } from "@taskflow/shared";
+import { prisma } from "@taskflow/database";
 import { env } from "../config/env";
 
 export interface AuthSession {
   id: string;
   email: string;
   name: string | null;
+}
+
+/**
+ * Caches each user's `passwordChangedAt` for 60s (the default TTL) so
+ * getSessionUser's revocation check below doesn't pay a DB round-trip on
+ * every request - see createPasswordChangedAtCache's docblock in
+ * packages/shared for the full rationale and the reason this app owns the
+ * `fetch` callback (its own Prisma client) while the cache mechanics live in
+ * packages/shared, shared with apps/web's identical need.
+ */
+const passwordChangedAtCache = createPasswordChangedAtCache();
+
+async function getPasswordChangedAtMs(userId: string): Promise<number | null> {
+  return passwordChangedAtCache.get(userId, async (id) => {
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: { passwordChangedAt: true },
+    });
+    return user?.passwordChangedAt?.getTime() ?? null;
+  });
+}
+
+/** Test-only: clears the cache so each test starts from a clean cache state. */
+export function __resetPasswordChangedAtCacheForTest(): void {
+  passwordChangedAtCache.reset();
 }
 
 /**
@@ -25,7 +51,8 @@ const encryptionKey = new Uint8Array(hkdfSync("sha256", env.NEXTAUTH_SECRET, "",
 
 /**
  * Extracts and cryptographically verifies the NextAuth v4 JWT session from
- * the Cookie header. No database round-trip (stateless JWE decryption).
+ * the Cookie header. Stateless JWE decryption plus one cached, indexed
+ * point read (see getPasswordChangedAtMs) - not a database session lookup.
  */
 export async function getSessionUser(cookieHeader?: string | null): Promise<AuthSession | null> {
   if (!cookieHeader) return null;
@@ -39,6 +66,15 @@ export async function getSessionUser(cookieHeader?: string | null): Promise<Auth
     const { payload } = await jwtDecrypt(token, encryptionKey, { clockTolerance: 15 });
 
     if (typeof payload.sub !== "string" || typeof payload.email !== "string") return null;
+    if (typeof payload.iat !== "number") return null;
+
+    // Reject a session issued before the user's most recent password reset -
+    // see getPasswordChangedAtMs's docblock for why this is the one
+    // exception to this function otherwise never touching the database.
+    const passwordChangedAtMs = await getPasswordChangedAtMs(payload.sub);
+    if (passwordChangedAtMs !== null && passwordChangedAtMs > payload.iat * 1000) {
+      return null;
+    }
 
     return {
       id: payload.sub,
@@ -46,7 +82,8 @@ export async function getSessionUser(cookieHeader?: string | null): Promise<Auth
       name: typeof payload.name === "string" ? payload.name : null,
     };
   } catch {
-    // Token is invalid, expired, or tampered with
+    // Token is invalid, expired, tampered with, or the revocation check
+    // above failed (e.g. DB unavailable) - fail closed either way.
     return null;
   }
 }

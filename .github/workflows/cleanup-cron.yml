@@ -1,0 +1,47 @@
+name: Scheduled DB cleanup
+
+# Deployment-agnostic on purpose: this workflow only needs network access to
+# the production Postgres instance via DATABASE_URL - it doesn't care where
+# apps/web or apps/api are actually hosted (Railway, Vercel, Fly.io, ...).
+# Runs the two @taskflow/database cleanup scripts that exist and are tested
+# but, before this workflow, had nothing invoking them:
+#   - cleanup:abandoned-registrations: deletes unverified User rows (and
+#     their cascaded AuthTokens) past the abandoned-signup TTL.
+#   - cleanup:expired-rate-limits: deletes expired RateLimitBucket rows.
+# Without a scheduler, both tables grow unbounded in any real deployment.
+on:
+  schedule:
+    - cron: "0 4 * * *" # once daily, 04:00 UTC
+  workflow_dispatch: {} # manual trigger for on-demand runs / verification
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.1
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @taskflow/database db:generate
+
+      - name: Delete abandoned (never-verified) registrations
+        run: pnpm --filter @taskflow/database cleanup:abandoned-registrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Delete expired rate-limit buckets
+        run: pnpm --filter @taskflow/database cleanup:expired-rate-limits
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

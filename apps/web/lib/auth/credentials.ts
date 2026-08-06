@@ -32,16 +32,22 @@ export async function authorizeCredentials(
         name: true,
         image: true,
         password: true,
+        emailVerified: true,
       },
     });
 
-    if (!user?.password) return null;
+    // Both guards matter: `emailVerified` null means the account was
+    // registered but never confirmed via the emailed link - see
+    // /verify-email. `password` null is defense-in-depth in case a
+    // User row is ever created through another path (e.g. a future OAuth
+    // provider) without one.
+    if (!user?.password || !user.emailVerified) return null;
 
     const valid = await verifyPassword(plainPassword, user.password);
     if (!valid) return null;
 
     // Strip the password hash before returning - it must never reach callbacks
-    const { password: _password, ...userWithoutPassword } = user;
+    const { password: _password, emailVerified: _emailVerified, ...userWithoutPassword } = user;
     return userWithoutPassword;
   } catch {
     // Surface DB errors as null to prevent information leakage

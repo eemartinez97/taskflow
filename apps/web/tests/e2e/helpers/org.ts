@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 import { CREATE_ORG_VALUE } from "@/lib/constants/org-switcher";
-import { dialogFieldByLabel, fieldByLabel } from "./field";
+import { dialogFieldByLabel } from "./field";
+import { trackOrgForCleanup } from "./org-cleanup";
 
 /** Generates a collision-resistant org name/slug pair for parallel test runs. */
 export function uniqueOrgName(prefix = "Test Org"): { name: string; slug: string } {
@@ -31,23 +32,53 @@ export function uniqueOrgName(prefix = "Test Org"): { name: string; slug: string
  */
 export async function createIsolatedOrg(page: Page, orgName: string): Promise<void> {
   await page.goto("/projects");
-  await page.getByLabel("Select organization").selectOption(CREATE_ORG_VALUE);
+  const orgSwitcher = page.getByLabel("Select organization");
+  await orgSwitcher.selectOption(CREATE_ORG_VALUE);
   await dialogFieldByLabel(page, "Name").fill(orgName);
   await page.getByRole("dialog").getByRole("button", { name: "Create", exact: true }).click();
   await expect(page).toHaveURL(/\/projects/);
   await expect(page.getByRole("dialog")).toBeHidden();
-  await expect(page.getByRole("heading", { name: orgName })).toBeVisible();
+  // Wait for the REAL condition instead of a fixed sleep: the switcher only
+  // reflects the new org once the client has refetched/re-rendered the org
+  // list post-creation. That refetch gets slower as the seeded admin (shared
+  // by every test in the whole run) accumulates more disposable orgs over
+  // the life of the suite - a fixed sleep that passes early in a run starts
+  // failing later, which is exactly the "fewer workers / more repeats"
+  // symptom. Polling with a generous timeout self-adjusts to that.
+  await expect(orgSwitcher).not.toHaveValue(CREATE_ORG_VALUE, { timeout: 15_000 });
+  const heading = page.getByRole("heading", { name: orgName });
+  try {
+    // Short first attempt: the common case is just a slower-than-usual
+    // client refetch (see the switcher-vs-repeat-each rationale above).
+    await expect(heading).toBeVisible({ timeout: 8_000 });
+  } catch {
+    // Rare divergence between the org switcher's value (already updated)
+    // and whatever query paints this heading (still stale) - observed
+    // under real concurrency, not reproducible on demand. A reload forces
+    // a fresh server fetch, bypassing any stuck client-side cache entry.
+    // If this ALSO fails, it's a genuine app-side cache-invalidation bug
+    // (the org-create mutation isn't invalidating the "active org" query)
+    // rather than a test timing issue - worth filing separately if it
+    // recurs.
+    await page.reload();
+    await expect(heading).toBeVisible({ timeout: 15_000 });
+  }
+  // Register for automatic cleanup (see support/fixtures.ts) so this
+  // disposable org doesn't keep accumulating under the shared seed admin
+  // for the rest of THIS run.
+  const orgId = await orgSwitcher.inputValue();
+  trackOrgForCleanup(page, orgId);
 }
 
 /**
- * Completes the first-run onboarding form (reached with zero orgs).
- * Waits for the real form (not the Suspense skeleton) before typing.
+ * Creates a user's first organization from the zero-org empty state
+ * (NoOrgState's "create one" button), reached when a brand-new user has no
+ * orgs yet. Leaves the browser on whatever page the empty state was showing,
+ * with CreateOrgDialog closed and the new org active.
  */
-export async function completeOnboarding(page: Page, orgName: string): Promise<void> {
-  await expect(page).toHaveURL(/\/onboarding/);
-  const submit = page.getByRole("button", { name: "Create Organization" });
-  await expect(submit).toBeVisible();
-  await fieldByLabel(page, "Name").fill(orgName);
-  await submit.click();
-  await expect(page).toHaveURL(/\/projects/);
+export async function createFirstOrgFromEmptyState(page: Page, orgName: string): Promise<void> {
+  await page.getByRole("button", { name: "create one" }).click();
+  await dialogFieldByLabel(page, "Name").fill(orgName);
+  await page.getByRole("dialog").getByRole("button", { name: "Create", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
 }

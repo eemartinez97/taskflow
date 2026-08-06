@@ -9,7 +9,7 @@ export default mergeConfig(
       coverage: {
         include: ["src/**/*.ts"],
         exclude: ["src/types/socket-events.ts"],
-        thresholds: { lines: 90, functions: 90, branches: 90, statements: 90 },
+        thresholds: { lines: 100, functions: 100, branches: 100, statements: 100 },
       },
     },
   }),

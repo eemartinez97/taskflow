@@ -2,6 +2,7 @@
 
 import { type JSX, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
+import { Plus } from "lucide-react";
 
 import { Select } from "@taskflow/ui";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
@@ -34,18 +35,45 @@ export function OrgSwitcher(): JSX.Element | null {
   const confirmDialog = useDisclosure();
   const [pendingOrgId, setPendingOrgId] = useState<string | null>(null);
 
-  if (!orgs || orgs.length === 0) return null;
-
-  const [firstOrg] = orgs;
-  const matchedOrg = activeId ? orgs.find((org) => org.id === activeId) : undefined;
-  /* v8 ignore next -- orgs.length > 0 is guaranteed by the early return above, so this always resolves to an id */
-  const value = (matchedOrg ?? firstOrg)?.id ?? "";
+  if (!orgs) return null;
 
   function switchTo(orgId: string): void {
     setActiveOrgId(orgId);
     router.push("/projects");
     router.refresh();
   }
+
+  const createOrgDialog = (
+    <CreateOrgDialog
+      open={createDialog.isOpen}
+      onClose={createDialog.close}
+      onCreated={(orgId) => {
+        createDialog.close();
+        switchTo(orgId);
+      }}
+    />
+  );
+
+  if (orgs.length === 0) {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={createDialog.open}
+          className="flex items-center gap-1.5 rounded-md px-1 py-1 text-sm font-medium text-brand-600 hover:underline"
+        >
+          <Plus className="h-4 w-4" />
+          Create organization
+        </button>
+        {createOrgDialog}
+      </>
+    );
+  }
+
+  const [firstOrg] = orgs;
+  const matchedOrg = activeId ? orgs.find((org) => org.id === activeId) : undefined;
+  /* v8 ignore next -- orgs.length > 0 is guaranteed by the branch above, so this always resolves to an id */
+  const value = (matchedOrg ?? firstOrg)?.id ?? "";
 
   function handleChange(next: string): void {
     if (next === CREATE_ORG_VALUE) {
@@ -87,14 +115,7 @@ export function OrgSwitcher(): JSX.Element | null {
         <option value={CREATE_ORG_VALUE}>＋ Create organization…</option>
       </Select>
 
-      <CreateOrgDialog
-        open={createDialog.isOpen}
-        onClose={createDialog.close}
-        onCreated={(orgId) => {
-          createDialog.close();
-          switchTo(orgId);
-        }}
-      />
+      {createOrgDialog}
 
       <ConfirmDialog
         open={confirmDialog.isOpen}

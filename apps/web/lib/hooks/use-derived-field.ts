@@ -12,7 +12,7 @@ import type { FieldValues, Path, PathValue, UseFormSetValue } from "react-hook-f
  *
  * Eliminates the previously copy-pasted:
  *   onChange: (e) => { if (!dirtyFields.slug) setValue("slug", deriveSlug(e.target.value)); }
- * duplicated across CreateOrgDialog, OnboardingForm and CreateProjectDialog.
+ * duplicated across CreateOrgDialog and CreateProjectDialog.
  */
 export function createDerivedFieldHandler<
   TFieldValues extends FieldValues,

@@ -24,6 +24,8 @@
     "db:studio": "prisma studio",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
+    "cleanup:abandoned-registrations": "tsx src/scripts/cleanup-abandoned-registrations.ts",
+    "cleanup:expired-rate-limits": "tsx src/scripts/cleanup-expired-rate-limits.ts",
     "test": "vitest run --project=unit",
     "test:integration": "vitest run --project=integration",
     "test:coverage": "vitest run --project=unit --coverage"

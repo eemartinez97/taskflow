@@ -1,11 +1,8 @@
 "use client";
-
 import { useState, type JSX } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-
 import {
   Alert,
   Button,
@@ -17,19 +14,19 @@ import {
   Input,
 } from "@taskflow/ui";
 import { type RegisterInput, registerSchema } from "@/lib/auth/schemas";
-import { signIn } from "next-auth/react";
+import { postJson } from "@/lib/utils/post-json";
 
 /**
- * Register page - Client Component.
+ * Register page (Client Component).
  *
- * Calls POST /api/auth/register (plain Route Handler).
- * On success: redirect to /login with a "check your email" note.
+ * Collects name, email, and password in one step. POST /api/auth/register
+ * creates the account and emails a confirmation link; no session is created
+ * here - the account cannot sign in until that link is confirmed at
+ * /verify-email (see authorizeCredentials's `emailVerified` guard).
  */
-
 export default function RegisterPage(): JSX.Element {
-  const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
-
+  const [submitted, setSubmitted] = useState(false);
   const {
     register,
     handleSubmit,
@@ -40,36 +37,32 @@ export default function RegisterPage(): JSX.Element {
 
   async function onSubmit(data: RegisterInput): Promise<void> {
     setServerError(null);
-
-    const res = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-
-    if (res.status === 409) {
+    const { ok, status, body } = await postJson("/api/auth/register", data);
+    if (status === 409) {
       setServerError("An account with that email already exists.");
       return;
     }
-
-    if (!res.ok) {
-      const body = (await res.json()) as { error?: string };
+    if (!ok) {
       setServerError(body.error ?? "Something went wrong. Please try again.");
       return;
     }
+    setSubmitted(true);
+  }
 
-    const result = await signIn("credentials", {
-      email: data.email,
-      password: data.password,
-      redirect: false,
-    });
-
-    if (result?.error) {
-      router.push("/login");
-      return;
-    }
-
-    router.push("/projects");
+  if (submitted) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Check your email</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-gray-600">
+            We sent a confirmation link to your email address. Click it to activate your account,
+            then sign in. The link expires in 1 hour.
+          </p>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
@@ -77,11 +70,9 @@ export default function RegisterPage(): JSX.Element {
       <CardHeader>
         <CardTitle>Create your account</CardTitle>
       </CardHeader>
-
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
           <Alert message={serverError} />
-
           <FormField label="Name" htmlFor="name" required error={errors.name?.message}>
             <Input
               id="name"
@@ -91,7 +82,6 @@ export default function RegisterPage(): JSX.Element {
               {...register("name")}
             />
           </FormField>
-
           <FormField label="Email" htmlFor="email" required error={errors.email?.message}>
             <Input
               id="email"
@@ -101,7 +91,6 @@ export default function RegisterPage(): JSX.Element {
               {...register("email")}
             />
           </FormField>
-
           <FormField label="Password" htmlFor="password" required error={errors.password?.message}>
             <Input
               id="password"
@@ -111,11 +100,9 @@ export default function RegisterPage(): JSX.Element {
               {...register("password")}
             />
           </FormField>
-
           <p className="text-xs text-gray-400">
             At least 10 characters, with uppercase, lowercase, a number and a symbol.
           </p>
-
           <FormField
             label="Confirm Password"
             htmlFor="confirmPassword"
@@ -130,11 +117,9 @@ export default function RegisterPage(): JSX.Element {
               {...register("confirmPassword")}
             />
           </FormField>
-
           <Button type="submit" fullWidth loading={isSubmitting}>
             Create account
           </Button>
-
           <p className="text-center text-sm text-gray-500">
             {"Already have an account? "}
             <Link href="/login" className="font-medium text-brand-600 hover:underline">

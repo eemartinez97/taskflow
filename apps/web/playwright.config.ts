@@ -1,7 +1,23 @@
 import { defineConfig, devices } from "@playwright/test";
+import { randomBytes } from "node:crypto";
 import path from "node:path";
 
 const AUTH_FILE = path.join(process.cwd(), "playwright/.auth/user.json");
+
+/**
+ * Second gate on the /api/test/* backdoor routes, on top of
+ * ENABLE_TEST_ROUTES - see lib/http/test-route-guard.ts. Generated fresh
+ * per config load (once per `playwright test` invocation) and never written
+ * to any deployment's env, so a leaked/misconfigured ENABLE_TEST_ROUTES flag
+ * alone can no longer reach these routes.
+ *
+ * Assigning it onto process.env here (not just the webServer's env below)
+ * makes it visible to global-setup.ts, global-teardown.ts, and every test
+ * file/worker - they're all spawned as children of THIS process, after this
+ * module has already run, so they inherit the mutated env.
+ */
+const E2E_TEST_SECRET = process.env.E2E_TEST_SECRET ?? randomBytes(32).toString("hex");
+process.env.E2E_TEST_SECRET = E2E_TEST_SECRET;
 
 /**
  * Playwright 1.60 E2E configuration.
@@ -33,6 +49,7 @@ export default defineConfig({
   },
 
   globalSetup: "./tests/e2e/global-setup.ts",
+  globalTeardown: "./tests/e2e/global-teardown.ts",
 
   use: {
     baseURL: "http://localhost:3000",
@@ -62,12 +79,19 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
-      command: process.env.CI
-        ? "pnpm --filter @taskflow/web build && pnpm --filter @taskflow/web start"
-        : "pnpm --filter @taskflow/web dev",
+      // ALWAYS a production build, even locally - `next dev` compiles routes
+      // on-demand per request. Under E2E's real concurrency (multiple
+      // browser contexts hitting the same server at once, amplified further
+      // by --repeat-each), that lazy compilation queues up and individual
+      // navigations start exceeding the test timeout - a resource-contention
+      // flake, not a logic bug. A production build is pre-compiled, so
+      // request latency stays flat regardless of concurrency.
+      command: "pnpm --filter @taskflow/web build && pnpm --filter @taskflow/web start",
       url: "http://localhost:3000",
       reuseExistingServer: !process.env.CI,
-      timeout: process.env.CI ? 180_000 : 120_000,
+      // 180s covers the build step (which now always runs) plus server boot.
+      timeout: 180_000,
+      env: { ENABLE_TEST_ROUTES: "true", E2E_TEST_SECRET },
     },
   ],
 });

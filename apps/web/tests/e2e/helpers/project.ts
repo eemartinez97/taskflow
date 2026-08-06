@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 import { dialogFieldByLabel } from "./field";
+import { clickAndExpectUrl } from "./nav";
 
 /** E2E helpers for project-related actions. */
 export function uniqueProjectName(prefix = "Test Project"): {
@@ -31,6 +32,5 @@ export async function createProject(
 }
 
 export async function navigateToProject(page: Page, projectName: string): Promise<void> {
-  await page.getByText(projectName).click();
-  await page.waitForURL(/\/projects\//);
+  await clickAndExpectUrl(page.getByText(projectName), /\/projects\//);
 }

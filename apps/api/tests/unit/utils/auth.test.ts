@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import { EncryptJWT } from "jose";
 
-import { getSessionUser } from "../../../src/utils/auth";
+import { __resetPasswordChangedAtCacheForTest, getSessionUser } from "../../../src/utils/auth";
+import { mockDb } from "../../mocks/database-mock";
 import {
   deriveTestKey,
   makeCookieHeader,
@@ -11,6 +12,11 @@ import {
 } from "../../helpers";
 
 describe("getSessionUser", () => {
+  beforeEach(() => {
+    __resetPasswordChangedAtCacheForTest();
+    mockDb.user.findUnique.mockResolvedValue({ passwordChangedAt: null });
+  });
+
   it.each([
     ["undefined cookie header", undefined],
     ["null cookie header", null],
@@ -105,5 +111,74 @@ describe("getSessionUser", () => {
     // Regression guard: @auth/core v5 uses a different HKDF info string and
     // would silently stop decrypting v4 cookies.
     expect(deriveTestKey(TEST_SECRET)).toHaveLength(32);
+  });
+
+  it("returns null when the token has no iat claim", async () => {
+    const token = await new EncryptJWT({ sub: VALID_USER.id, email: VALID_USER.email })
+      .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
+      .setExpirationTime("1h")
+      .encrypt(deriveTestKey());
+
+    await expect(getSessionUser(makeCookieHeader(token))).resolves.toBeNull();
+  });
+
+  describe("password-reset session revocation", () => {
+    it("accepts the session when the password has never been reset", async () => {
+      mockDb.user.findUnique.mockResolvedValue({ passwordChangedAt: null });
+
+      const token = await makeSessionToken();
+      await expect(getSessionUser(makeCookieHeader(token))).resolves.toMatchObject({
+        id: VALID_USER.id,
+      });
+    });
+
+    it("accepts the session when it was issued after the last password reset", async () => {
+      mockDb.user.findUnique.mockResolvedValue({
+        passwordChangedAt: new Date(Date.now() - 60 * 60 * 1000), // 1h ago
+      });
+
+      const token = await makeSessionToken(); // iat = now
+      await expect(getSessionUser(makeCookieHeader(token))).resolves.toMatchObject({
+        id: VALID_USER.id,
+      });
+    });
+
+    it("rejects the session when it was issued before the last password reset", async () => {
+      const token = await new EncryptJWT({ sub: VALID_USER.id, email: VALID_USER.email })
+        .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
+        .setIssuedAt(Math.floor(Date.now() / 1000) - 3600) // issued 1h ago
+        .setExpirationTime("2h")
+        .encrypt(deriveTestKey());
+
+      mockDb.user.findUnique.mockResolvedValue({ passwordChangedAt: new Date() }); // reset just now
+
+      await expect(getSessionUser(makeCookieHeader(token))).resolves.toBeNull();
+    });
+
+    it("looks up passwordChangedAt by the token's userId", async () => {
+      const token = await makeSessionToken();
+      await getSessionUser(makeCookieHeader(token));
+
+      expect(mockDb.user.findUnique).toHaveBeenCalledWith({
+        where: { id: VALID_USER.id },
+        select: { passwordChangedAt: true },
+      });
+    });
+
+    it("caches passwordChangedAt so a second call within the TTL doesn't re-query the database", async () => {
+      const token = await makeSessionToken();
+
+      await getSessionUser(makeCookieHeader(token));
+      await getSessionUser(makeCookieHeader(token));
+
+      expect(mockDb.user.findUnique).toHaveBeenCalledOnce();
+    });
+
+    it("fails closed when the passwordChangedAt lookup throws", async () => {
+      mockDb.user.findUnique.mockRejectedValue(new Error("DB unavailable"));
+
+      const token = await makeSessionToken();
+      await expect(getSessionUser(makeCookieHeader(token))).resolves.toBeNull();
+    });
   });
 });

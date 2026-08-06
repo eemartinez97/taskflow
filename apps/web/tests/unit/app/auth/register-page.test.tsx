@@ -1,8 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
-
-import { signIn } from "next-auth/react";
+import { describe, expect, it } from "vitest";
 import RegisterPage from "@/app/(auth)/register/page";
 import { validRegisterPayload } from "@/tests/support/fixtures";
 import { setupRouterMock } from "@/tests/support/render";
@@ -13,7 +11,10 @@ async function fillAndSubmitRegister(): Promise<void> {
   await user.type(screen.getByLabelText(/^name$/i), validRegisterPayload.name);
   await user.type(screen.getByLabelText(/^email$/i), validRegisterPayload.email);
   await user.type(screen.getByLabelText(/^password$/i), validRegisterPayload.password);
-  await user.type(screen.getByLabelText(/confirm password/i), validRegisterPayload.confirmPassword);
+  await user.type(
+    screen.getByLabelText(/^confirm password$/i),
+    validRegisterPayload.confirmPassword,
+  );
   await user.click(screen.getByRole("button", { name: /create account/i }));
 }
 
@@ -28,55 +29,53 @@ describe("RegisterPage", () => {
     teardownFetchSpy();
   });
 
-  it("submits the form and redirects to /projects on full success", async () => {
-    const { pushMock } = setupRouterMock();
-    const fetchSpy = setupFetchSpy(mockFetchResponse({ user: { id: "u1" } }, 201));
-    vi.mocked(signIn).mockResolvedValueOnce({ error: null, ok: true, status: 200, url: null });
+  it("shows a validation error when passwords do not match", async () => {
+    setupRouterMock();
+    const fetchSpy = setupFetchSpy();
+    render(<RegisterPage />);
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/^name$/i), validRegisterPayload.name);
+    await user.type(screen.getByLabelText(/^email$/i), validRegisterPayload.email);
+    await user.type(screen.getByLabelText(/^password$/i), validRegisterPayload.password);
+    await user.type(screen.getByLabelText(/^confirm password$/i), "Different1!Password");
+    await user.click(screen.getByRole("button", { name: /create account/i }));
+    expect(await screen.findByText(/do not match/i)).toBeInTheDocument();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    teardownFetchSpy();
+  });
 
+  it("submits the form and shows the 'check your email' confirmation on success", async () => {
+    setupRouterMock();
+    const fetchSpy = setupFetchSpy(mockFetchResponse({ message: "Check your email." }, 201));
     render(<RegisterPage />);
     await fillAndSubmitRegister();
-
     await waitFor(() => {
-      expect(pushMock).toHaveBeenCalledWith("/projects");
+      expect(screen.getByRole("heading", { name: /check your email/i })).toBeInTheDocument();
     });
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/auth/register",
       expect.objectContaining({ method: "POST" }),
     );
+    // The form itself is replaced by the confirmation - no lingering fields.
+    expect(screen.queryByLabelText(/^name$/i)).not.toBeInTheDocument();
     teardownFetchSpy();
   });
 
-  it("proceeds to /projects when signIn resolves without an error field", async () => {
-    const { pushMock } = setupRouterMock();
-    setupFetchSpy(mockFetchResponse({ user: { id: "u1" } }, 201));
-    vi.mocked(signIn).mockResolvedValueOnce(undefined);
-    render(<RegisterPage />);
-    await fillAndSubmitRegister();
-    await waitFor(() => {
-      expect(pushMock).toHaveBeenCalledWith("/projects");
-    });
-    teardownFetchSpy();
-  });
-
-  it("shows an inline error and does not sign in when the email is already registered", async () => {
+  it("shows the 'already exists' error for a fully registered email (409)", async () => {
     setupRouterMock();
     setupFetchSpy(mockFetchResponse({ error: "taken" }, 409));
-
     render(<RegisterPage />);
     await fillAndSubmitRegister();
-
     expect(await screen.findByText(/already exists/i)).toBeInTheDocument();
-    expect(signIn).not.toHaveBeenCalled();
+    expect(screen.queryByRole("heading", { name: /check your email/i })).not.toBeInTheDocument();
     teardownFetchSpy();
   });
 
   it("shows the server's error message for other non-OK responses", async () => {
     setupRouterMock();
     setupFetchSpy(mockFetchResponse({ error: "Something specific broke." }, 400));
-
     render(<RegisterPage />);
     await fillAndSubmitRegister();
-
     expect(await screen.findByText("Something specific broke.")).toBeInTheDocument();
     teardownFetchSpy();
   });
@@ -87,25 +86,6 @@ describe("RegisterPage", () => {
     render(<RegisterPage />);
     await fillAndSubmitRegister();
     expect(await screen.findByText("Something went wrong. Please try again.")).toBeInTheDocument();
-    teardownFetchSpy();
-  });
-
-  it("redirects to /login when signIn fails after a successful registration", async () => {
-    const { pushMock } = setupRouterMock();
-    setupFetchSpy(mockFetchResponse({ user: { id: "u1" } }, 201));
-    vi.mocked(signIn).mockResolvedValueOnce({
-      error: "CredentialsSignin",
-      ok: false,
-      status: 401,
-      url: null,
-    });
-
-    render(<RegisterPage />);
-    await fillAndSubmitRegister();
-
-    await waitFor(() => {
-      expect(pushMock).toHaveBeenCalledWith("/login");
-    });
     teardownFetchSpy();
   });
 });

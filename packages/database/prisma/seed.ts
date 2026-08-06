@@ -53,12 +53,13 @@ async function main(): Promise<void> {
 
   const user = await prisma.user.upsert({
     where: { id: SEED_IDS.user },
-    update: { password: hashedPassword },
+    update: { password: hashedPassword, emailVerified: new Date() },
     create: {
       id: SEED_IDS.user,
       name: "Admin User",
       email: "admin@taskflow.dev",
       password: hashedPassword,
+      emailVerified: new Date(),
     },
   });
 

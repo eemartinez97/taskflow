@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, type JSX } from "react";
+import { useEffect, useId, useRef, type JSX } from "react";
 import { cn } from "./utils";
 
 export interface DialogProps {
@@ -32,6 +32,8 @@ export function Dialog({
   className,
 }: DialogProps): JSX.Element {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const descriptionId = useId();
 
   // Sync open state with the native <dialog> API
   useEffect(() => {
@@ -68,6 +70,8 @@ export function Dialog({
   return (
     <dialog
       ref={dialogRef}
+      aria-labelledby={titleId}
+      aria-describedby={description ? descriptionId : undefined}
       className={cn(
         // Reset browser default styles
         "rounded-xl border border-gray-200 bg-white p-0 shadow-lg",
@@ -84,8 +88,14 @@ export function Dialog({
     >
       {/* Header */}
       <div className="flex flex-col gap-1.5 border-b border-gray-200 px-6 py-4 shrink-0">
-        <h2 className="text-base font-semibold leading-none text-gray-900">{title}</h2>
-        {description && <p className="text-sm text-gray-500">{description}</p>}
+        <h2 id={titleId} className="text-base font-semibold leading-none text-gray-900">
+          {title}
+        </h2>
+        {description && (
+          <p id={descriptionId} className="text-sm text-gray-500">
+            {description}
+          </p>
+        )}
       </div>
 
       {/* Body - skipped entirely when there is no content, so the header and

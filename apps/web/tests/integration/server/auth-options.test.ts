@@ -23,6 +23,8 @@ vi.mock("@/lib/env.server", () => ({
 }));
 
 import { authOptions } from "@/auth";
+import { mockDb } from "@/tests/mocks/taskflow-database";
+import { __resetSessionRevocationCacheForTest } from "@/lib/auth/session-revocation";
 
 // Typed helpers - cast to a simpler signature to avoid NextAuth's
 // internal overloaded callback types.
@@ -44,10 +46,10 @@ const invokeJwt = (params: JwtParams): JWT => {
   return (jwtCallback as (p: JwtParams) => JWT)(params);
 };
 
-const invokeSession = (params: SessionParams): Session => {
+const invokeSession = async (params: SessionParams): Promise<Session> => {
   const sessionCallback = authOptions.callbacks?.session;
   if (!sessionCallback) throw new Error("authOptions.callbacks.session is not defined.");
-  return (sessionCallback as (p: SessionParams) => Session)(params);
+  return (sessionCallback as (p: SessionParams) => Promise<Session>)(params);
 };
 
 function getProvider(): {
@@ -194,32 +196,68 @@ describe("authOptions", () => {
       user: { id: "", name: "Alice", email: "alice@test.com", image: null },
       expires: new Date(Date.now() + 3_600_000).toISOString(),
     });
+    const nowSeconds = Math.floor(Date.now() / 1000);
 
-    it("attaches token.id to session.user.id when the token carries an id", () => {
-      const token: JWT = { sub: "s", id: "user-abc" };
+    beforeEach(() => {
+      __resetSessionRevocationCacheForTest();
+      mockDb.user.findUnique.mockResolvedValue({ passwordChangedAt: null });
+    });
 
-      const result = invokeSession({ session: makeSession(), token });
+    it("attaches token.id to session.user.id when the token carries an id and iat", async () => {
+      const token: JWT = { sub: "s", id: "user-abc", iat: nowSeconds };
+
+      const result = await invokeSession({ session: makeSession(), token });
 
       expect(result.user.id).toBe("user-abc");
     });
 
-    it("does not modify session.user.id when the token has no id", () => {
+    it("does not modify session.user.id when the token has no id", async () => {
       const session = makeSession();
       session.user.id = "original-id";
-      const token: JWT = { sub: "s" }; // no id claim
+      const token: JWT = { sub: "s", iat: nowSeconds }; // no id claim
 
-      const result = invokeSession({ session, token });
+      const result = await invokeSession({ session, token });
 
       expect(result.user.id).toBe("original-id");
     });
 
-    it("returns the session object (even when token.id is absent)", () => {
+    it("returns the session object (even when token.id is absent)", async () => {
       const session = makeSession();
-      const token: JWT = { sub: "s" };
+      const token: JWT = { sub: "s", iat: nowSeconds };
 
-      const result = invokeSession({ session, token });
+      const result = await invokeSession({ session, token });
 
       expect(result).toBe(session);
+    });
+
+    it("leaves session.user.id unset when the token has no iat claim (fail closed)", async () => {
+      const token: JWT = { sub: "s", id: "user-abc" }; // no iat claim
+
+      const result = await invokeSession({ session: makeSession(), token });
+
+      expect(result.user.id).toBe("");
+    });
+
+    it("leaves session.user.id unset when the token predates the user's last password reset", async () => {
+      mockDb.user.findUnique.mockResolvedValue({
+        passwordChangedAt: new Date((nowSeconds + 60) * 1000),
+      });
+      const token: JWT = { sub: "s", id: "user-abc", iat: nowSeconds };
+
+      const result = await invokeSession({ session: makeSession(), token });
+
+      expect(result.user.id).toBe("");
+    });
+
+    it("attaches token.id when the token was issued after the user's last password reset", async () => {
+      mockDb.user.findUnique.mockResolvedValue({
+        passwordChangedAt: new Date((nowSeconds - 60) * 1000),
+      });
+      const token: JWT = { sub: "s", id: "user-abc", iat: nowSeconds };
+
+      const result = await invokeSession({ session: makeSession(), token });
+
+      expect(result.user.id).toBe("user-abc");
     });
   });
 });

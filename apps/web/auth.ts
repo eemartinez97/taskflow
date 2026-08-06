@@ -2,6 +2,7 @@ import "server-only";
 import CredentialsProvider from "next-auth/providers/credentials";
 import type { NextAuthOptions, Session, User } from "next-auth";
 import { authorizeCredentials } from "@/lib/auth/credentials";
+import { isSessionRevoked } from "@/lib/auth/session-revocation";
 import { serverEnv } from "@/lib/env.server";
 import { prisma } from "@taskflow/database";
 import type { JWT } from "next-auth/jwt";
@@ -79,9 +80,14 @@ export const authOptions: NextAuthOptions = {
      *
      * `session.user` already has name/email/image from the adapter.
      * We only extend with `id` - never add sensitive fields here.
+     *
+     * Also revokes the session if it predates the user's most recent
+     * password reset (see isSessionRevoked's docblock) - leaving
+     * `session.user.id` unset makes getSession() (lib/auth/session.ts)
+     * treat this as signed-out, which every protectedProcedure relies on.
      */
-    session({ session, token }): Session {
-      if (token.id) {
+    async session({ session, token }): Promise<Session> {
+      if (token.id && !(await isSessionRevoked(token.id, token.iat))) {
         session.user.id = token.id;
       }
       return session;

@@ -1,0 +1,12 @@
+export type { EmailSender, SendEmailParams, SendEmailResult } from "./types";
+export { EmailDeliveryError } from "./errors";
+export { createEmailSender } from "./factory";
+export type { CreateEmailSenderOptions } from "./factory";
+export { InMemoryEmailSender } from "./providers/in-memory";
+export type { SentEmail } from "./providers/in-memory";
+export { sendVerificationEmail } from "./send-verification-email";
+export type { SendVerificationEmailParams } from "./send-verification-email";
+export { sendPasswordResetEmail } from "./send-password-reset-email";
+export type { SendPasswordResetEmailParams } from "./send-password-reset-email";
+export { sendAccountActivatedEmail } from "./send-account-activated-email";
+export type { SendAccountActivatedEmailParams } from "./send-account-activated-email";

@@ -60,7 +60,16 @@ describe("proxy middleware", () => {
       },
     );
 
-    it.each(["/projects", "/settings", "/team", "/organizations", "/tasks", "/onboarding"])(
+    it.each(["/verify-email", "/forgot-password", "/reset-password"])(
+      "passes through always-accessible route %s without redirecting (authed)",
+      async (path) => {
+        const res = await proxy(makeRequest(path));
+
+        expect(location(res)).toBeNull();
+      },
+    );
+
+    it.each(["/projects", "/settings", "/team", "/organizations", "/tasks"])(
       "passes through protected route %s without redirecting",
       async (path) => {
         const res = await proxy(makeRequest(path));
@@ -88,7 +97,6 @@ describe("proxy middleware", () => {
       ["/team", "%2Fteam"],
       ["/organizations", "%2Forganizations"],
       ["/tasks", "%2Ftasks"],
-      ["/onboarding", "%2Fonboarding"],
     ])("redirects %s to /login with the correct callbackUrl", async (path, encodedPath) => {
       const res = await proxy(makeRequest(path));
       const loc = location(res) ?? "";
@@ -97,5 +105,14 @@ describe("proxy middleware", () => {
       expect(loc).toContain("/login");
       expect(loc).toContain(`callbackUrl=${encodedPath}`);
     });
+
+    it.each(["/verify-email", "/forgot-password", "/reset-password"])(
+      "passes through always-accessible route %s without redirecting (unauthed)",
+      async (path) => {
+        const res = await proxy(makeRequest(path));
+
+        expect(location(res)).toBeNull();
+      },
+    );
   });
 });

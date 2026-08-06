@@ -1,92 +1,145 @@
 import { type NextRequest, NextResponse } from "next/server";
-
 import { prisma } from "@taskflow/database";
-
+import { EmailDeliveryError, sendVerificationEmail } from "@taskflow/mail";
 import { registerSchema } from "@/lib/auth/schemas";
 import { hashPassword } from "@/lib/auth/password";
+import { emailSender } from "@/lib/mail/sender";
+import { serverEnv } from "@/lib/env.server";
+import { AUTH_TOKEN_TTL_HOURS, invalidateOtherAuthTokens, issueAuthToken } from "@/lib/auth/tokens";
+import {
+  checkAuthEmailRateLimit,
+  checkAuthIpRateLimit,
+  releaseAuthEmailRateLimit,
+  releaseAuthIpRateLimit,
+} from "@/lib/auth/rate-limit";
+import { parseJsonBody } from "@/lib/http/parse-json-body";
+import { getClientIp } from "@/lib/http/client-ip";
 
 /**
  * Normalizes the email field in an unknown body object before schema validation.
- *
- * WHY pre-normalize:
- * Zod's `z.email()` correctly rejects email with leading/trailing spaces
- * (they are technically invalid). However, browser autofill and password managers
- * sometimes pad fields with whitespaces. We trim email BEFORE Zod so the user
- * gets a seamless experience, and the stored email is always normalized.
- *
- * Only email trimming happens here. Lowercase normalization happens after
- * Zod parses the validated data.
+ * Browser autofill sometimes pads emails with whitespace; trimming happens
+ * here (before Zod) so `.email()` validation never sees the padding, and
+ * lowercasing happens after Zod parses.
  */
 function preprocessBody(body: unknown): unknown {
   if (body === null || typeof body !== "object") return body;
-
   const raw = body as Record<string, unknown>;
   const email = raw.email;
-
   if (typeof email !== "string") return body;
-
   return { ...raw, email: email.trim() };
 }
 
 /**
  * POST /api/auth/register
  *
- * Creates a new user account with a hashed password.
- * NextAuth v4 only handles sign-in - registration is a plain Route Handler
+ * Single-step registration: collects name, email, and password up front,
+ * creates the account with a hashed password, and emails a confirmation
+ * link. The account cannot sign in until that link is clicked - see
+ * authorizeCredentials's `emailVerified` guard and /verify-email.
+ *
+ * Resubmitting with the SAME email while the account is still unverified is
+ * treated as "resend the link" instead of a duplicate-account error - this is
+ * how an abandoned signup self-heals without creating orphan rows or
+ * permanently locking someone out of a typo'd first attempt. Crucially, this
+ * resend does NOT overwrite the existing row's name/password with whatever
+ * was just submitted: doing so would let anyone who merely knows a pending
+ * email address hijack it by "re-registering" with their own password before
+ * the real owner's mailbox confirms it - the fresh verification link that
+ * gets sent still activates the ORIGINAL account with the ORIGINAL password.
+ * An attacker's submitted credentials are simply never persisted.
  *
  * Response shapes:
- *   201 { user: { id, email, name } } - success
- *   400 { error: string }             - validation failure
- *   409 { error: string }             - email already registered
- *   500 { error: string }             - unexpected server error
+ *   201 { message }  - verification email sent (fresh signup OR resend)
+ *   400 { error }     - validation failure
+ *   409 { error }     - a VERIFIED account already uses this email
+ *   429 { error }     - too many requests for this email OR from this IP
+ *   500 { error }     - unexpected server error
+ *
+ * NOTE: unlike /api/auth/forgot-password, this route's error responses are
+ * NOT generic - a 409 here deliberately reveals that a verified account
+ * already owns the email (registration UX outweighs enumeration risk at
+ * this specific endpoint). Don't copy this route's error-handling shape
+ * into forgot-password's, or vice versa, without re-reading both docblocks.
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  let body: unknown;
+  const result = await parseJsonBody(req, registerSchema, preprocessBody);
+  if ("error" in result) return result.error;
 
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
-  }
-
-  const preprocessed = preprocessBody(body);
-  const parsed = registerSchema.safeParse(preprocessed);
-
-  if (!parsed.success) {
-    /* v8 ignore start */
-    // Zod always provides a message; the ?? fallback is
-    // unreachable in practice but kept as a defensive safety net.
-    const message = parsed.error.issues[0]?.message ?? "Invalid input.";
-    return NextResponse.json({ error: message }, { status: 400 });
-    /* v8 ignore stop */
-  }
-
-  const { name, email, password } = parsed.data;
-  // `email` was already trimmed by preprocessBody before Zod validated it.
+  const { name, email, password } = result.data;
   const normalizedEmail = email.toLowerCase();
+
+  // Two independent axes - see rate-limit.ts's docblock: the per-email limit
+  // bounds requests AGAINST one target address, the per-IP limit bounds
+  // requests FROM one actor (who could otherwise cycle through many target
+  // emails and never trip the per-email limit on its own). clientIp is null
+  // when genuinely unavailable - checkAuthIpRateLimit is simply skipped for
+  // that request rather than sharing one bucket across every such request.
+  const clientIp = getClientIp(req);
+  const [emailCheck, ipCheck] = await Promise.all([
+    checkAuthEmailRateLimit(normalizedEmail),
+    clientIp ? checkAuthIpRateLimit(clientIp) : null,
+  ]);
+  if (emailCheck.limited || ipCheck?.limited) {
+    return NextResponse.json(
+      { error: "Too many requests. Please try again later." },
+      { status: 429 },
+    );
+  }
 
   try {
     const existing = await prisma.user.findUnique({
       where: { email: normalizedEmail },
-      select: { id: true },
+      select: { id: true, name: true, emailVerified: true },
     });
 
-    if (existing) {
+    // A verified account already owns this email.
+    if (existing?.emailVerified) {
       return NextResponse.json(
         { error: "An account with that email already exists." },
         { status: 409 },
       );
     }
 
-    const hashed = await hashPassword(password);
+    // Brand-new signup, or an abandoned one (never verified) - reuse the row
+    // so retrying never creates duplicate accounts. An existing unverified
+    // row's name/password are left untouched (see the docblock above) - only
+    // a genuinely new row gets the submitted password hashed and stored.
+    const user =
+      existing ??
+      (await prisma.user.create({
+        data: { name, email: normalizedEmail, password: await hashPassword(password) },
+      }));
 
-    const user = await prisma.user.create({
-      data: { name, email: normalizedEmail, password: hashed },
-      select: { id: true, email: true, name: true },
+    const { rawToken } = await issueAuthToken(prisma, user.id, "EMAIL_VERIFICATION");
+    const verifyUrl = `${serverEnv.NEXTAUTH_URL}/verify-email?token=${rawToken}`;
+
+    await sendVerificationEmail(emailSender, {
+      to: normalizedEmail,
+      name: user.name ?? name,
+      verifyUrl,
+      expiresInHours: AUTH_TOKEN_TTL_HOURS,
     });
 
-    return NextResponse.json({ user }, { status: 201 });
-  } catch {
+    // Only invalidate the previous link now that the new one is confirmed
+    // delivered - see issueAuthToken's docblock.
+    await invalidateOtherAuthTokens(prisma, user.id, "EMAIL_VERIFICATION", rawToken);
+
+    return NextResponse.json(
+      { message: "Check your email to confirm your account." },
+      { status: 201 },
+    );
+  } catch (error) {
+    // Only refund quota for failures upstream of a send attempt (DB down,
+    // etc.) - NOT for a send that was attempted and actually failed
+    // (EmailDeliveryError). Refunding on every failure let an attacker
+    // trigger Resend errors (e.g. by exhausting its own quota) to make this
+    // rate limiter refund itself indefinitely - see EmailDeliveryError's
+    // docblock in @taskflow/mail.
+    if (!(error instanceof EmailDeliveryError)) {
+      await releaseAuthEmailRateLimit(normalizedEmail, emailCheck.windowToken);
+      if (clientIp && ipCheck) await releaseAuthIpRateLimit(clientIp, ipCheck.windowToken);
+    }
+    console.error("[POST /api/auth/register] failed:", error);
     return NextResponse.json({ error: "An unexpected error occurred." }, { status: 500 });
   }
 }

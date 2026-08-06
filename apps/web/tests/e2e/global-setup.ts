@@ -2,9 +2,29 @@ import { chromium, type FullConfig } from "@playwright/test";
 import path from "node:path";
 import fs from "node:fs";
 import { SEED_USER } from "./support/seed-user";
-import { fieldByLabel } from "./helpers/field";
+import { dialogFieldByLabel } from "./helpers/field";
 
 const AUTH_FILE = path.join(process.cwd(), "playwright/.auth/user.json");
+
+/**
+ * Wipes every non-seed Org/User before the run starts (see
+ * apps/web/app/api/test/reset/route.ts for the full rationale). Runs ONCE
+ * per `playwright test` invocation, before the shared storageState is
+ * captured, so every run starts from the exact same DB state regardless of
+ * how many orgs previous runs left behind.
+ */
+async function resetE2EData(): Promise<void> {
+  const response = await fetch("http://localhost:3000/api/test/reset", {
+    method: "POST",
+    headers: { "x-e2e-secret": process.env.E2E_TEST_SECRET ?? "" },
+  });
+  if (!response.ok) {
+    throw new Error(
+      `[global-setup] Failed to reset E2E data: HTTP ${String(response.status)}. ` +
+        "Ensure ENABLE_TEST_ROUTES=true is set for the web dev server.",
+    );
+  }
+}
 
 async function globalSetup(_config: FullConfig): Promise<void> {
   const dir = path.dirname(AUTH_FILE);
@@ -15,12 +35,13 @@ async function globalSetup(_config: FullConfig): Promise<void> {
   const page = await context.newPage();
 
   try {
+    await resetE2EData();
     await page.goto("http://localhost:3000/login");
     await page.getByLabel(/^email/i).fill(SEED_USER.email);
     await page.getByLabel(/^password/i).fill(SEED_USER.password);
     await page.getByRole("button", { name: /sign in/i }).click();
 
-    await page.waitForURL(/\/(onboarding|projects)/, { timeout: 15_000 });
+    await page.waitForURL(/\/projects/, { timeout: 15_000 });
 
     // Fails loudly instead of silently producing a blank/broken authenticated
     // session if the post-login page crashed server-side (e.g. a data bug
@@ -29,10 +50,12 @@ async function globalSetup(_config: FullConfig): Promise<void> {
     const heading = page.getByRole("heading").first();
     await heading.waitFor({ state: "visible", timeout: 10_000 });
 
-    if (page.url().includes("/onboarding")) {
-      await fieldByLabel(page, "Name").fill("Playwright Seed Org");
-      await page.getByRole("button", { name: "Create Organization" }).click();
-      await page.waitForURL(/\/projects/, { timeout: 15_000 });
+    const createOneButton = page.getByRole("button", { name: "create one" });
+    if (await createOneButton.isVisible().catch(() => false)) {
+      await createOneButton.click();
+      await dialogFieldByLabel(page, "Name").fill("Playwright Seed Org");
+      await page.getByRole("dialog").getByRole("button", { name: "Create", exact: true }).click();
+      await page.getByRole("dialog").waitFor({ state: "hidden", timeout: 15_000 });
     }
 
     await context.storageState({ path: AUTH_FILE });

@@ -124,12 +124,26 @@ describe("OrgSwitcher", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("renders nothing when the orgs list is empty", () => {
+  it("renders a create-organization button when the orgs list is empty", () => {
     mockOrgsList([]);
 
-    const { container } = renderUI(<OrgSwitcher />);
+    renderUI(<OrgSwitcher />);
 
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByRole("button", { name: /create organization/i })).toBeInTheDocument();
+  });
+
+  it("opens CreateOrgDialog and switches to the new org when the orgs list is empty", () => {
+    mockOrgsList([]);
+
+    renderUI(<OrgSwitcher />);
+    fireEvent.click(screen.getByRole("button", { name: /create organization/i }));
+
+    expect(screen.getByTestId("create-org-dialog")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm create" }));
+
+    expect(mockSetActiveOrgId).toHaveBeenCalledWith("new-org-id");
+    expect(mockRouter.push).toHaveBeenCalledWith("/projects");
   });
 
   // -- Rendering --

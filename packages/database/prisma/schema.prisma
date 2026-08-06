@@ -54,6 +54,13 @@ enum NotificationType {
   @@schema("taskflow")
 }
 
+enum AuthTokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+
+  @@schema("auth")
+}
+
 // Auth tables (managed by @auth/prisma-adapter)
 
 model User {
@@ -63,11 +70,18 @@ model User {
   emailVerified DateTime?
   image         String?
   password      String?
+  // Set on every successful password reset (see consumeTokenAndResetPassword).
+  // apps/api's getSessionUser checks this against the JWT's `iat` claim (via
+  // a short-TTL cache) to reject sessions issued before the most recent
+  // reset - so a stolen session cookie doesn't survive its own victim's
+  // reset indefinitely.
+  passwordChangedAt DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts Account[]
-  sessions Session[]
+  accounts   Account[]
+  sessions   Session[]
+  authTokens AuthToken[]
 
   // Application relations
   memberships            Membership[]
@@ -77,6 +91,48 @@ model User {
   notifications          Notification[] @relation("NotificationRecipient")
   triggeredNotifications Notification[] @relation("NotificationActor")
 
+  @@schema("auth")
+}
+
+/**
+ * Single-use tokens for email verification (registration step 2) and
+ * password reset. The raw token is NEVER persisted - only its SHA-256 hash,
+ * so a DB leak alone cannot be used to hijack an account.
+ */
+model AuthToken {
+  id         String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String        @db.Uuid
+  type       AuthTokenType
+  tokenHash  String        @unique
+  expiresAt  DateTime
+  // null = still active. Set once the token is used (registration completed
+  // or password actually reset) so it can never be replayed.
+  consumedAt DateTime?
+  createdAt  DateTime      @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Used both to look up "does this user have an active token of this type"
+  // (resend / rate-limit logic) and for periodic cleanup of expired rows.
+  @@index([userId, type])
+  @@schema("auth")
+}
+
+/**
+ * Generic per-key sliding-window rate-limit counter, backed by Postgres so
+ * the count is shared across every apps/web instance (see
+ * apps/web/lib/auth/rate-limit.ts) - an in-memory/globalThis counter would
+ * otherwise reset on every redeploy and fragment independently per replica
+ * under horizontal scaling, silently multiplying the effective limit.
+ */
+model RateLimitBucket {
+  /** Caller-defined key, e.g. a normalized email address. */
+  key     String   @id
+  count   Int
+  resetAt DateTime
+
+  // Used by the cleanup script to find long-expired rows worth deleting.
+  @@index([resetAt])
   @@schema("auth")
 }
 

@@ -8,8 +8,8 @@ export const metadata: Metadata = { title: "Organizations" };
 
 /**
  * Organization management. Lists every org the user belongs to (multi-org),
- * with edit for managers and delete for owners. Creating a new org routes to
- * the onboarding form via the sidebar switcher / the button here.
+ * with edit for managers and delete for owners. Creating a new org opens
+ * CreateOrgDialog - the same modal as the sidebar switcher.
  */
 export default async function OrganizationsPage(): Promise<JSX.Element> {
   const trpc = await getServerTRPC();

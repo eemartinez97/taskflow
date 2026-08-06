@@ -31,6 +31,7 @@ export const mockDbUser = {
   name: "Alice",
   image: null,
   password: "hashed:correct-password",
+  emailVerified: new Date("2024-01-01T00:00:00.000Z"),
 };
 
 /** User returned by authorizeCredentials (no password field). */
@@ -47,10 +48,22 @@ export const validLoginCredentials = {
   password: "correct-password",
 };
 
-/** Minimal valid registration payload. */
+/** Minimal valid registration payload (name + email + password). */
 export const validRegisterPayload = {
   name: "Alice",
   email: "alice@taskflow.dev",
+  password: "Secure-password-123",
+  confirmPassword: "Secure-password-123",
+};
+
+/** Minimal valid forgot-password payload. */
+export const validForgotPasswordPayload = {
+  email: "alice@taskflow.dev",
+};
+
+/** Minimal valid reset-password payload. */
+export const validResetPasswordPayload = {
+  token: "valid-reset-token",
   password: "Secure-password-123",
   confirmPassword: "Secure-password-123",
 };

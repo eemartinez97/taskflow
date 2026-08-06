@@ -2,8 +2,24 @@ import { NextResponse, type NextRequest } from "next/server";
 import { serverEnv } from "./lib/env.server";
 import { getToken } from "next-auth/jwt";
 
-/** Public routes that an authenticated user should not access */
+/**
+ * Public routes that redirect an ALREADY authenticated user to /projects.
+ * Makes no sense for a signed-in user to see the landing page or the
+ * login/register forms again.
+ */
 const PUBLIC_AUTH_ROUTES = ["/", "/login", "/register"];
+
+/**
+ * Public routes that stay accessible REGARDLESS of session state.
+ *
+ * These carry a single-use token in the query string that identifies a
+ * specific action (confirm email, reset password) independent of whoever
+ * happens to be logged in in the current browser - e.g. an admin testing an
+ * invite link while already signed in as themselves, or a user opening a
+ * stale reset link from an old session. Redirecting them to /projects would
+ * make the link silently unusable.
+ */
+const ALWAYS_ACCESSIBLE_ROUTES = ["/verify-email", "/forgot-password", "/reset-password"];
 
 /**
  * Next.js 16 proxy (replaces middleware.ts - deprecated in Next.js 16).
@@ -24,6 +40,13 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 
   const isAuthenticated = token !== null;
   const isPublicAuthRoute = PUBLIC_AUTH_ROUTES.includes(pathname);
+  const isAlwaysAccessibleRoute = ALWAYS_ACCESSIBLE_ROUTES.includes(pathname);
+
+  // Always-accessible routes short-circuit before either auth redirect -
+  // reachable both signed-in and signed-out.
+  if (isAlwaysAccessibleRoute) {
+    return NextResponse.next();
+  }
 
   // 1. If authenticated and trying to access /, /login, or /register -> redirect to /projects
   if (isAuthenticated && isPublicAuthRoute) {

@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { resetRateLimitState, shouldDropPresencePacket } from "../../../src/socket/rate-limit";
+import {
+  __setMaxTrackedRoomsForTest,
+  resetRateLimitState,
+  shouldDropPresencePacket,
+} from "../../../src/socket/rate-limit";
 
 const ROOM = "project:abc";
 const LIMIT = 30;
@@ -45,14 +49,23 @@ describe("shouldDropPresencePacket", () => {
   });
 
   it("evicts expired buckets once the tracking cap is reached", () => {
-    shouldDropPresencePacket("project:stale", 2);
-    vi.advanceTimersByTime(1500); // "project:stale" window has closed
+    // MAX_TRACKED_ROOMS defaults to 10,000 - lower it so the sweep actually
+    // triggers with a handful of rooms instead of silently passing this
+    // assertion via each key's own independent expiry check (which doesn't
+    // exercise the size-cap sweep code path at all).
+    __setMaxTrackedRoomsForTest(2);
+    try {
+      shouldDropPresencePacket("project:stale");
+      vi.advanceTimersByTime(1500); // "project:stale" window has closed
 
-    shouldDropPresencePacket("project:a", 2);
-    shouldDropPresencePacket("project:b", 2); // size >= 2 -> sweep runs
+      shouldDropPresencePacket("project:a");
+      shouldDropPresencePacket("project:b"); // size >= 2 -> sweep runs
 
-    // Proof the sweep ran: the stale room starts a brand-new window
-    expect(shouldDropPresencePacket("project:stale", 2)).toBe(false);
+      // Proof the sweep ran: the stale room starts a brand-new window
+      expect(shouldDropPresencePacket("project:stale")).toBe(false);
+    } finally {
+      __setMaxTrackedRoomsForTest();
+    }
   });
 });
 

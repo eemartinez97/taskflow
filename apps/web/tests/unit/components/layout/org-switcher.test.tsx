@@ -40,10 +40,21 @@ afterEach(() => {
 const orgA = makeOrg({ id: "org-a", name: "Org A" });
 const orgB = makeOrg({ id: "org-b", name: "Org B" });
 describe("OrgSwitcher", () => {
-  it("renders nothing when there are no orgs", () => {
+  it("renders a create-organization button when there are no orgs", () => {
     mockUseQuery(api.orgs.list, []);
-    const { container } = render(<OrgSwitcher />);
-    expect(container).toBeEmptyDOMElement();
+    setupRouterMock();
+    render(<OrgSwitcher />);
+    expect(screen.getByRole("button", { name: /create organization/i })).toBeInTheDocument();
+  });
+  it("opens the create-org dialog and switches to the new org when there are no orgs", async () => {
+    mockUseQuery(api.orgs.list, []);
+    const { pushMock, refreshMock } = setupRouterMock();
+    render(<OrgSwitcher />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /create organization/i }));
+    await user.click(screen.getByRole("button", { name: /^create$/i }));
+    expect(pushMock).toHaveBeenCalledWith("/projects");
+    expect(refreshMock).toHaveBeenCalled();
   });
   it("renders nothing while the query is still loading (data undefined)", () => {
     mockUseQuery(api.orgs.list, undefined);

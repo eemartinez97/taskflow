@@ -84,6 +84,18 @@ export default defineConfig([
     },
   },
 
+  // 5d. Node CLI scripts (e.g. compose-smoke.yml's headless dashboard check)
+  // - not browser code, so they need process/console instead of DOM globals.
+  {
+    files: ["scripts/**/*.mjs"],
+    languageOptions: {
+      globals: {
+        process: "readonly",
+        console: "readonly",
+      },
+    },
+  },
+
   // 6. Global ignores
   {
     ignores: [".next/**", "coverage/**", "playwright-report/**", "test-results/**"],

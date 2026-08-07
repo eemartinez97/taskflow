@@ -1,0 +1,44 @@
+name: shared
+
+# packages/shared is the contract boundary (Zod schemas/types consumed by
+# both apps) - it has no Dockerfile of its own, so this pipeline stops at
+# `build` (tsc). Nothing here ever produces a deployable image.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/shared/**"
+      - "packages/config/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/shared.yml"
+  pull_request:
+    paths:
+      - "packages/shared/**"
+      - "packages/config/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/shared.yml"
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.1
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - run: pnpm --filter @taskflow/shared format:check
+      - run: pnpm --filter @taskflow/shared lint
+      - run: pnpm --filter @taskflow/shared typecheck
+      - run: pnpm --filter @taskflow/shared test:coverage
+      - run: pnpm --filter @taskflow/shared build

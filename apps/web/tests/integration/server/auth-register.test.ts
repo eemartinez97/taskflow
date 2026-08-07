@@ -351,6 +351,36 @@ describe("POST /api/auth/register", () => {
       expect(mockFindUnique).not.toHaveBeenCalled();
     });
 
+    it("releases the unused IP quota when the 429 was caused by the email limit alone", async () => {
+      mockCheckRateLimit.mockResolvedValue({ limited: true, windowToken: RATE_LIMIT_WINDOW_TOKEN });
+
+      const res = await POST(
+        makePostRequest("/api/auth/register", VALID_REGISTER_PAYLOAD, CLIENT_IP_HEADERS),
+      );
+
+      expect(res.status).toBe(429);
+      expect(mockReleaseRateLimit).not.toHaveBeenCalled();
+      expect(mockReleaseIpRateLimit).toHaveBeenCalledWith("203.0.113.5", RATE_LIMIT_WINDOW_TOKEN);
+    });
+
+    it("releases the unused email quota when the 429 was caused by the IP limit alone", async () => {
+      mockCheckIpRateLimit.mockResolvedValue({
+        limited: true,
+        windowToken: RATE_LIMIT_WINDOW_TOKEN,
+      });
+
+      const res = await POST(
+        makePostRequest("/api/auth/register", VALID_REGISTER_PAYLOAD, CLIENT_IP_HEADERS),
+      );
+
+      expect(res.status).toBe(429);
+      expect(mockReleaseRateLimit).toHaveBeenCalledWith(
+        VALID_REGISTER_PAYLOAD.email,
+        RATE_LIMIT_WINDOW_TOKEN,
+      );
+      expect(mockReleaseIpRateLimit).not.toHaveBeenCalled();
+    });
+
     it("does not check the IP limit when no client IP can be determined", async () => {
       await POST(makePostRequest("/api/auth/register", VALID_REGISTER_PAYLOAD));
 

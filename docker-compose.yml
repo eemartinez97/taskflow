@@ -1,3 +1,10 @@
+x-database-url: &database-url postgresql://${POSTGRES_USER:-taskflow}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-taskflow}?schema=taskflow
+# Shared between api and web the same way *database-url is - a value edited
+# on only one service's block would leave them disagreeing (e.g. about which
+# X-Forwarded-For hop is the real client) with no automated check catching it.
+x-trusted-proxy-hops: &trusted-proxy-hops ${TRUSTED_PROXY_HOPS:-1}
+x-nextauth-secret: &nextauth-secret ${NEXTAUTH_SECRET:-changeme}
+
 services:
   postgres:
     image: postgres:18
@@ -21,6 +28,96 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # One-shot: applies pending Prisma migrations, then exits. api/web wait
+  # for this to succeed before starting, so `docker compose up` never
+  # serves traffic against an un-migrated database.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: migrator
+    environment:
+      DATABASE_URL: *database-url
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: runner
+    environment:
+      # Without this, NODE_ENV defaults to "development": /metrics'
+      # isProduction()-gated auth check short-circuits to false (metrics
+      # served to anyone, no token needed) and rate limiting relaxes from
+      # 100 to 1000 req/15min - a real gap the council review caught.
+      NODE_ENV: production
+      DATABASE_URL: *database-url
+      NEXTAUTH_SECRET: *nextauth-secret
+      # Same public origin nginx exposes below - CORS/cookies stay
+      # same-origin once everything is behind one host.
+      WEB_ORIGIN: http://localhost:${NGINX_PORT:-80}
+      API_LOG_LEVEL: ${API_LOG_LEVEL:-info}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+      # nginx is the one trusted hop in front of this container - see
+      # .env.example's note on TRUSTED_PROXY_HOPS. apps/api's own schema
+      # defaults to 0 (no proxy trusted) precisely so this must be set
+      # explicitly wherever a real proxy sits in front - here.
+      TRUSTED_PROXY_HOPS: *trusted-proxy-hops
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    # No ports: - only reachable through the nginx service below.
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: runner
+      args:
+        # NEXT_PUBLIC_* are inlined at build time - changing these requires
+        # rebuilding this image, not just restarting the container.
+        NEXT_PUBLIC_API_URL: http://localhost:${NGINX_PORT:-80}
+        NEXT_PUBLIC_WEB_URL: http://localhost:${NGINX_PORT:-80}
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: *database-url
+      NEXTAUTH_SECRET: *nextauth-secret
+      NEXTAUTH_URL: http://localhost:${NGINX_PORT:-80}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      # NODE_ENV=production above means apps/web's schema rejects Resend's
+      # onboarding@resend.dev sandbox address. .env.example's own EMAIL_FROM
+      # default was changed to this same non-sandbox placeholder for exactly
+      # this reason, so in the documented `cp .env.example .env` flow this
+      # fallback is never actually exercised (the copied .env already
+      # supplies the value) - it's defense-in-depth for a `docker compose up`
+      # run with no .env file / a .env missing this line, not the tested path.
+      EMAIL_FROM: ${EMAIL_FROM:-TaskFlow <noreply@example.com>}
+      TRUSTED_PROXY_HOPS: *trusted-proxy-hops
+      # Deliberately NOT set: ENABLE_TEST_ROUTES would expose
+      # apps/web/app/api/test/* - see lib/http/test-route-guard.ts.
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    # No ports: - only reachable through the nginx service below.
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "${NGINX_PORT:-80}:80"
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   postgres_data:

@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 /**
@@ -11,6 +12,23 @@ import type { NextConfig } from "next";
  */
 const nextConfig: NextConfig = {
   cacheComponents: true,
+
+  // Docker only: `.next/standalone` only bundles this app's own directory
+  // unless told the tracing root is the monorepo root, so it can also pick
+  // up packages/* (consumed as raw .ts via workspace `exports`) and the
+  // generated Prisma client. With this root, server.js lands at
+  // `.next/standalone/apps/web/server.js`, not at the standalone root.
+  //
+  // Gated behind NEXT_STANDALONE_BUILD (set only by apps/web/Dockerfile) -
+  // `output: "standalone"` makes `next start` refuse to run ("does not work
+  // with output: standalone"), which is exactly how E2E boots the app
+  // locally (playwright.config.ts's webServer: `next build && next start`).
+  // Local dev/build/E2E must stay on the plain build; only the Docker image
+  // needs the standalone artifact.
+  ...(process.env.NEXT_STANDALONE_BUILD === "true" && {
+    output: "standalone" as const,
+    outputFileTracingRoot: path.join(__dirname, "../.."),
+  }),
 
   // Strict mode helps surface React 19 concurrent-mode issues early
   reactStrictMode: true,

@@ -38,6 +38,12 @@ importers:
 
   apps/api:
     dependencies:
+      '@prisma/adapter-pg':
+        specifier: ^7.8.0
+        version: 7.8.0
+      '@prisma/client-runtime-utils':
+        specifier: ^7.8.0
+        version: 7.8.0
       '@taskflow/database':
         specifier: workspace:*
         version: link:../../packages/database
@@ -47,9 +53,9 @@ importers:
       '@trpc/server':
         specifier: ^11.17.0
         version: 11.18.0(typescript@6.0.3)
-      bcrypt:
-        specifier: ^6.0.0
-        version: 6.0.0
+      cookie:
+        specifier: ^2.0.1
+        version: 2.0.1
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
@@ -71,6 +77,9 @@ importers:
       jose:
         specifier: ^6.2.3
         version: 6.2.3
+      pg:
+        specifier: ^8.21.0
+        version: 8.22.0
       pino:
         specifier: ^10.3.1
         version: 10.3.1
@@ -96,9 +105,6 @@ importers:
       '@testcontainers/postgresql':
         specifier: ^12.0.4
         version: 12.0.4
-      '@types/bcrypt':
-        specifier: ^6.0.0
-        version: 6.0.0
       '@types/cookie-parser':
         specifier: ^1.4.10
         version: 1.4.10(@types/express@5.0.6)
@@ -117,6 +123,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.1.7
         version: 4.1.9(vitest@4.1.9)
+      esbuild:
+        specifier: ^0.28.1
+        version: 0.28.1
       eslint:
         specifier: ^10.4.0
         version: 10.6.0(jiti@2.7.0)

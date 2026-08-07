@@ -11,10 +11,10 @@ build
 # Turborepo
 .turbo/
 
-# Environment variables
-.env
-.env.local
-.env.*.local
+# Environment variables - .env* catches every variant (.env, .env.local,
+# .env.production, apps/web/.env.local, ...); only .env.example is tracked.
+.env*
+!.env.example
 
 # Logs
 *.log

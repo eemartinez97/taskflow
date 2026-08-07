@@ -29,13 +29,30 @@ describe("withMinimumLatency", () => {
     setTimeoutSpy.mockRestore();
   });
 
-  it("propagates a rejection from fn without invoking the latency floor", async () => {
+  it("propagates a rejection from fn after still waiting out the latency floor", async () => {
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValueOnce(1000).mockReturnValueOnce(1030);
+    const setTimeoutSpy = vi.spyOn(global, "setTimeout").mockImplementation(((cb: () => void) => {
+      cb();
+      return 0 as unknown as NodeJS.Timeout;
+    }) as typeof setTimeout);
+    const fn = vi.fn(() => Promise.reject(new Error("boom")));
+
+    await expect(withMinimumLatency(fn, 100)).rejects.toThrow("boom");
+
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 70);
+    nowSpy.mockRestore();
+    setTimeoutSpy.mockRestore();
+  });
+
+  it("does not wait on rejection when fn already took at least minMs", async () => {
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValueOnce(1000).mockReturnValueOnce(1150);
     const setTimeoutSpy = vi.spyOn(global, "setTimeout");
     const fn = vi.fn(() => Promise.reject(new Error("boom")));
 
     await expect(withMinimumLatency(fn, 100)).rejects.toThrow("boom");
 
     expect(setTimeoutSpy).not.toHaveBeenCalled();
+    nowSpy.mockRestore();
     setTimeoutSpy.mockRestore();
   });
 });

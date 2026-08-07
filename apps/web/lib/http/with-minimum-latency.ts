@@ -14,10 +14,15 @@ import "server-only";
  */
 export async function withMinimumLatency<T>(fn: () => Promise<T>, minMs: number): Promise<T> {
   const start = Date.now();
-  const result = await fn();
-  const elapsed = Date.now() - start;
-  if (elapsed < minMs) {
-    await new Promise((resolve) => setTimeout(resolve, minMs - elapsed));
+  try {
+    return await fn();
+  } finally {
+    // Runs on both the resolve AND reject paths - a `fn` that throws (e.g. a
+    // transient DB error) must still respect the floor, or the timing gap
+    // this helper exists to close reopens for that failure path.
+    const elapsed = Date.now() - start;
+    if (elapsed < minMs) {
+      await new Promise((resolve) => setTimeout(resolve, minMs - elapsed));
+    }
   }
-  return result;
 }

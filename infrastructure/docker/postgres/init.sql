@@ -15,4 +15,4 @@ GRANT ALL ON SCHEMA auth TO taskflow;
 
 -- Ensure future tables created in these schemas are accessible
 ALTER DEFAULT PRIVILEGES IN SCHEMA taskflow GRANT ALL ON TABLES TO taskflow;
-ALTER DEFAULT PRIVILEGES IN SCHEMA auth TO taskflow;
+ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT ALL ON TABLES TO taskflow;

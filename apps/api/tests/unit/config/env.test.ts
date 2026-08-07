@@ -17,11 +17,44 @@ describe("envSchema", () => {
       API_PORT: 8000,
       API_LOG_LEVEL: "info",
       WEB_ORIGIN: "http://localhost:3000",
+      TRUSTED_PROXY_HOPS: 0,
     });
   });
 
   it("coerces API_PORT from string", () => {
     expect(envSchema.parse({ ...REQUIRED, API_PORT: "9999" }).API_PORT).toBe(9999);
+  });
+
+  it("coerces TRUSTED_PROXY_HOPS from string", () => {
+    expect(envSchema.parse({ ...REQUIRED, TRUSTED_PROXY_HOPS: "2" }).TRUSTED_PROXY_HOPS).toBe(2);
+  });
+
+  it("allows TRUSTED_PROXY_HOPS: 0 to disable proxy trust entirely", () => {
+    expect(envSchema.parse({ ...REQUIRED, TRUSTED_PROXY_HOPS: "0" }).TRUSTED_PROXY_HOPS).toBe(0);
+  });
+
+  it("defaults PASSWORD_CHANGED_AT_CACHE_TTL_MS to 60s when omitted", () => {
+    expect(envSchema.parse(REQUIRED).PASSWORD_CHANGED_AT_CACHE_TTL_MS).toBe(60_000);
+  });
+
+  it("coerces PASSWORD_CHANGED_AT_CACHE_TTL_MS from string", () => {
+    expect(
+      envSchema.parse({ ...REQUIRED, PASSWORD_CHANGED_AT_CACHE_TTL_MS: "2000" })
+        .PASSWORD_CHANGED_AT_CACHE_TTL_MS,
+    ).toBe(2000);
+  });
+
+  it("treats METRICS_TOKEN: '' the same as unset (docker-compose.yml's ${VAR:-} always sets the key)", () => {
+    expect(envSchema.parse({ ...REQUIRED, METRICS_TOKEN: "" }).METRICS_TOKEN).toBeUndefined();
+  });
+
+  it("still rejects a too-short non-empty METRICS_TOKEN", () => {
+    expect(envSchema.safeParse({ ...REQUIRED, METRICS_TOKEN: "short" }).success).toBe(false);
+  });
+
+  it("accepts a valid METRICS_TOKEN", () => {
+    const token = "a".repeat(16);
+    expect(envSchema.parse({ ...REQUIRED, METRICS_TOKEN: token }).METRICS_TOKEN).toBe(token);
   });
 
   it.each([
@@ -31,6 +64,8 @@ describe("envSchema", () => {
     ["API_LOG_LEVEL unknown", { API_LOG_LEVEL: "verbose" }],
     ["WEB_ORIGIN not a URL", { WEB_ORIGIN: "localhost:3000" }],
     ["NEXTAUTH_SECRET too short", { NEXTAUTH_SECRET: "short" }],
+    ["TRUSTED_PROXY_HOPS negative", { TRUSTED_PROXY_HOPS: "-1" }],
+    ["TRUSTED_PROXY_HOPS not an integer", { TRUSTED_PROXY_HOPS: "1.5" }],
   ])("rejects: %s", (_name, override) => {
     expect(envSchema.safeParse({ ...REQUIRED, ...override }).success).toBe(false);
   });

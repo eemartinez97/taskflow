@@ -18,6 +18,19 @@ export function isHealthCheckUrl(url: string | undefined): boolean {
 }
 
 /**
+ * Every top-level path this Express app actually serves (Socket.IO's
+ * /socket.io/* is handled separately, outside Express - see server.ts).
+ *
+ * infrastructure/nginx/nginx.conf proxies exactly this set to the api
+ * container and sends everything else to web - a route added here without
+ * also adding it below AND to nginx.conf would silently fall through to
+ * web and 404. tests/unit/infra/nginx-route-sync.test.ts checks this array
+ * against nginx.conf's `location` blocks; keep them in sync when adding a
+ * new top-level route.
+ */
+export const PROXIED_API_PATHS = ["/metrics", "/healthz", "/readyz", "/trpc"] as const;
+
+/**
  * Extracted so it can be unit-tested independently
  * Called by the tRPC Express adapter's `onError` hook
  */
@@ -41,6 +54,11 @@ export function createApp(io: AppServer): Express {
   const app = express();
 
   const router = createAppRouter(io);
+
+  // Behind nginx in Docker/prod, req.ip and X-Forwarded-For based rate
+  // limiting would otherwise see nginx's own IP for every client. Must be
+  // set before defaultRateLimiter is mounted.
+  app.set("trust proxy", env.TRUSTED_PROXY_HOPS);
 
   // Security headers
   app.use(helmetMiddleware);

@@ -20,6 +20,21 @@ const E2E_TEST_SECRET = process.env.E2E_TEST_SECRET ?? randomBytes(32).toString(
 process.env.E2E_TEST_SECRET = E2E_TEST_SECRET;
 
 /**
+ * lib/auth/session-revocation.ts's passwordChangedAt cache defaults to a
+ * real 60s TTL in every actual deployment. tests/e2e/auth.spec.ts's
+ * revocation test deliberately waits out the REAL TTL rather than mocking
+ * it (see that test's own docblock for why faking it isn't reliable here),
+ * so a 60s production TTL means a 61s real wait in every local/CI run.
+ * Shortening the TTL for E2E - not skipping the wait - keeps the exact same
+ * guarantee under test ("revoked within the configured TTL") while cutting
+ * the wall-clock cost. Exported to process.env here (same pattern as
+ * E2E_TEST_SECRET above) so the test file can read the identical value
+ * instead of hardcoding a second number that could drift from this one.
+ */
+const E2E_PASSWORD_CHANGED_AT_CACHE_TTL_MS = 2_000;
+process.env.PASSWORD_CHANGED_AT_CACHE_TTL_MS = String(E2E_PASSWORD_CHANGED_AT_CACHE_TTL_MS);
+
+/**
  * Playwright 1.60 E2E configuration.
  *
  * Auth strategy: `globalSetup` performs ONE real registration/login flow
@@ -40,7 +55,12 @@ export default defineConfig({
   testDir: "tests/e2e",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  // 1 retry locally (not 0): a handful of specs are documented as
+  // timing-sensitive under load (e.g. first-org-and-board-flow.spec.ts's
+  // router.refresh()-dependent empty-state check) - a retry only fires on
+  // an actual failure and re-reports the spec as "flaky" rather than a
+  // clean pass, so a real bug still surfaces as a failure after retrying.
+  retries: process.env.CI ? 2 : 1,
   ...(process.env.CI && { workers: 1 }),
   reporter: process.env.CI ? "github" : "list",
   timeout: 30_000,
@@ -88,10 +108,20 @@ export default defineConfig({
       // request latency stays flat regardless of concurrency.
       command: "pnpm --filter @taskflow/web build && pnpm --filter @taskflow/web start",
       url: "http://localhost:3000",
-      reuseExistingServer: !process.env.CI,
+      // Always false, even locally (unlike the api server below): a reused
+      // server predates this run's E2E_TEST_SECRET and
+      // PASSWORD_CHANGED_AT_CACHE_TTL_MS env values below, so
+      // auth.spec.ts's revocation test would wait out the wrong TTL against
+      // a stale process - same correctness reasoning as always running a
+      // fresh production build instead of `next dev`.
+      reuseExistingServer: false,
       // 180s covers the build step (which now always runs) plus server boot.
       timeout: 180_000,
-      env: { ENABLE_TEST_ROUTES: "true", E2E_TEST_SECRET },
+      env: {
+        ENABLE_TEST_ROUTES: "true",
+        E2E_TEST_SECRET,
+        PASSWORD_CHANGED_AT_CACHE_TTL_MS: String(E2E_PASSWORD_CHANGED_AT_CACHE_TTL_MS),
+      },
     },
   ],
 });

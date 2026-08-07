@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+
+jobs:
+  lint-typecheck-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.1
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @taskflow/database db:generate
+
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test:coverage
+
+      - name: Check docker-compose.yml covers every required apps/api env var
+        run: pnpm check:env-parity
+
+  # Validates apps/api/Dockerfile, apps/web/Dockerfile, and nginx.conf still
+  # produce a working stack - `docker compose build` alone would catch a
+  # broken Dockerfile, but not e.g. a missing depends_on/healthcheck wiring,
+  # so this brings the real stack up (with placeholder secrets, same as a
+  # fresh `cp .env.example .env`) and hits it end-to-end through nginx.
+  docker-build:
+    needs: lint-typecheck-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      # Must run BEFORE `docker compose build`: build-time ARGs like
+      # NEXT_PUBLIC_API_URL are substituted from whatever's in the shell env
+      # at build time. Creating .env first means the image is built with the
+      # exact same values `docker compose up` will later inject - matching
+      # the documented `cp .env.example .env` flow instead of silently
+      # falling back to docker-compose.yml's own inline defaults.
+      - name: Create .env from the documented template
+        run: cp .env.example .env
+
+      - name: Build all images
+        run: docker compose build
+
+      - name: Bring up the full stack
+        run: docker compose up -d
+
+      - name: Wait for api/web/nginx to report healthy
+        run: |
+          for _ in $(seq 1 30); do
+            unhealthy=$(docker compose ps --format json | grep -c '"Health":"unhealthy"' || true)
+            starting=$(docker compose ps --format json | grep -c '"Health":"starting"' || true)
+            if [ "$unhealthy" != "0" ]; then
+              echo "A service reported unhealthy:"
+              docker compose ps
+              docker compose logs
+              exit 1
+            fi
+            if [ "$starting" = "0" ]; then
+              echo "All services healthy."
+              docker compose ps
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Timed out waiting for services to become healthy."
+          docker compose ps
+          docker compose logs
+          exit 1
+
+      - name: Smoke test through nginx
+        run: |
+          curl -f http://localhost/healthz
+          curl -f http://localhost/login
+
+      - name: Dump logs
+        if: always()
+        run: docker compose logs
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

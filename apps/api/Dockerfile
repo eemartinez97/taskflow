@@ -28,6 +28,10 @@ RUN pnpm install --frozen-lockfile
 # ---- build: generate the Prisma client, then bundle apps/api with esbuild --
 FROM deps AS build
 COPY . .
+# prisma.config.ts resolves DATABASE_URL at config-load time, so even
+# `prisma generate` needs it - build-time placeholder only, discarded with
+# this intermediate stage (never baked into `runner`).
+ARG DATABASE_URL="postgresql://build:build@localhost:5432/build?schema=taskflow"
 RUN pnpm --filter @taskflow/database db:generate
 RUN pnpm --filter @taskflow/api build
 

@@ -20,6 +20,10 @@ RUN pnpm install --frozen-lockfile
 # ---- build: generate the Prisma client, then `next build` ------------------
 FROM deps AS build
 COPY . .
+# prisma.config.ts resolves DATABASE_URL at config-load time, so even
+# `prisma generate` needs it - same build-time placeholder used below for
+# `next build`, declared early since this RUN comes before the others.
+ARG DATABASE_URL="postgresql://build:build@localhost:5432/build?schema=taskflow"
 RUN pnpm --filter @taskflow/database db:generate
 
 # NEXT_PUBLIC_* are inlined into the client bundle at build time - real
@@ -45,7 +49,6 @@ ENV NEXT_STANDALONE_BUILD=true
 # inspectable config the way ENV does. `build` is a discarded intermediate
 # stage anyway - only `runner`, which never sets or copies these, gets
 # tagged/shipped.
-ARG DATABASE_URL="postgresql://build:build@localhost:5432/build?schema=taskflow"
 ARG NEXTAUTH_SECRET="docker-build-time-placeholder-not-a-real-secret"
 ARG NEXTAUTH_URL="http://localhost:3000"
 ARG RESEND_API_KEY="re_docker_build_time_placeholder"

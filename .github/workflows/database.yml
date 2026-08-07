@@ -42,6 +42,11 @@ jobs:
 
       - name: Generate Prisma client
         run: pnpm --filter @taskflow/database db:generate
+        env:
+          # prisma.config.ts resolves DATABASE_URL at config-load time, so
+          # even `prisma generate` needs it - a build-time placeholder is
+          # enough, no real Postgres involved (mirrors web.yml).
+          DATABASE_URL: "postgresql://build:build@localhost:5432/build?schema=taskflow"
 
       - run: pnpm --filter @taskflow/database format:check
       - run: pnpm --filter @taskflow/database lint

@@ -12,14 +12,17 @@ export interface AuthSession {
 }
 
 /**
- * Caches each user's `passwordChangedAt` for 60s (the default TTL) so
- * getSessionUser's revocation check below doesn't pay a DB round-trip on
- * every request - see createPasswordChangedAtCache's docblock in
- * packages/shared for the full rationale and the reason this app owns the
- * `fetch` callback (its own Prisma client) while the cache mechanics live in
- * packages/shared, shared with apps/web's identical need.
+ * Caches each user's `passwordChangedAt` (TTL from env.PASSWORD_CHANGED_AT_
+ * CACHE_TTL_MS, 60s by default) so getSessionUser's revocation check below
+ * doesn't pay a DB round-trip on every request - see
+ * createPasswordChangedAtCache's docblock in packages/shared for the full
+ * rationale and the reason this app owns the `fetch` callback (its own
+ * Prisma client) while the cache mechanics live in packages/shared, shared
+ * with apps/web's identical need. apps/web reads the same env var for its
+ * own, independent cache instance - keep both configured the same way when
+ * changing the TTL, or the two apps' revocation windows will diverge.
  */
-const passwordChangedAtCache = createPasswordChangedAtCache();
+const passwordChangedAtCache = createPasswordChangedAtCache(env.PASSWORD_CHANGED_AT_CACHE_TTL_MS);
 
 async function getPasswordChangedAtMs(userId: string): Promise<number | null> {
   return passwordChangedAtCache.get(userId, async (id) => {

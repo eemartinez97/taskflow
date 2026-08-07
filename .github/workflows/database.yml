@@ -1,0 +1,61 @@
+name: database
+
+# packages/database (Prisma 7 schema/client) has no Dockerfile of its own -
+# the `migrator`/`runner` images that actually ship it are built as part of
+# apps/api/Dockerfile (see api.yml), so this pipeline stops at `build` (tsc).
+# `test:integration` uses Testcontainers (real postgres:18 container) - the
+# ubuntu-latest runner ships a Docker daemon out of the box, no service
+# container needed here.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/database/**"
+      - "packages/config/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/database.yml"
+  pull_request:
+    paths:
+      - "packages/database/**"
+      - "packages/config/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/database.yml"
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.5.1
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @taskflow/database db:generate
+        env:
+          # prisma.config.ts resolves DATABASE_URL at config-load time, so
+          # even `prisma generate` needs it - a build-time placeholder is
+          # enough, no real Postgres involved (mirrors web.yml).
+          DATABASE_URL: "postgresql://build:build@localhost:5432/build?schema=taskflow"
+
+      - run: pnpm --filter @taskflow/database format:check
+      - run: pnpm --filter @taskflow/database lint
+      - run: pnpm --filter @taskflow/database typecheck
+
+      - name: Unit tests (mocked)
+        run: pnpm --filter @taskflow/database test:coverage
+
+      - name: Integration tests (Testcontainers postgres:18)
+        run: pnpm --filter @taskflow/database test:integration
+
+      - run: pnpm --filter @taskflow/database build

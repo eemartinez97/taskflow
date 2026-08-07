@@ -31,9 +31,7 @@ describe("GET /api/test/last-email", () => {
 
   it("returns 404 when the x-e2e-secret header is missing, even with ENABLE_TEST_ROUTES=true", async () => {
     process.env.ENABLE_TEST_ROUTES = "true";
-    const res = await GET(
-      makeRequest("http://localhost/api/test/last-email?to=a@b.com", false),
-    );
+    const res = await GET(makeRequest("http://localhost/api/test/last-email?to=a@b.com", false));
     expect(res.status).toBe(404);
   });
 

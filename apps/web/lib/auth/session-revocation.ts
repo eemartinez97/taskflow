@@ -1,15 +1,18 @@
 import "server-only";
 import { prisma } from "@taskflow/database";
 import { createPasswordChangedAtCache } from "@taskflow/shared";
+import { serverEnv } from "@/lib/env.server";
 
 /**
- * Caches each user's `passwordChangedAt` for 60s (the default TTL) - see
- * createPasswordChangedAtCache's docblock in packages/shared for the full
- * rationale. Same mechanism as apps/api's identical need in utils/auth.ts,
- * each app owning its own `fetch` callback and its own in-process cache
- * instance.
+ * Caches each user's `passwordChangedAt` for PASSWORD_CHANGED_AT_CACHE_TTL_MS
+ * (60s by default) - see createPasswordChangedAtCache's docblock in
+ * packages/shared for the full rationale. Same mechanism as apps/api's
+ * identical need in utils/auth.ts, each app owning its own `fetch` callback
+ * and its own in-process cache instance.
  */
-const passwordChangedAtCache = createPasswordChangedAtCache();
+const passwordChangedAtCache = createPasswordChangedAtCache(
+  serverEnv.PASSWORD_CHANGED_AT_CACHE_TTL_MS,
+);
 
 async function getPasswordChangedAtMs(userId: string): Promise<number | null> {
   return passwordChangedAtCache.get(userId, async (id) => {

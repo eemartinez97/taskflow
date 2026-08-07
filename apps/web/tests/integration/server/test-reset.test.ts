@@ -34,7 +34,9 @@ describe("POST /api/test/reset", () => {
   it("returns 404 when ENABLE_TEST_ROUTES is not set", async () => {
     delete process.env.ENABLE_TEST_ROUTES;
 
-    const res = await POST(makeRequest("/api/test/reset", { method: "POST", headers: SECRET_HEADER }));
+    const res = await POST(
+      makeRequest("/api/test/reset", { method: "POST", headers: SECRET_HEADER }),
+    );
 
     expect(res.status).toBe(404);
     expect(mockOrgDeleteMany).not.toHaveBeenCalled();
@@ -54,7 +56,9 @@ describe("POST /api/test/reset", () => {
   it("wipes every non-seed org and user, then returns ok", async () => {
     process.env.ENABLE_TEST_ROUTES = "true";
 
-    const res = await POST(makeRequest("/api/test/reset", { method: "POST", headers: SECRET_HEADER }));
+    const res = await POST(
+      makeRequest("/api/test/reset", { method: "POST", headers: SECRET_HEADER }),
+    );
     const body = (await res.json()) as { ok: boolean };
 
     expect(res.status).toBe(200);

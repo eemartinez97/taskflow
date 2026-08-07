@@ -23,6 +23,13 @@ const SEED_ORG_SLUG = "demo-org";
  * wall-clock time == more accumulated orgs by the time later tests run).
  *
  * See test-route-guard.ts for the ENABLE_TEST_ROUTES gating rationale.
+ *
+ * NOTE: does NOT touch RateLimitBucket - lib/auth/rate-limit.ts's
+ * checkRateLimitBucket() skips the DB entirely whenever isE2ERun() is true,
+ * so no e2e run ever writes a row there in the first place. An earlier
+ * version of this route cleared that table too; removed once the bypass
+ * made it dead code (same guard condition on both, so there was never a
+ * state the bypass didn't already cover and this route reset was needed).
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
   // Opts this route out of static/cached rendering under cacheComponents -

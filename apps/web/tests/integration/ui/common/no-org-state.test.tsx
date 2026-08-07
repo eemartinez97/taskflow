@@ -7,13 +7,7 @@ import { setupRouterMock } from "@/tests/support/render";
 // next/link and next/navigation are mocked globally in tests/setup/integration.ui.ts
 
 vi.mock("@/components/organizations/create-org-dialog", () => ({
-  CreateOrgDialog: ({
-    open,
-    onCreated,
-  }: {
-    open: boolean;
-    onCreated: (id: string) => void;
-  }) =>
+  CreateOrgDialog: ({ open, onCreated }: { open: boolean; onCreated: (id: string) => void }) =>
     open ? (
       <div data-testid="create-org-dialog">
         <button

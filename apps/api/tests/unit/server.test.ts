@@ -16,9 +16,11 @@ const close = vi.fn((cb: () => void) => {
 vi.mock("node:http", () => ({
   default: { createServer: vi.fn(() => ({ listen, on, close })) },
 }));
-vi.mock("../../src/app", () => ({ createApp: vi.fn(() => "express-app") }));
+const expressApp = vi.fn();
+vi.mock("../../src/app", () => ({ createApp: vi.fn(() => expressApp) }));
 vi.mock("../../src/socket/server", () => ({
   createSocketServer: vi.fn(() => ({
+    path: vi.fn(() => "/socket.io"),
     close: vi.fn((cb: () => void) => {
       cb();
     }),
@@ -31,7 +33,40 @@ describe("bootstrap", () => {
 
     expect(createSocketServer).toHaveBeenCalledWith(httpServer);
     expect(createApp).toHaveBeenCalledWith(io);
-    expect(on).toHaveBeenCalledWith("request", "express-app");
+    expect(on).toHaveBeenCalledWith("request", expect.any(Function));
+  });
+
+  it("forwards non-Socket.IO requests to Express", () => {
+    bootstrap();
+    const listener = on.mock.calls[0]?.[1] as (req: unknown, res: unknown) => void;
+
+    const req = { url: "/healthz" };
+    const res = {};
+    listener(req, res);
+
+    expect(expressApp).toHaveBeenCalledWith(req, res);
+  });
+
+  it("creates the Socket.IO server before registering the request guard - required so Engine.IO's own request listener is attached first", () => {
+    bootstrap();
+
+    const [socketServerCallOrder] = vi.mocked(createSocketServer).mock.invocationCallOrder;
+    const [guardRegisteredCallOrder] = on.mock.invocationCallOrder;
+
+    if (socketServerCallOrder === undefined || guardRegisteredCallOrder === undefined) {
+      throw new Error("expected both mocks to have been called");
+    }
+
+    expect(socketServerCallOrder).toBeLessThan(guardRegisteredCallOrder);
+  });
+
+  it("does not forward Socket.IO requests to Express - Engine.IO already handled them", () => {
+    bootstrap();
+    const listener = on.mock.calls[0]?.[1] as (req: unknown, res: unknown) => void;
+
+    listener({ url: "/socket.io/?EIO=4&transport=polling" }, {});
+
+    expect(expressApp).not.toHaveBeenCalled();
   });
 });
 

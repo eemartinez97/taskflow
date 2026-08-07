@@ -69,6 +69,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     clientIp ? checkAuthIpRateLimit(clientIp) : null,
   ]);
   if (emailCheck.limited || ipCheck?.limited) {
+    // Only ONE axis may actually be the reason for this 429 - the other
+    // axis's check still consumed a slot of quota above (Promise.all ran
+    // both unconditionally) even though it didn't trip. Release that unused
+    // slot so a request rejected purely on IP grounds doesn't also burn the
+    // target email's budget (and vice versa) - see rate-limit.ts's docblock
+    // on why the two axes are independent.
+    if (!emailCheck.limited) {
+      await releaseAuthEmailRateLimit(normalizedEmail, emailCheck.windowToken);
+    }
+    if (clientIp && ipCheck && !ipCheck.limited) {
+      await releaseAuthIpRateLimit(clientIp, ipCheck.windowToken);
+    }
     return NextResponse.json(
       { error: "Too many requests. Please try again later." },
       { status: 429 },

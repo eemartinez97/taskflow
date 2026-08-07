@@ -3,7 +3,10 @@ export interface PasswordChangedAtCache {
    * Returns the cached value for `userId` if it's still within the TTL,
    * otherwise calls `fetch`, caches the result, and returns it.
    */
-  get: (userId: string, fetch: (userId: string) => Promise<number | null>) => Promise<number | null>;
+  get: (
+    userId: string,
+    fetch: (userId: string) => Promise<number | null>,
+  ) => Promise<number | null>;
   /** Clears all cached entries - exposed for tests. */
   reset: () => void;
 }

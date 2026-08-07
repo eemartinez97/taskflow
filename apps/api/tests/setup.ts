@@ -23,6 +23,7 @@ process.env.NEXTAUTH_SECRET = "test-secret-value-at-least-16-chars";
 process.env.WEB_ORIGIN = "http://localhost:3000";
 process.env.API_PORT = "8001";
 process.env.API_LOG_LEVEL = "silent";
+process.env.TRUSTED_PROXY_HOPS = "1";
 
 import { beforeEach, vi } from "vitest";
 import { mockLogger } from "./mocks/logger";

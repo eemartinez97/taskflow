@@ -60,7 +60,9 @@ async function notifyAccountActivated(userId: string): Promise<void> {
  * dynamic/uncached data access under Next.js 16 cacheComponents, which
  * requires a Suspense boundary.
  */
-export async function VerifyEmailGate({ searchParams }: VerifyEmailPageProps): Promise<JSX.Element> {
+export async function VerifyEmailGate({
+  searchParams,
+}: VerifyEmailPageProps): Promise<JSX.Element> {
   const params = await searchParams;
   const token = typeof params.token === "string" ? params.token : null;
   const result = token ? await verifyEmailFromToken(prisma, token) : { verified: false as const };

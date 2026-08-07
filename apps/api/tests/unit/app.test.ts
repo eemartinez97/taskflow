@@ -17,6 +17,7 @@ vi.mock("../../src/config/env", () => ({
     API_PORT: 8001,
     NODE_ENV: "test",
     NEXTAUTH_SECRET: "test-nextauth-secret-32-chars-min!!",
+    TRUSTED_PROXY_HOPS: 1,
   },
   isProduction: vi.fn(),
 }));
@@ -82,6 +83,10 @@ describe("HTTP surface", () => {
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toContain("text/plain");
     expect(res.text).toContain("taskflow_");
+  });
+
+  it("configures trust proxy from TRUSTED_PROXY_HOPS so req.ip reflects the real client behind nginx", () => {
+    expect(app().get("trust proxy")).toBe(1);
   });
 
   it("sets Helmet security headers", async () => {

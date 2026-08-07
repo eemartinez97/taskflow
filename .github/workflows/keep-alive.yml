@@ -1,0 +1,21 @@
+name: keep-alive
+
+# Render's free tier spins the api service down after 15 minutes with no
+# HTTP traffic (~30s cold start on the next request) - pinging /healthz on
+# a shorter interval than that keeps it always warm for the live demo.
+# Every 5 minutes, not 10: GitHub's own scheduler can delay a cron run by a
+# few minutes under load, so 5 leaves margin before the 15-minute threshold.
+# Public repo -> GitHub-hosted runner minutes are free/unlimited here, so
+# the ~288 runs/day cost nothing.
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {} # manual trigger for on-demand verification
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ping apps/api's health endpoint
+        run: curl -f --max-time 30 https://api.taskflow.eosmin.dev/healthz

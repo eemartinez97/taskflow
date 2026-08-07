@@ -15,10 +15,26 @@ export interface Bootstrapped {
 /** Wires Socket.IO + Express onto a raw HTTP server. No side effects. */
 export function bootstrap(): Bootstrapped {
   const httpServer = http.createServer();
+  // Constructing the Socket.IO Server here (not after) is required: it
+  // calls Engine.IO's attach(), which registers its OWN "request" listener
+  // on httpServer as a side effect. That must happen before the manual
+  // listener below is registered, so keep this call first if this function
+  // is ever refactored.
   const io = createSocketServer(httpServer);
 
   const app = createApp(io);
-  httpServer.on("request", app);
+  const socketPath = io.path();
+
+  // Engine.IO's own "request" listener (registered above, inside
+  // createSocketServer) already fully handles every request under its path
+  // and ends the response. Node calls all "request" listeners on a server
+  // regardless of what an earlier one did, so without this guard Express
+  // would also process /socket.io/* requests, find no matching route, and
+  // try to write its own 404 - crashing with ERR_HTTP_HEADERS_SENT.
+  httpServer.on("request", (req, res) => {
+    if (req.url?.startsWith(socketPath)) return;
+    app(req, res);
+  });
 
   return { httpServer, io };
 }

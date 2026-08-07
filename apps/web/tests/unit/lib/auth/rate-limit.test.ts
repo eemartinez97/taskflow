@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { prisma } from "@taskflow/database";
 import {
   checkAuthEmailRateLimit,
@@ -143,5 +143,67 @@ describe("resetAuthEmailRateLimit", () => {
     await resetAuthEmailRateLimit();
 
     expect(mockDeleteMany).toHaveBeenCalledWith({});
+  });
+});
+
+describe("E2E bypass (isE2ERun() && E2E_TEST_SECRET)", () => {
+  const originalEnableTestRoutes = process.env.ENABLE_TEST_ROUTES;
+  const originalE2ETestSecret = process.env.E2E_TEST_SECRET;
+
+  beforeEach(() => {
+    mockQueryRaw.mockReset();
+  });
+
+  afterEach(() => {
+    process.env.ENABLE_TEST_ROUTES = originalEnableTestRoutes;
+    process.env.E2E_TEST_SECRET = originalE2ETestSecret;
+  });
+
+  // tests/setup/env.ts already points DATABASE_URL at "localhost", so
+  // isE2ERun() only needs this flag to report true in this suite.
+  it("never touches the DB and reports not-limited when ENABLE_TEST_ROUTES=true AND E2E_TEST_SECRET is set (repeated `playwright test --repeat-each` runs must not trip this)", async () => {
+    process.env.ENABLE_TEST_ROUTES = "true";
+    process.env.E2E_TEST_SECRET = "test-secret";
+
+    const emailResult = await checkAuthEmailRateLimit("a@b.com");
+    const ipResult = await checkAuthIpRateLimit("203.0.113.5");
+
+    expect(emailResult.limited).toBe(false);
+    expect(ipResult.limited).toBe(false);
+    expect(mockQueryRaw).not.toHaveBeenCalled();
+  });
+
+  it("a release() call for the bypass token safely no-ops (never matches a real bucket row)", async () => {
+    process.env.ENABLE_TEST_ROUTES = "true";
+    process.env.E2E_TEST_SECRET = "test-secret";
+    const { windowToken } = await checkAuthEmailRateLimit("a@b.com");
+
+    mockExecuteRaw.mockReset();
+    await releaseAuthEmailRateLimit("a@b.com", windowToken);
+
+    expect(mockExecuteRaw).toHaveBeenCalledOnce(); // still issues the UPDATE...
+    expect(mockExecuteRaw.mock.calls[0]).toContainEqual(new Date(windowToken)); // ...but for a resetAt no real row has.
+  });
+
+  it("still enforces the real limit when ENABLE_TEST_ROUTES is not 'true' (a leaked/misconfigured flag must not bypass real production checks)", async () => {
+    delete process.env.ENABLE_TEST_ROUTES;
+    process.env.E2E_TEST_SECRET = "test-secret";
+    mockQueryRaw.mockResolvedValue([{ count: 4, resetAt: RESET_AT }]);
+
+    const result = await checkAuthEmailRateLimit("a@b.com");
+
+    expect(result.limited).toBe(true);
+    expect(mockQueryRaw).toHaveBeenCalledOnce();
+  });
+
+  it("still enforces the real limit when E2E_TEST_SECRET is missing, even with ENABLE_TEST_ROUTES=true on a local DB (e.g. docker-compose.yml's DB host is named 'postgres', one of isE2ERun's local-database hostnames)", async () => {
+    process.env.ENABLE_TEST_ROUTES = "true";
+    delete process.env.E2E_TEST_SECRET;
+    mockQueryRaw.mockResolvedValue([{ count: 4, resetAt: RESET_AT }]);
+
+    const result = await checkAuthEmailRateLimit("a@b.com");
+
+    expect(result.limited).toBe(true);
+    expect(mockQueryRaw).toHaveBeenCalledOnce();
   });
 });

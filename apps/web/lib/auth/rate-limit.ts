@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@taskflow/database";
+import { isE2ERun } from "@/lib/utils/local-database";
 
 /**
  * Rate limits auth email endpoints (resend verification, forgot password)
@@ -68,16 +69,41 @@ interface RateLimitBucketRow {
   resetAt: Date;
 }
 
+/** Never a real bucket's resetAt - a subsequent release() call for this token safely matches zero rows. */
+const E2E_BYPASS_WINDOW_TOKEN = -1;
+
 /**
  * Atomically increments (or opens a fresh) window for `key` and reports
  * whether it's now over `limit` for that window. Shared core for both the
  * email and IP axes above - only the key/limit/window differ between them.
+ *
+ * Skipped entirely (no DB write at all) during a real E2E run. Without this,
+ * `playwright test --repeat-each=N` (or just running the full suite several
+ * times in the same 15-minute window) inevitably trips this exact limiter:
+ * it's a correct anti-abuse control doing its job against traffic that
+ * happens to be authorized test traffic, not a bug in the limiter itself.
+ *
+ * Unlike the other three isE2ERun() call sites (test-route-guard.ts,
+ * lib/mail/sender.ts, env.ts's production exemption), this bypass fully
+ * disables a real anti-abuse control app-wide, not just test-scoped surface
+ * area - so it additionally requires E2E_TEST_SECRET to be present, the same
+ * per-run random secret test-route-guard.ts checks, generated fresh by
+ * playwright.config.ts and never written to any deployment's env (see that
+ * file's own docblock). isE2ERun()'s local-database half already means a
+ * leaked ENABLE_TEST_ROUTES flag alone can't trigger this in a database that
+ * isn't local - this third factor closes the remaining gap for a
+ * docker-compose-style deployment, whose DB host is literally named
+ * "postgres" (one of isE2ERun's local-database hostnames).
  */
 async function checkRateLimitBucket(
   key: string,
   limit: number,
   windowMs: number,
 ): Promise<RateLimitCheck> {
+  if (isE2ERun() && process.env.E2E_TEST_SECRET) {
+    return { limited: false, windowToken: E2E_BYPASS_WINDOW_TOKEN };
+  }
+
   const now = new Date();
   const freshResetAt = new Date(now.getTime() + windowMs);
 

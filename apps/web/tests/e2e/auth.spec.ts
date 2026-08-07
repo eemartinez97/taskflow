@@ -65,10 +65,6 @@ test.describe("Authentication flow", () => {
     page,
     registeredUser,
   }) => {
-    // Slow: this test deliberately waits out the real 60s revocation-cache
-    // TTL (see below) instead of faking it - triples the default timeout.
-    test.slow();
-
     await registerNewUser(page, registeredUser);
     await expect(page).toHaveURL(/\/projects/);
 
@@ -97,14 +93,18 @@ test.describe("Authentication flow", () => {
     });
 
     // The revocation check (lib/auth/session-revocation.ts) is backed by an
-    // in-process passwordChangedAt cache with a real 60s TTL, PER MODULE
-    // INSTANCE - Next.js compiles Route Handlers and RSC page renders into
-    // separate bundles, each getting its OWN copy of that cache, so there is
-    // no reliable single place to force-bust it from a test. Waiting out the
-    // real TTL is the only correct way to observe "eventually revoked,
-    // within 60s" - which is the actual documented guarantee, not an
-    // artifact of this test being slow.
-    await page.waitForTimeout(61_000);
+    // in-process passwordChangedAt cache, PER MODULE INSTANCE - Next.js
+    // compiles Route Handlers and RSC page renders into separate bundles,
+    // each getting its OWN copy of that cache, so there is no reliable
+    // single place to force-bust it from a test. Waiting out the real TTL
+    // is the only correct way to observe "eventually revoked, within the
+    // TTL" - which is the actual documented guarantee, not an artifact of
+    // this test being slow. playwright.config.ts sets the SAME TTL (via
+    // PASSWORD_CHANGED_AT_CACHE_TTL_MS) on both the web server and this
+    // process, short for E2E instead of production's real 60s, so this
+    // wait is proportionally short too - same guarantee, not a shortcut.
+    const cacheTtlMs = Number(process.env.PASSWORD_CHANGED_AT_CACHE_TTL_MS ?? 60_000);
+    await page.waitForTimeout(cacheTtlMs + 1_000);
 
     // Reuse the ORIGINAL (pre-reset) session cookie, still held by this
     // browser context, to prove it no longer authenticates: the RSC session
@@ -117,6 +117,12 @@ test.describe("Authentication flow", () => {
     // per Next's error-boundary scoping - see its own docblock), so the
     // still-visible "Projects" title in the header is NOT a useful signal
     // here; the error fallback's own heading is.
+    //
+    // EXPECTED LOG NOISE: this throw makes Next.js print a server-side
+    // "[TRPCError] You must be signed in..." to the webServer's own
+    // console (its default behavior for any error surfaced during a
+    // Server Component render, not something this app logs on purpose) -
+    // that's this test doing its job, not a failure.
     await page.goto("/projects");
     await expect(page.getByRole("heading", { name: /something went wrong/i })).toBeVisible();
 

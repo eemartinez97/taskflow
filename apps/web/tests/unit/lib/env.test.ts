@@ -44,6 +44,19 @@ describe("fullEnvSchema", () => {
     expect(fullEnvSchema.safeParse(rest).success).toBe(false);
   });
 
+  it("defaults PASSWORD_CHANGED_AT_CACHE_TTL_MS to 60s when omitted", () => {
+    const { PASSWORD_CHANGED_AT_CACHE_TTL_MS: _omit, ...rest } = VALID_FULL_ENV;
+    const result = fullEnvSchema.safeParse(rest);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.PASSWORD_CHANGED_AT_CACHE_TTL_MS).toBe(60_000);
+  });
+
+  it("coerces PASSWORD_CHANGED_AT_CACHE_TTL_MS from string (playwright.config.ts sets it via env)", () => {
+    const result = fullEnvSchema.safeParse({ ...VALID_FULL_ENV, PASSWORD_CHANGED_AT_CACHE_TTL_MS: "2000" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.PASSWORD_CHANGED_AT_CACHE_TTL_MS).toBe(2000);
+  });
+
   describe("EMAIL_FROM", () => {
     it("accepts a bare email address", () => {
       const result = fullEnvSchema.safeParse({ ...VALID_FULL_ENV, EMAIL_FROM: "onboarding@resend.dev" });

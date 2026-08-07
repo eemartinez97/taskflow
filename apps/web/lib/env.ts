@@ -58,6 +58,13 @@ export const serverEnvSchema = z
     // is chained in front of that edge, or set it to 0 if the process is
     // genuinely internet-facing with no proxy at all.
     TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).default(1),
+    // TTL for lib/auth/session-revocation.ts's in-process passwordChangedAt
+    // cache - see createPasswordChangedAtCache's docblock in
+    // packages/shared for why this exists at all. 60s in every real
+    // deployment; E2E overrides it much lower (playwright.config.ts) so
+    // tests/e2e/auth.spec.ts's revocation test can wait out the REAL TTL
+    // instead of a 60s one - same guarantee, not a fake/mocked shortcut.
+    PASSWORD_CHANGED_AT_CACHE_TTL_MS: z.coerce.number().int().min(0).default(60_000),
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV !== "production") return;

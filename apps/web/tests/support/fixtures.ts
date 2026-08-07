@@ -13,6 +13,7 @@ export const VALID_SERVER_ENV = {
   DATABASE_URL: "postgresql://taskflow:changeme@localhost:5432/taskflow_test",
   NEXTAUTH_SECRET: "test-secret-value-at-least-16-chars",
   NEXTAUTH_URL: "http://localhost:3000",
+  PASSWORD_CHANGED_AT_CACHE_TTL_MS: 60_000,
 };
 
 export const VALID_PUBLIC_ENV = {

@@ -56,12 +56,7 @@ export function TokenPasswordForm({
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
       <Alert message={serverError} />
       <input type="hidden" {...register("token")} />
-      <FormField
-        label={passwordLabel}
-        htmlFor="password"
-        required
-        error={errors.password?.message}
-      >
+      <FormField label={passwordLabel} htmlFor="password" required error={errors.password?.message}>
         <Input
           id="password"
           type="password"

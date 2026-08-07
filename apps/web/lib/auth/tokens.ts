@@ -128,8 +128,7 @@ export async function consumeEmailVerification(
 }
 
 export type VerifyEmailResult =
-  | { verified: true; freshlyActivated: boolean; userId: string }
-  | { verified: false };
+  { verified: true; freshlyActivated: boolean; userId: string } | { verified: false };
 
 /**
  * Confirms an emailed verification link and reports whether the account is

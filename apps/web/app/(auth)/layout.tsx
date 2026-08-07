@@ -15,10 +15,7 @@ import type { JSX } from "react";
 export default function AuthLayout({ children }: { children: React.ReactNode }): JSX.Element {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-10 bg-gray-50 px-4">
-      <Link
-        href="/"
-        className="flex items-center gap-2 text-2xl font-semibold text-brand-700"
-      >
+      <Link href="/" className="flex items-center gap-2 text-2xl font-semibold text-brand-700">
         <LayoutDashboard className="h-8 w-8" />
         <span>TaskFlow</span>
       </Link>

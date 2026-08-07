@@ -227,9 +227,7 @@ describe("VerifyEmailPage", () => {
     // does not support rendering async Server Components on the client.
     const element = VerifyEmailPage({ searchParams: Promise.resolve({}) });
     expect(element.type).toBe(Suspense);
-    expect((element.props as { children: { type: unknown } }).children.type).toBe(
-      VerifyEmailGate,
-    );
+    expect((element.props as { children: { type: unknown } }).children.type).toBe(VerifyEmailGate);
   });
 
   it("Suspense fallback renders a loading skeleton with the given title", () => {

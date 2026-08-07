@@ -1,12 +1,19 @@
-name: CI
+name: compose-smoke
 
+# Validates apps/api/Dockerfile, apps/web/Dockerfile, and nginx.conf still
+# produce a working stack together - the per-package workflows (web.yml,
+# api.yml) only validate their own image builds in isolation, not that
+# depends_on/healthcheck wiring and nginx's reverse-proxy routing actually
+# work when everything runs at once. No path filter: any change anywhere in
+# the monorepo (including packages/shared, which both images depend on) can
+# break this.
 on:
   push:
     branches: [main]
   pull_request: {}
 
 jobs:
-  lint-typecheck-test:
+  smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -24,27 +31,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Generate Prisma client
-        run: pnpm --filter @taskflow/database db:generate
-
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm test:coverage
-
       - name: Check docker-compose.yml covers every required apps/api env var
         run: pnpm check:env-parity
-
-  # Validates apps/api/Dockerfile, apps/web/Dockerfile, and nginx.conf still
-  # produce a working stack - `docker compose build` alone would catch a
-  # broken Dockerfile, but not e.g. a missing depends_on/healthcheck wiring,
-  # so this brings the real stack up (with placeholder secrets, same as a
-  # fresh `cp .env.example .env`) and hits it end-to-end through nginx.
-  docker-build:
-    needs: lint-typecheck-test
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v5
 
       # Must run BEFORE `docker compose build`: build-time ARGs like
       # NEXT_PUBLIC_API_URL are substituted from whatever's in the shell env
@@ -89,6 +77,12 @@ jobs:
           curl -f http://localhost/healthz
           curl -f http://localhost/login
 
+      - name: Install Playwright's Chromium
+        run: pnpm --filter @taskflow/web exec playwright install --with-deps chromium
+
+      - name: Open the dashboard headlessly through nginx
+        run: pnpm --filter @taskflow/web exec node scripts/smoke-dashboard.mjs
+
       - name: Dump logs
         if: always()
         run: docker compose logs
@@ -96,14 +90,3 @@ jobs:
       - name: Tear down
         if: always()
         run: docker compose down -v
-
-  gitleaks:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

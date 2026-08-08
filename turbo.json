@@ -14,7 +14,6 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "tsconfig.json", "package.json"],
       "outputs": ["dist/**", ".next/**"]
     },
     "dev": {
@@ -22,8 +21,7 @@
       "persistent": true
     },
     "lint": {
-      "dependsOn": ["^build"],
-      "inputs": ["src/**", "eslint.config.mjs", "tsconfig.json", "package.json"]
+      "dependsOn": ["^build"]
     },
     "lint:fix": {
       "cache": false
@@ -31,20 +29,15 @@
     "format": {
       "cache": false
     },
-    "format:check": {
-      "inputs": ["src/**", "*.mjs", "*.json", "*.css", "*.md"]
-    },
+    "format:check": {},
     "typecheck": {
-      "dependsOn": ["^build"],
-      "inputs": ["src/**", "tsconfig.json", "package.json"]
+      "dependsOn": ["^build"]
     },
     "test": {
-      "dependsOn": ["^build"],
-      "inputs": ["src/**", "tests/**", "vitest.config.ts", "package.json"]
+      "dependsOn": ["^build"]
     },
     "test:coverage": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "tests/**", "vitest.config.ts", "package.json"],
       "outputs": ["coverage/**"]
     },
     "clean": {

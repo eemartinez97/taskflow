@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { User } from "next-auth";
 import type { Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
@@ -186,6 +186,54 @@ describe("authOptions", () => {
       });
 
       expect(result.picture).toBe("old-pic-url");
+    });
+  });
+
+  // -- cookies config (COOKIE_DOMAIN) --
+
+  describe("cookies config", () => {
+    afterEach(() => {
+      vi.doUnmock("@/lib/env.server");
+      vi.resetModules();
+    });
+
+    it("does not set a cookies config when COOKIE_DOMAIN is unset", () => {
+      expect(authOptions.cookies).toBeUndefined();
+    });
+
+    it("uses the __Secure- cookie name and sets domain when COOKIE_DOMAIN is set and NEXTAUTH_URL is https", async () => {
+      vi.resetModules();
+      vi.doMock("@/lib/env.server", () => ({
+        serverEnv: {
+          NEXTAUTH_SECRET: "test-secret-value-at-least-16-chars",
+          NEXTAUTH_URL: "https://app.taskflow.dev",
+          NODE_ENV: "test" as const,
+          DATABASE_URL: "postgresql://test",
+          COOKIE_DOMAIN: ".taskflow.dev",
+        },
+      }));
+
+      const { authOptions: opts } = await import("@/auth");
+
+      expect(opts.cookies?.sessionToken?.name).toBe("__Secure-next-auth.session-token");
+      expect(opts.cookies?.sessionToken?.options).toMatchObject({ domain: ".taskflow.dev" });
+    });
+
+    it("uses the plain cookie name when COOKIE_DOMAIN is set but NEXTAUTH_URL is not https", async () => {
+      vi.resetModules();
+      vi.doMock("@/lib/env.server", () => ({
+        serverEnv: {
+          NEXTAUTH_SECRET: "test-secret-value-at-least-16-chars",
+          NEXTAUTH_URL: "http://localhost:3000",
+          NODE_ENV: "test" as const,
+          DATABASE_URL: "postgresql://test",
+          COOKIE_DOMAIN: ".taskflow.dev",
+        },
+      }));
+
+      const { authOptions: opts } = await import("@/auth");
+
+      expect(opts.cookies?.sessionToken?.name).toBe("next-auth.session-token");
     });
   });
 

@@ -23,6 +23,13 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # prisma.config.ts resolves DATABASE_URL at config-load time, so even
+    # `prisma generate` needs it - now also true of `pnpm build` itself
+    # (packages/database's build script runs `prisma generate && tsc`), so
+    # this is job-level, not scoped to one step. A build-time placeholder is
+    # enough, no real Postgres involved (mirrors web.yml).
+    env:
+      DATABASE_URL: "postgresql://build:build@localhost:5432/build?schema=taskflow"
     steps:
       - uses: actions/checkout@v5
 
@@ -40,11 +47,6 @@ jobs:
 
       - name: Generate Prisma client
         run: pnpm --filter @taskflow/database db:generate
-        env:
-          # prisma.config.ts resolves DATABASE_URL at config-load time, so
-          # even `prisma generate` needs it - a build-time placeholder is
-          # enough, no real Postgres involved (mirrors web.yml).
-          DATABASE_URL: "postgresql://build:build@localhost:5432/build?schema=taskflow"
 
       - run: pnpm --filter @taskflow/api format:check
       - run: pnpm --filter @taskflow/api lint

@@ -1,5 +1,15 @@
 {
   "$schema": "https://v2-9-16.turborepo.dev/schema.json",
+  "globalEnv": [
+    "DATABASE_URL",
+    "NEXTAUTH_SECRET",
+    "NEXTAUTH_URL",
+    "RESEND_API_KEY",
+    "EMAIL_FROM",
+    "TRUSTED_PROXY_HOPS",
+    "NEXT_PUBLIC_API_URL",
+    "NEXT_PUBLIC_WEB_URL"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

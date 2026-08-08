@@ -22,7 +22,16 @@
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
     "check:env-parity": "node scripts/check-env-parity.mjs",
-    "clean": "turbo run clean && rm -rf node_modules"
+    "clean": "turbo run clean && rm -rf node_modules",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs}": [
+      "eslint --fix"
+    ],
+    "*.{ts,tsx,js,mjs,json,css,md}": [
+      "prettier --write"
+    ]
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

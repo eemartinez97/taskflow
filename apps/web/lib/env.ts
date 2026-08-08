@@ -34,6 +34,14 @@ export const serverEnvSchema = z
       error: "NEXTAUTH_SECRET must be at least 16 characters",
     }),
     NEXTAUTH_URL: z.url().regex(/^https?:\/\//, "NEXTAUTH_URL must start with http:// or https://"),
+    // Widens the NextAuth session cookie's Set-Cookie Domain attribute (e.g.
+    // ".eosmin.dev") so apps/api on a sibling subdomain (api.taskflow.eosmin.dev)
+    // actually receives it - by default the cookie is host-only, scoped to
+    // whatever host served it (taskflow.eosmin.dev), and a cross-subdomain
+    // fetch never sees it even with credentials:"include" and correct CORS.
+    // Leave unset for single-host setups (e.g. localhost) - NextAuth's
+    // default host-only cookie is what you want there.
+    COOKIE_DOMAIN: z.string().optional(),
     // Optional in dev/test: @taskflow/mail's createEmailSender falls back to a
     // console logger when this is absent. Required in production - see the
     // superRefine below.

@@ -22,6 +22,22 @@ import type { JWT } from "next-auth/jwt";
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
 
+  // Only set when apps/api lives on a sibling subdomain (see COOKIE_DOMAIN's
+  // docblock in lib/env.ts). `name` is NextAuth v4's own default (see
+  // packages/shared/src/utils/cookies.ts, which parses both variants) -
+  // TypeScript's CookieOption requires it explicitly even though NextAuth
+  // merges partial config with its defaults at runtime.
+  ...(serverEnv.COOKIE_DOMAIN && {
+    cookies: {
+      sessionToken: {
+        name: serverEnv.NEXTAUTH_URL.startsWith("https://")
+          ? "__Secure-next-auth.session-token"
+          : "next-auth.session-token",
+        options: { domain: serverEnv.COOKIE_DOMAIN },
+      },
+    },
+  }),
+
   providers: [
     CredentialsProvider({
       name: "Credentials",

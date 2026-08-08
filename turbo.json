@@ -8,7 +8,8 @@
     "EMAIL_FROM",
     "TRUSTED_PROXY_HOPS",
     "NEXT_PUBLIC_API_URL",
-    "NEXT_PUBLIC_WEB_URL"
+    "NEXT_PUBLIC_WEB_URL",
+    "COOKIE_DOMAIN"
   ],
   "tasks": {
     "build": {

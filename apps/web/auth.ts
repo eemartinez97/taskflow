@@ -23,20 +23,40 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
 
   // Only set when apps/api lives on a sibling subdomain (see COOKIE_DOMAIN's
-  // docblock in lib/env.ts). `name` is NextAuth v4's own default (see
-  // packages/shared/src/utils/cookies.ts, which parses both variants) -
-  // TypeScript's CookieOption requires it explicitly even though NextAuth
-  // merges partial config with its defaults at runtime.
-  ...(serverEnv.COOKIE_DOMAIN && {
-    cookies: {
-      sessionToken: {
-        name: serverEnv.NEXTAUTH_URL.startsWith("https://")
-          ? "__Secure-next-auth.session-token"
-          : "next-auth.session-token",
-        options: { domain: serverEnv.COOKIE_DOMAIN },
-      },
-    },
-  }),
+  // docblock in lib/env.ts).
+  //
+  // Every field below is spelled out explicitly - NextAuth v4's real
+  // `init.js` (verified by reading the installed package, not just its
+  // docs) merges `cookies` with a SHALLOW top-level spread,
+  // `{...defaultCookies(...), ...authOptions.cookies}`, not a deep merge.
+  // A `sessionToken` override that only sets `options: { domain }` silently
+  // DROPS `httpOnly`/`sameSite`/`path`/`secure` from the defaults instead of
+  // adding to them - this actually happened here: the resulting Set-Cookie
+  // had `Domain` and (when `secure` was separately hardcoded) `Secure`, but
+  // no `HttpOnly`/`SameSite`/`Path` at all. `secure`/`name` must also agree
+  // with each other (see below) - a `__Secure-`-prefixed name without the
+  // `Secure` attribute is invalid per spec and silently dropped by every
+  // browser. Both failure modes look identical from the outside: the server
+  // logs 200 for every step, but the client never ends up with a usable
+  // session no matter how many times sign-in "succeeds".
+  ...(serverEnv.COOKIE_DOMAIN &&
+    (() => {
+      const isHttps = serverEnv.NEXTAUTH_URL.startsWith("https://");
+      return {
+        cookies: {
+          sessionToken: {
+            name: isHttps ? "__Secure-next-auth.session-token" : "next-auth.session-token",
+            options: {
+              httpOnly: true,
+              sameSite: "lax" as const,
+              path: "/",
+              secure: isHttps,
+              domain: serverEnv.COOKIE_DOMAIN,
+            },
+          },
+        },
+      };
+    })()),
 
   providers: [
     CredentialsProvider({

@@ -201,6 +201,14 @@ describe("authOptions", () => {
       expect(authOptions.cookies).toBeUndefined();
     });
 
+    // Regression test: `name` and `secure` used to be derived independently
+    // (name from NEXTAUTH_URL directly, secure left to NextAuth's own
+    // default). A `__Secure-`-prefixed cookie WITHOUT the `Secure` attribute
+    // is invalid per spec and silently dropped by every browser - no error
+    // anywhere. Login appeared to hang forever in production: the server
+    // logged 200 for every step, but the client never received a usable
+    // session cookie. Asserting both together in the same expectation is
+    // what catches that mismatch.
     it("uses the __Secure- cookie name and sets domain when COOKIE_DOMAIN is set and NEXTAUTH_URL is https", async () => {
       vi.resetModules();
       vi.doMock("@/lib/env.server", () => ({
@@ -216,10 +224,13 @@ describe("authOptions", () => {
       const { authOptions: opts } = await import("@/auth");
 
       expect(opts.cookies?.sessionToken?.name).toBe("__Secure-next-auth.session-token");
-      expect(opts.cookies?.sessionToken?.options).toMatchObject({ domain: ".taskflow.dev" });
+      expect(opts.cookies?.sessionToken?.options).toMatchObject({
+        domain: ".taskflow.dev",
+        secure: true,
+      });
     });
 
-    it("uses the plain cookie name when COOKIE_DOMAIN is set but NEXTAUTH_URL is not https", async () => {
+    it("uses the plain cookie name and secure:false when COOKIE_DOMAIN is set but NEXTAUTH_URL is not https", async () => {
       vi.resetModules();
       vi.doMock("@/lib/env.server", () => ({
         serverEnv: {
@@ -234,6 +245,7 @@ describe("authOptions", () => {
       const { authOptions: opts } = await import("@/auth");
 
       expect(opts.cookies?.sessionToken?.name).toBe("next-auth.session-token");
+      expect(opts.cookies?.sessionToken?.options).toMatchObject({ secure: false });
     });
   });
 

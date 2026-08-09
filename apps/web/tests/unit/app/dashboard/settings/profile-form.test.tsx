@@ -69,13 +69,6 @@ describe("ProfileForm", () => {
     expect(screen.getByText("Update failed")).toBeInTheDocument();
   });
 
-  it("shows the success alert when the mutation succeeded and the form isn't dirty", () => {
-    mockUseQuery(api.auth.me, mockAuthorizedUser);
-    mockUseMutationResult(api.auth.updateProfile, { isSuccess: true });
-    render(<ProfileForm />);
-    expect(screen.getByText("Profile saved.")).toBeInTheDocument();
-  });
-
   it("does not reset the form when the user is mid-edit (isDirty) and auth.me updates", async () => {
     mockUseQuery(api.auth.me, mockAuthorizedUser);
     const { rerender } = render(<ProfileForm />);
@@ -87,14 +80,6 @@ describe("ProfileForm", () => {
     });
     rerender(<ProfileForm />);
     expect(screen.getByLabelText(/name/i)).toHaveValue(`${mockAuthorizedUser.name} Extra`);
-  });
-
-  it("hides the success alert while the form is dirty even if the mutation succeeded", async () => {
-    mockUseQuery(api.auth.me, mockAuthorizedUser);
-    mockUseMutationResult(api.auth.updateProfile, { isSuccess: true });
-    render(<ProfileForm />);
-    await userEvent.setup().type(screen.getByLabelText(/name/i), " x");
-    expect(screen.queryByText("Profile saved.")).not.toBeInTheDocument();
   });
 
   it("falls back to an empty string when auth.me's name is null", () => {

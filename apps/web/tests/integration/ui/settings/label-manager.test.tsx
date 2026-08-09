@@ -3,6 +3,7 @@ import { screen, fireEvent, waitFor, act } from "@testing-library/react";
 import type { Label } from "@taskflow/database";
 import { LabelManager } from "@/app/(dashboard)/settings/_components/label-manager";
 import { api } from "@/lib/trpc/client";
+import { toast } from "@/lib/toast/store";
 import { renderUI } from "../../helpers/render";
 import { wireCapturableMutation, mockMutationError } from "../../helpers/mutation";
 import { mockApiUtils, mockUseQuery } from "@/tests/support/trpc";
@@ -195,6 +196,14 @@ describe("LabelManager", () => {
     await waitFor(() => {
       expect(screen.getByPlaceholderText("e.g. Bug")).toHaveValue("");
     });
+  });
+
+  it("shows a toast with the label name on create success", () => {
+    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} />);
+
+    createMutation.simulateSuccess(makeLabel("new-id", "Performance"));
+
+    expect(vi.mocked(toast.success)).toHaveBeenCalledWith('Label "Performance" created.');
   });
 
   it("invalidates labels.list on create success", () => {

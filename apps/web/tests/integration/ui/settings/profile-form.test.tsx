@@ -6,11 +6,7 @@ import { api } from "@/lib/trpc/client";
 import { toast } from "@/lib/toast/store";
 import { mockSession } from "@/tests/mocks/next-auth";
 import { renderUI } from "../../helpers/render";
-import {
-  wireCapturableMutation,
-  mockMutationError,
-  mockMutationState,
-} from "../../helpers/mutation";
+import { wireCapturableMutation, mockMutationError } from "../../helpers/mutation";
 import { mockUseQuery } from "@/tests/support/trpc";
 
 // -- Module mocks --
@@ -175,12 +171,6 @@ describe("ProfileForm", () => {
       name: MOCK_ME.name,
       image: MOCK_ME.image,
     });
-  });
-
-  it("shows 'Profile saved.' success banner when mutation succeeds and form is not dirty", () => {
-    mockMutationState(api.auth.updateProfile, updateMutation, { isSuccess: true });
-    renderUI(<ProfileForm />);
-    expect(screen.getByText("Profile saved.")).toBeInTheDocument();
   });
 
   // -- Error display --

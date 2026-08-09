@@ -26,16 +26,21 @@ vi.mock("@/components/common/confirm-dialog", () => ({
     ) : null;
   },
 }));
+import { usePathname } from "next/navigation";
 import { api } from "@/lib/trpc/client";
 import { OrgSwitcher } from "@/components/layout/org-switcher";
 import { registerDirtyCheck } from "@/lib/utils/navigation-guard";
 import { ACTIVE_ORG_COOKIE } from "@/lib/utils/active-org";
+import { endNavProgress, getNavProgress } from "@/lib/utils/nav-progress";
 import { makeOrg } from "@/tests/support/factories";
 import { mockUseQuery } from "@/tests/support/trpc";
 import { setupRouterMock } from "@/tests/support/render";
 
 afterEach(() => {
   document.cookie = `${ACTIVE_ORG_COOKIE}=; path=/; max-age=0`;
+  // Drain any nav-progress state left by a previous test - it's a module
+  // singleton, not reset by restoreMocks.
+  endNavProgress();
 });
 const orgA = makeOrg({ id: "org-a", name: "Org A" });
 const orgB = makeOrg({ id: "org-b", name: "Org B" });
@@ -116,6 +121,22 @@ describe("OrgSwitcher", () => {
     await user.selectOptions(screen.getByLabelText(/select organization/i), "__create_org__");
     await user.click(screen.getByRole("button", { name: /create/i }));
     expect(pushMock).toHaveBeenCalledWith("/projects");
+  });
+  it("starts nav progress when switching org from a page other than /projects", async () => {
+    mockUseQuery(api.orgs.list, [orgA, orgB]);
+    setupRouterMock();
+    vi.mocked(usePathname).mockReturnValue("/tasks");
+    render(<OrgSwitcher />);
+    await userEvent.setup().selectOptions(screen.getByLabelText(/select organization/i), orgB.id);
+    expect(getNavProgress()).toBe(true);
+  });
+  it("does not start nav progress when already on /projects (pathname won't change)", async () => {
+    mockUseQuery(api.orgs.list, [orgA, orgB]);
+    setupRouterMock();
+    vi.mocked(usePathname).mockReturnValue("/projects");
+    render(<OrgSwitcher />);
+    await userEvent.setup().selectOptions(screen.getByLabelText(/select organization/i), orgB.id);
+    expect(getNavProgress()).toBe(false);
   });
   it("does nothing when onConfirm fires without a pendingOrgId set", () => {
     mockUseQuery(api.orgs.list, [orgA, orgB]);

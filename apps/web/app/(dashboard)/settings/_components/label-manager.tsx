@@ -18,6 +18,7 @@ import type { Label } from "@taskflow/database";
 
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { useDisclosure } from "@/lib/hooks/use-disclosure";
+import { toast } from "@/lib/toast/store";
 import { api } from "@/lib/trpc/client";
 
 interface LabelManagerProps {
@@ -46,7 +47,8 @@ export function LabelManager({ orgId, initialLabels }: LabelManagerProps): JSX.E
 
   const createMutation = api.labels.create.useMutation({
     meta: { skipErrorToast: true },
-    onSuccess: () => {
+    onSuccess: (created) => {
+      toast.success(`Label "${created.name}" created.`);
       void utils.labels.list.invalidate({ orgId });
       setName("");
     },

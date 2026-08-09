@@ -73,8 +73,11 @@ export function Dialog({
       aria-labelledby={titleId}
       aria-describedby={description ? descriptionId : undefined}
       className={cn(
-        // Reset browser default styles
-        "rounded-xl border border-gray-200 bg-white p-0 shadow-lg",
+        // Reset browser default styles - text-left guards against an ambient
+        // text-center on whatever page section rendered the trigger (e.g.
+        // NoOrgState's centered empty state), since text-align is inherited
+        // and the native <dialog> doesn't reset it on its own.
+        "rounded-xl border border-gray-200 bg-white p-0 shadow-lg text-left",
         "m-auto w-full max-w-md backdrop:bg-black/40",
         // Use React-controlled class instead of open: Tailwind variant
         // to avoid relying on browser attribute timing

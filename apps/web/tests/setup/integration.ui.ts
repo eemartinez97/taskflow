@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import "./env";
+import "./silence-console";
 
 // once. Individual tests still override return values via vi.mocked().
 vi.mock("@taskflow/ui", async () => await import("@/tests/mocks/taskflow-ui"));

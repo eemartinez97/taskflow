@@ -224,9 +224,12 @@ describe("authOptions", () => {
       const { authOptions: opts } = await import("@/auth");
 
       expect(opts.cookies?.sessionToken?.name).toBe("__Secure-next-auth.session-token");
-      expect(opts.cookies?.sessionToken?.options).toMatchObject({
-        domain: ".taskflow.dev",
+      expect(opts.cookies?.sessionToken?.options).toEqual({
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
         secure: true,
+        domain: ".taskflow.dev",
       });
     });
 
@@ -245,7 +248,13 @@ describe("authOptions", () => {
       const { authOptions: opts } = await import("@/auth");
 
       expect(opts.cookies?.sessionToken?.name).toBe("next-auth.session-token");
-      expect(opts.cookies?.sessionToken?.options).toMatchObject({ secure: false });
+      expect(opts.cookies?.sessionToken?.options).toEqual({
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: false,
+        domain: ".taskflow.dev",
+      });
     });
   });
 

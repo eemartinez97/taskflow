@@ -19,6 +19,7 @@ import { api } from "@/lib/trpc/client";
 import { LabelManager } from "@/app/(dashboard)/settings/_components/label-manager";
 import { mockUseMutationResult, mockUseQuery, setupMutationMock } from "@/tests/support/trpc";
 import { VALID_ORG_ID } from "@/tests/support/fixtures";
+import { makeLabel } from "@/tests/support/factories";
 
 describe("LabelManager", () => {
   it("renders empty state and creates label on Enter", async () => {
@@ -80,7 +81,7 @@ describe("LabelManager", () => {
     const { triggerSuccess } = setupMutationMock(api.labels.create);
     render(<LabelManager orgId={VALID_ORG_ID} initialLabels={[]} />);
     act(() => {
-      triggerSuccess();
+      triggerSuccess(makeLabel("l-new", "Bug"));
     });
   });
 

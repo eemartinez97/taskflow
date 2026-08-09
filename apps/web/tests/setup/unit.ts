@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import "./env";
+import "./silence-console";
 
 // Global mocks that are always identical across every unit test.
 // Individual tests may still override return values via vi.mocked().

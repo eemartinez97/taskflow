@@ -67,10 +67,6 @@ export function ProfileForm(): JSX.Element {
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex max-w-sm flex-col gap-4">
           <Alert message={mutation.isError ? mutation.error.message : null} />
-          <Alert
-            variant="success"
-            message={mutation.isSuccess && !isDirty ? "Profile saved." : null}
-          />
 
           <div className="flex items-center gap-3">
             <UserAvatar user={me ?? {}} size="md" />

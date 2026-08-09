@@ -1,7 +1,7 @@
 "use client";
 
 import { type JSX, useState, useSyncExternalStore } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 
 import { Select } from "@taskflow/ui";
@@ -16,6 +16,7 @@ import {
   subscribeActiveOrg,
 } from "@/lib/utils/active-org";
 import { hasUnsavedChanges } from "@/lib/utils/navigation-guard";
+import { startNavProgress } from "@/lib/utils/nav-progress";
 import { CREATE_ORG_VALUE } from "@/lib/constants/org-switcher";
 
 /**
@@ -29,6 +30,7 @@ import { CREATE_ORG_VALUE } from "@/lib/constants/org-switcher";
  */
 export function OrgSwitcher(): JSX.Element | null {
   const router = useRouter();
+  const pathname = usePathname();
   const { data: orgs } = api.orgs.list.useQuery();
   const activeId = useSyncExternalStore(subscribeActiveOrg, readActiveOrgId, getServerActiveOrgId);
   const createDialog = useDisclosure();
@@ -38,6 +40,12 @@ export function OrgSwitcher(): JSX.Element | null {
   if (!orgs) return null;
 
   function switchTo(orgId: string): void {
+    // Only /projects of the NEW org has ids that make sense - always the nav
+    // target. But if we're already there, router.push() won't change the
+    // pathname, so NavProgressBar's usePathname effect never fires and the
+    // bar would stay stuck until its 8s fallback. Skip it in that case -
+    // there's no route transition to show progress for.
+    if (pathname !== "/projects") startNavProgress();
     setActiveOrgId(orgId);
     router.push("/projects");
     router.refresh();
@@ -60,7 +68,7 @@ export function OrgSwitcher(): JSX.Element | null {
         <button
           type="button"
           onClick={createDialog.open}
-          className="flex items-center gap-1.5 rounded-md px-1 py-1 text-sm font-medium text-brand-600 hover:underline"
+          className="flex h-full w-full cursor-pointer items-center justify-center gap-1.5 bg-brand-600 py-4 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
         >
           <Plus className="h-4 w-4" />
           Create organization
@@ -91,7 +99,7 @@ export function OrgSwitcher(): JSX.Element | null {
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1.5 px-3 py-4">
       <label
         htmlFor="org-switcher"
         className="px-1 text-xs font-medium uppercase tracking-wide text-gray-400"

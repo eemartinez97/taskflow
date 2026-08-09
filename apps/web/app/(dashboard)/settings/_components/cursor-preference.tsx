@@ -7,6 +7,7 @@ import { Button, Card, CardContent, CardHeader, CardTitle } from "@taskflow/ui";
 
 import { useCursorsHidden } from "@/lib/hooks/use-cursors-pref";
 import { setCursorsHidden } from "@/lib/utils/cursor-pref";
+import { toast } from "@/lib/toast/store";
 
 /**
  * Board preference: show or hide other people's live cursors.
@@ -36,7 +37,9 @@ export function CursorPreference(): JSX.Element {
           size="sm"
           aria-pressed={!hidden}
           onClick={() => {
-            setCursorsHidden(!hidden);
+            const next = !hidden;
+            setCursorsHidden(next);
+            toast.success(next ? "Teammates' cursors hidden." : "Teammates' cursors visible.");
           }}
           className="shrink-0"
         >

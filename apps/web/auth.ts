@@ -19,6 +19,8 @@ import type { JWT } from "next-auth/jwt";
  * - useSession() for client access
  * - NEVER call the v5-only auth() helper
  */
+const isHttps = serverEnv.NEXTAUTH_URL.startsWith("https://");
+
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
 
@@ -39,24 +41,20 @@ export const authOptions: NextAuthOptions = {
   // browser. Both failure modes look identical from the outside: the server
   // logs 200 for every step, but the client never ends up with a usable
   // session no matter how many times sign-in "succeeds".
-  ...(serverEnv.COOKIE_DOMAIN &&
-    (() => {
-      const isHttps = serverEnv.NEXTAUTH_URL.startsWith("https://");
-      return {
-        cookies: {
-          sessionToken: {
-            name: isHttps ? "__Secure-next-auth.session-token" : "next-auth.session-token",
-            options: {
-              httpOnly: true,
-              sameSite: "lax" as const,
-              path: "/",
-              secure: isHttps,
-              domain: serverEnv.COOKIE_DOMAIN,
-            },
-          },
+  ...(serverEnv.COOKIE_DOMAIN && {
+    cookies: {
+      sessionToken: {
+        name: isHttps ? "__Secure-next-auth.session-token" : "next-auth.session-token",
+        options: {
+          httpOnly: true,
+          sameSite: "lax" as const,
+          path: "/",
+          secure: isHttps,
+          domain: serverEnv.COOKIE_DOMAIN,
         },
-      };
-    })()),
+      },
+    },
+  }),
 
   providers: [
     CredentialsProvider({

@@ -74,6 +74,7 @@ export function InlineEditText({
         className={cn(
           "group -mx-1.5 -my-1 inline-flex items-center gap-1.5 rounded px-1.5 py-1 text-left",
           "hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500",
+          "disabled:opacity-50",
           className,
         )}
       >

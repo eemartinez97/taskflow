@@ -27,7 +27,7 @@ export function Select({ hasError, className, children, ref, ...props }: SelectP
           hasError
             ? "border-red-500 focus-visible:ring-red-500"
             : "border-gray-300 focus-visible:ring-brand-500",
-          "disabled:cursor-not-allowed disabled:opacity-50",
+          "disabled:opacity-50",
           className,
         )}
         {...props}

@@ -63,4 +63,18 @@
     font-weight: 600;
     line-height: 1.25;
   }
+
+  /* Tailwind preflight resets button/select cursor to `default`. Set the
+     pointer/not-allowed cursor here once instead of repeating
+     `cursor-pointer disabled:cursor-not-allowed` on every button/select
+     across apps/web and @taskflow/ui. */
+  button:not(:disabled),
+  select:not(:disabled) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  select:disabled {
+    cursor: not-allowed;
+  }
 }

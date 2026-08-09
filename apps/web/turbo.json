@@ -1,0 +1,17 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "inputs": ["$TURBO_DEFAULT$", "!Dockerfile", "!scripts/**"]
+    },
+    "typecheck": {
+      "inputs": ["$TURBO_DEFAULT$", "!Dockerfile", "!scripts/**"]
+    },
+    "test": {
+      "inputs": ["$TURBO_DEFAULT$", "!Dockerfile", "!scripts/**"]
+    },
+    "test:coverage": {
+      "inputs": ["$TURBO_DEFAULT$", "!Dockerfile", "!scripts/**"]
+    }
+  }
+}

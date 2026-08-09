@@ -5,6 +5,7 @@ import type { JSX } from "react";
 
 import { TRPCProvider } from "@/lib/trpc/client";
 import { Toaster } from "@/lib/toast/toaster";
+import { NavProgressBar } from "@/components/common/nav-progress-bar";
 
 /**
  * Client-side provider tree.
@@ -17,6 +18,7 @@ export function Providers({ children }: { children: React.ReactNode }): JSX.Elem
   return (
     <SessionProvider>
       <TRPCProvider>
+        <NavProgressBar />
         {children}
         <Toaster />
       </TRPCProvider>

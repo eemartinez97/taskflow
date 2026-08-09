@@ -24,7 +24,7 @@ export function Sidebar(): JSX.Element {
         </Link>
       </div>
 
-      <div className="border-b border-gray-200 px-3 py-4">
+      <div className="border-b border-gray-200">
         <OrgSwitcher />
       </div>
 

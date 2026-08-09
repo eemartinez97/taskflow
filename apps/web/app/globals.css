@@ -78,3 +78,27 @@
     cursor: not-allowed;
   }
 }
+
+/* -- Navigation progress bar (see components/common/nav-progress-bar.tsx) --
+   :not(:disabled) keeps disabled controls showing "not-allowed" instead of
+   being overridden to "progress" while a navigation is in flight. */
+html.tf-nav-loading,
+html.tf-nav-loading *:not(:disabled) {
+  cursor: progress !important;
+}
+
+@keyframes tf-nav-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(50%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.tf-nav-progress-bar {
+  animation: tf-nav-progress 1s ease-in-out infinite;
+}

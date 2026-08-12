@@ -10,6 +10,8 @@ import { type MiddlewareBuilder } from "@trpc/server/unstable-core-do-not-import
 
 import { type Role } from "@taskflow/database";
 import { roleSchema } from "@taskflow/shared";
+import { env } from "../config/env";
+import { timingSafeEqualStrings } from "../utils/e2e";
 import {
   assertBoardInOrg,
   assertColumnInOrg,
@@ -105,6 +107,45 @@ export const publicProcedure = baseProcedure;
  * `ctx.user` is narrowed to non-null for all procedures that extend this.
  */
 export const protectedProcedure = baseProcedure.use(isAuthed);
+
+// Internal (server-to-server) procedure
+
+/**
+ * Middleware gating procedures that must be world-unreachable from a
+ * browser - today, just `auth.verifyCredentials`. Requires the
+ * `x-internal-secret` header to match `env.INTERNAL_API_SECRET` exactly,
+ * compared with `timingSafeEqual` so a byte-by-byte early-exit comparison
+ * can't leak how much of the secret a guess got right via response timing.
+ *
+ * `env.INTERNAL_API_SECRET` is optional-with-superRefine (see
+ * config/env.ts): unset in dev, required in production. When unset, this
+ * middleware doesn't compare anything - local dev never needs the secret
+ * configured to exercise this procedure.
+ */
+const requireInternalSecret = middleware(({ ctx, next }) => {
+  const expected = env.INTERNAL_API_SECRET;
+
+  if (expected) {
+    const provided = ctx.internalSecretHeader;
+    const isValid = typeof provided === "string" && timingSafeEqualStrings(expected, provided);
+
+    if (!isValid) {
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "Missing or invalid internal secret.",
+      });
+    }
+  }
+
+  return next({ ctx });
+});
+
+/**
+ * Internal procedure - callable only by another trusted process holding
+ * `INTERNAL_API_SECRET` (apps/web's server, never a browser). No session
+ * required; the caller authenticates via the shared secret instead.
+ */
+export const internalProcedure = baseProcedure.use(requireInternalSecret);
 
 // RBAC role guard
 

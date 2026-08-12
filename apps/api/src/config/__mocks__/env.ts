@@ -16,6 +16,7 @@ export const env: Env = {
   NEXTAUTH_SECRET: "test-secret-value-at-least-16-chars",
   TRUSTED_PROXY_HOPS: 1,
   PASSWORD_CHANGED_AT_CACHE_TTL_MS: 60_000,
+  EMAIL_FROM: "TaskFlow <test@example.com>",
 };
 
 // vi.fn() so individual tests can override with .mockReturnValue(true)

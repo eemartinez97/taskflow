@@ -8,7 +8,11 @@
  */
 async function globalTeardown(): Promise<void> {
   try {
-    const response = await fetch("http://localhost:3000/api/test/reset", {
+    // The auth-consolidation epic moved every /api/test/* route (and the
+    // mail sender it reads from) onto apps/api - apps/web has no rewrite
+    // proxying this prefix back to it, so this must hit apps/api directly.
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+    const response = await fetch(`${apiUrl}/api/test/reset`, {
       method: "POST",
       headers: { "x-e2e-secret": process.env.E2E_TEST_SECRET ?? "" },
     });

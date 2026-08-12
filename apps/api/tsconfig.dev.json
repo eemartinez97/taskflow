@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // Used only by `tsx watch --tsconfig tsconfig.dev.json` (the "dev" script
+  // below) - never by `tsc`/typecheck/build, which all use tsconfig.json.
+  //
+  // tsx resolves exactly ONE tsconfig per process (from --tsconfig, or else
+  // discovered from cwd) and only applies its "jsx" compilerOption to files
+  // that fall under THAT tsconfig's own `include` - it does not walk up to
+  // each individual file's nearest tsconfig.json the way `tsc` does, and it
+  // doesn't type-check transitively-imported files outside `include` either
+  // (unlike `tsc`, which is why tsconfig.json's own "jsx" setting is enough
+  // for typecheck/build but not for this). tsconfig.json's `include` is just
+  // `src`/`tests`, so packages/mail's `.tsx` email templates fall outside
+  // it: tsx silently falls back to esbuild's classic JSX transform (bare
+  // `React.createElement`, no import) and every real email send crashes
+  // with "ReferenceError: React is not defined". This file exists purely to
+  // widen `include` to also cover packages/mail/src, inheriting "jsx" from
+  // tsconfig.json's extends chain. Confirmed fixed by running
+  // `pnpm --filter @taskflow/api dev` and registering a real user - see
+  // apps/api/scripts/build.mjs's `jsx: "automatic"` comment for the
+  // production-build equivalent of this same tsx/esbuild-per-file-tsconfig
+  // limitation.
+  "extends": "./tsconfig.json",
+  "include": ["src", "tests", "../../packages/mail/src"]
+}

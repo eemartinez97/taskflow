@@ -46,6 +46,19 @@ export default defineConfig([
     },
   },
 
+  // Root-level Node scripts (scripts/*.mjs) - js.configs.recommended's no-undef
+  // needs Node's globals declared explicitly here since this root config
+  // (unlike each package's own eslint.config.mjs) has no other source of them.
+  {
+    files: ["scripts/**/*.mjs"],
+    languageOptions: {
+      globals: {
+        process: "readonly",
+        console: "readonly",
+      },
+    },
+  },
+
   // Prettier disables formatting rules that conflict
   prettierConfig,
 

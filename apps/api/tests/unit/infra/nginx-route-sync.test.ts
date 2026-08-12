@@ -61,11 +61,11 @@ describe("infrastructure/nginx/nginx.conf and PROXIED_API_PATHS stay in sync wit
     }
   });
 
-  it("has no stale entry in PROXIED_API_PATHS that isn't a real introspected route or the one documented .use() mount", () => {
-    // /trpc is registered via app.use(), which Express 5 doesn't expose a
-    // matchable path for - it's verified behaviorally in the test below
-    // instead of by introspection.
-    const knownUseMounts = ["/trpc"];
+  it("has no stale entry in PROXIED_API_PATHS that isn't a real introspected route or a documented .use() mount", () => {
+    // /trpc and /api/test are both registered via app.use(), which Express 5
+    // doesn't expose a matchable path for - verified behaviorally in the
+    // tests below instead of by introspection.
+    const knownUseMounts = ["/trpc", "/api/test"];
     const introspected = introspectRoutePaths(buildApp().router);
 
     for (const declaredPath of PROXIED_API_PATHS) {
@@ -82,6 +82,16 @@ describe("infrastructure/nginx/nginx.conf and PROXIED_API_PATHS stay in sync wit
     // adapter itself produces this shape.
     expect(res.status).toBe(404);
     expect(res.body).toHaveProperty("error.json.data.code", "NOT_FOUND");
+  });
+
+  it("/api/test actually mounts the test router, not a coincidental catch-all match", async () => {
+    // Both respond 404 outside a real E2E run (see routes/test.ts's guard),
+    // but the generic Express catch-all's body has a different shape
+    // ({error:{message,code}}) than the test router's own 404 ({error}).
+    const res = await request(buildApp()).get("/api/test/last-email");
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: "Not found." });
   });
 
   it("tripwires when Express's middleware stack shape changes - a new app.use() mount (introspection can't see those) must update this list, PROXIED_API_PATHS, and nginx.conf together", () => {
@@ -105,6 +115,7 @@ describe("infrastructure/nginx/nginx.conf and PROXIED_API_PATHS stay in sync wit
       "handle", // GET /readyz
       "<anonymous>", // defaultRateLimiter
       "<anonymous>", // /trpc app.use() mount
+      "router", // /api/test app.use() mount (a real express.Router() instance)
       "handle", // catch-all 404
       "errorHandler",
     ]);

@@ -1,6 +1,5 @@
 import { Suspense, type JSX } from "react";
 import type { Metadata } from "next";
-import { prisma } from "@taskflow/database";
 import { Card, CardContent, CardHeader, CardTitle } from "@taskflow/ui";
 import { InvalidTokenCard, resolveTokenGate, TokenGateFallback } from "../_components/token-gate";
 import { ResetPasswordForm } from "./_components/reset-password-form";
@@ -22,7 +21,7 @@ interface ResetPasswordPageProps {
 export async function ResetPasswordGate({
   searchParams,
 }: ResetPasswordPageProps): Promise<JSX.Element> {
-  const gate = await resolveTokenGate(prisma, searchParams, "PASSWORD_RESET");
+  const gate = await resolveTokenGate(searchParams);
 
   if (!gate.valid) {
     return (

@@ -1,5 +1,5 @@
 "use client";
-import { useState, type JSX } from "react";
+import { type JSX } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import Link from "next/link";
@@ -13,37 +13,31 @@ import {
   FormField,
   Input,
 } from "@taskflow/ui";
-import { type ForgotPasswordInput, forgotPasswordSchema } from "@/lib/auth/schemas";
-import { postJson } from "@/lib/utils/post-json";
+import { type ForgotPasswordInput, forgotPasswordSchema } from "@taskflow/shared";
+import { api } from "@/lib/trpc/client";
 
 /**
  * Requests a password-reset email. Always shows the same success message
- * on submit regardless of whether the account exists - the server enforces
- * this too (see /api/auth/forgot-password), this UI just mirrors it so
- * there's no client-side tell either.
+ * on submit regardless of whether the account exists - auth.requestPasswordReset
+ * enforces this server-side too, this UI just mirrors it so there's no
+ * client-side tell either. Even a thrown error (rate limited aside) never
+ * distinguishes itself here - see that procedure's docblock.
  */
 export default function ForgotPasswordPage(): JSX.Element {
-  const [serverError, setServerError] = useState<string | null>(null);
-  const [submitted, setSubmitted] = useState(false);
+  const mutation = api.auth.requestPasswordReset.useMutation({ meta: { skipErrorToast: true } });
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<ForgotPasswordInput>({
     resolver: zodResolver(forgotPasswordSchema),
   });
 
-  async function onSubmit(data: ForgotPasswordInput): Promise<void> {
-    setServerError(null);
-    const { ok, body } = await postJson("/api/auth/forgot-password", data);
-    if (!ok) {
-      setServerError(body.error ?? "Something went wrong. Please try again.");
-      return;
-    }
-    setSubmitted(true);
+  function onSubmit(data: ForgotPasswordInput): void {
+    mutation.mutate(data);
   }
 
-  if (submitted) {
+  if (mutation.isSuccess) {
     return (
       <Card>
         <CardHeader>
@@ -66,7 +60,7 @@ export default function ForgotPasswordPage(): JSX.Element {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
-          <Alert message={serverError} />
+          <Alert message={mutation.isError ? mutation.error.message : null} />
           <p className="text-sm text-gray-500">
             Enter your email and we&apos;ll send you a link to reset your password.
           </p>
@@ -79,7 +73,7 @@ export default function ForgotPasswordPage(): JSX.Element {
               {...register("email")}
             />
           </FormField>
-          <Button type="submit" fullWidth loading={isSubmitting}>
+          <Button type="submit" fullWidth loading={mutation.isPending}>
             Send reset link
           </Button>
           <p className="text-center text-sm text-gray-500">

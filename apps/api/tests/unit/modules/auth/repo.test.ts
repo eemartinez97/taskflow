@@ -1,6 +1,13 @@
 import { describe } from "vitest";
 
-import { deleteUserSessions, findUserById, updateUser } from "../../../../src/modules/auth/repo";
+import {
+  createUnverifiedUser,
+  deleteUserSessions,
+  findUserById,
+  findUserForActivationNotice,
+  findUserByEmail,
+  updateUser,
+} from "../../../../src/modules/auth/repo";
 import { db, VALID_USER } from "../../../helpers";
 import { mockDb } from "../../../mocks/database-mock";
 import { itDelegatesToPrisma } from "../../../support/repo-contract";
@@ -31,6 +38,38 @@ describe("auth repo", () => {
       resolves: user,
       call: () => updateUser(db, VALID_USER.id, { name: "Bob", image: undefined }),
       args: { where: { id: VALID_USER.id }, data: { name: "Bob" }, select },
+    },
+    {
+      name: "findUserByEmail",
+      delegate: mockDb.user.findUnique,
+      resolves: { id: VALID_USER.id, name: "Bob", emailVerified: null },
+      call: () => findUserByEmail(db, "bob@example.com"),
+      args: {
+        where: { email: "bob@example.com" },
+        select: { id: true, name: true, emailVerified: true },
+      },
+    },
+    {
+      name: "createUnverifiedUser",
+      delegate: mockDb.user.create,
+      resolves: { id: VALID_USER.id, name: "Bob" },
+      call: () =>
+        createUnverifiedUser(db, {
+          name: "Bob",
+          email: "bob@example.com",
+          hashedPassword: "hashed:pw",
+        }),
+      args: {
+        data: { name: "Bob", email: "bob@example.com", password: "hashed:pw" },
+        select: { id: true, name: true },
+      },
+    },
+    {
+      name: "findUserForActivationNotice",
+      delegate: mockDb.user.findUnique,
+      resolves: { email: "bob@example.com", name: "Bob" },
+      call: () => findUserForActivationNotice(db, VALID_USER.id),
+      args: { where: { id: VALID_USER.id }, select: { email: true, name: true } },
     },
   ]);
 });

@@ -23,11 +23,14 @@ export const test = base.extend<AuthFixtures>({
     // created via createIsolatedOrg so a single run's total org count under
     // the shared seed admin stays bounded by "tests currently in flight"
     // rather than "total tests executed so far" - see
-    // apps/web/app/api/test/delete-org/route.ts.
+    // apps/api/src/routes/test.ts (the auth-consolidation epic moved this
+    // backdoor route off apps/web; apps/web has no rewrite proxying
+    // /api/test/* back to it, so this must hit apps/api directly).
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
     const orgIds = takeTrackedOrgs(page);
     for (const orgId of orgIds) {
       await page.request
-        .post("/api/test/delete-org", {
+        .post(`${apiUrl}/api/test/delete-org`, {
           data: { orgId },
           headers: { "x-e2e-secret": process.env.E2E_TEST_SECRET ?? "" },
         })

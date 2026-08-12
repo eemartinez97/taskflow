@@ -1,13 +1,8 @@
 import { Suspense, type JSX } from "react";
 import { redirect } from "next/navigation";
-import { after } from "next/server";
 import type { Metadata } from "next";
-import { prisma } from "@taskflow/database";
-import { sendAccountActivatedEmail } from "@taskflow/mail";
 import { InvalidTokenCard, TokenGateFallback } from "../_components/token-gate";
-import { verifyEmailFromToken } from "@/lib/auth/tokens";
-import { emailSender } from "@/lib/mail/sender";
-import { serverEnv } from "@/lib/env.server";
+import { apiHttpClient } from "@/lib/trpc/http-server";
 
 export const metadata: Metadata = { title: "Confirm your email" };
 
@@ -16,47 +11,31 @@ interface VerifyEmailPageProps {
 }
 
 /**
- * Sends the "your account is active" notification for a freshly-activated
- * account. Best-effort: activation already happened by the time this runs,
- * so a delivery failure here must never turn into an error page for the
- * user - it's only logged. Not called for a repeat visit to an
- * already-consumed link (see `freshlyActivated` in verifyEmailFromToken's
- * docblock), so this fires at most once per account.
- *
- * Scheduled via next/server's `after()` (see the call site below) rather
- * than awaited - the redirect to /login must not wait on an outbound email
- * API call. Sending it still isn't truly free: Suspense has to flush the
- * fallback skeleton and stream a client-side redirect once this async
- * component resolves (a plain HTTP 30x isn't possible once headers are
- * already sent), so the DB work above still gates how soon that redirect
- * fires - `after()` only removes the *email's* latency from that path.
+ * Resolves the emailed token via apps/api's auth.verifyEmail. Falls back to
+ * `{ verified: false }` on any thrown error (apps/api unreachable, network
+ * blip) - same rationale as register/page.tsx's resolveInvitePreview: a
+ * transient infra failure must render the ordinary "invalid or expired
+ * link" UI, not crash the page with a generic error boundary.
  */
-async function notifyAccountActivated(userId: string): Promise<void> {
+async function resolveVerification(token: string): Promise<{ verified: boolean }> {
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { email: true, name: true },
-    });
-    if (!user) return;
-
-    await sendAccountActivatedEmail(emailSender, {
-      to: user.email,
-      name: user.name ?? user.email,
-      loginUrl: `${serverEnv.NEXTAUTH_URL}/login`,
-    });
-  } catch (error) {
-    console.error("[VerifyEmailGate] failed to send account-activated email:", error);
+    return await apiHttpClient.auth.verifyEmail.mutate({ token });
+  } catch {
+    return { verified: false };
   }
 }
 
 /**
- * Reached from the emailed confirmation link sent at registration. Verifies
- * the account right here on GET and redirects to /login - opening the link
- * is enough, there is no separate confirm click. See
- * `verifyEmailFromToken`'s docblock for why consuming on GET is safe here.
+ * Reached from the emailed confirmation link sent at registration. Consumes
+ * the token via apps/api's auth.verifyEmail (a real HTTP call - see
+ * lib/trpc/http-server.ts's docblock for why this can't be the RSC
+ * in-process caller) and redirects to /login - opening the link is enough,
+ * there is no separate confirm click. The "your account is active"
+ * notification email and its best-effort/fire-and-forget semantics now
+ * live entirely in apps/api's service (see its docblock there).
  *
  * Exported separately from the default export so it can be wrapped in
- * <Suspense> below - reading `searchParams` + querying Prisma triggers a
+ * <Suspense> below - reading `searchParams` + making this call triggers a
  * dynamic/uncached data access under Next.js 16 cacheComponents, which
  * requires a Suspense boundary.
  */
@@ -65,7 +44,7 @@ export async function VerifyEmailGate({
 }: VerifyEmailPageProps): Promise<JSX.Element> {
   const params = await searchParams;
   const token = typeof params.token === "string" ? params.token : null;
-  const result = token ? await verifyEmailFromToken(prisma, token) : { verified: false as const };
+  const result = token ? await resolveVerification(token) : { verified: false as const };
 
   if (!result.verified) {
     return (
@@ -75,10 +54,6 @@ export async function VerifyEmailGate({
         linkLabel="Back to registration"
       />
     );
-  }
-
-  if (result.freshlyActivated) {
-    after(() => notifyAccountActivated(result.userId));
   }
 
   redirect("/login?activated=1");

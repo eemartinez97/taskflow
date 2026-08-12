@@ -9,6 +9,7 @@ function parsePublicEnv(): PublicEnv {
   const parsed = publicEnvSchema.safeParse({
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
     NEXT_PUBLIC_WEB_URL: process.env.NEXT_PUBLIC_WEB_URL,
+    NEXT_PUBLIC_E2E_TEST_SECRET: process.env.NEXT_PUBLIC_E2E_TEST_SECRET,
   });
 
   if (!parsed.success) {

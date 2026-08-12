@@ -1,10 +1,10 @@
 import "server-only";
 import CredentialsProvider from "next-auth/providers/credentials";
 import type { NextAuthOptions, Session, User } from "next-auth";
-import { authorizeCredentials } from "@/lib/auth/credentials";
 import { isSessionRevoked } from "@/lib/auth/session-revocation";
+import { getClientIp } from "@/lib/http/client-ip";
+import { apiHttpClient } from "@/lib/trpc/http-server";
 import { serverEnv } from "@/lib/env.server";
-import { prisma } from "@taskflow/database";
 import type { JWT } from "next-auth/jwt";
 
 /**
@@ -63,18 +63,40 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials): Promise<User | null> {
-        const user = await authorizeCredentials(prisma, credentials ?? {});
+      async authorize(credentials, req): Promise<User | null> {
+        if (!credentials?.email || !credentials.password) return null;
 
-        if (!user) return null;
+        try {
+          // NextAuth v4's `req` here is its own RequestInternal (a plain
+          // headers object), not a NextRequest - wrap it in a real Headers
+          // instance so getClientIp's Pick<NextRequest, "headers"> param
+          // still works unchanged. This is a server-to-server call (see
+          // apiHttpClient's docblock), so ctx.clientIp on apps/api's side
+          // would only ever be apps/web's own server IP - the real
+          // browser's IP has to be forwarded explicitly like this.
+          const clientIp = getClientIp({ headers: new Headers(req.headers as HeadersInit) });
 
-        // NextAuth v4 User shape - id is required
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          image: user.image,
-        };
+          const user = await apiHttpClient.auth.verifyCredentials.mutate({
+            email: credentials.email,
+            password: credentials.password,
+            clientIp,
+          });
+
+          if (!user) return null;
+
+          // NextAuth v4 User shape - id is required
+          return { id: user.id, email: user.email, name: user.name, image: user.image };
+        } catch (error) {
+          // Network/validation errors talking to apps/api must still fail
+          // closed (null), not throw - see authorizeCredentials's former
+          // docblock for why every failure mode returns the same shape.
+          // Logged (not swallowed silently) so an infra failure - a dropped
+          // INTERNAL_API_SECRET, apps/api unreachable - is distinguishable
+          // in logs from ordinary wrong-password traffic, which never
+          // reaches this catch (verifyCredentials returns null for that).
+          console.error("auth.authorize: verifyCredentials call failed", error);
+          return null;
+        }
       },
     }),
   ],

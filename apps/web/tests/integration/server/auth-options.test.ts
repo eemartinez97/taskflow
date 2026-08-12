@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { User } from "next-auth";
 import type { Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
-import { authorizeCredentials } from "@/lib/auth/credentials";
+import { apiHttpClient } from "@/lib/trpc/http-server";
+import { getClientIp } from "@/lib/http/client-ip";
 
 // -- Module mocks --
 vi.mock("@taskflow/database", async () => await import("@/tests/mocks/taskflow-database"));
@@ -10,8 +11,11 @@ vi.mock(
   "next-auth/providers/credentials",
   async () => await import("@/tests/mocks/next-auth-provider"),
 );
-vi.mock("@/lib/auth/credentials", () => ({
-  authorizeCredentials: vi.fn(),
+vi.mock("@/lib/trpc/http-server", () => ({
+  apiHttpClient: { auth: { verifyCredentials: { mutate: vi.fn() } } },
+}));
+vi.mock("@/lib/http/client-ip", () => ({
+  getClientIp: vi.fn(() => "203.0.113.5"),
 }));
 vi.mock("@/lib/env.server", () => ({
   serverEnv: {
@@ -52,17 +56,29 @@ const invokeSession = async (params: SessionParams): Promise<Session> => {
   return (sessionCallback as (p: SessionParams) => Promise<Session>)(params);
 };
 
+interface FakeRequestInternal {
+  headers?: Record<string, string>;
+}
+
 function getProvider(): {
-  authorize: (creds: Partial<Record<string, string>> | undefined) => Promise<User | null>;
+  authorize: (
+    creds: Partial<Record<string, string>> | undefined,
+    req: FakeRequestInternal,
+  ) => Promise<User | null>;
 } {
   const provider = authOptions.providers[0];
   if (!provider) throw new Error("CredentialsProvider is not configured in authOptions.");
   return provider as unknown as {
-    authorize: (creds: Partial<Record<string, string>> | undefined) => Promise<User | null>;
+    authorize: (
+      creds: Partial<Record<string, string>> | undefined,
+      req: FakeRequestInternal,
+    ) => Promise<User | null>;
   };
 }
 
-const mockAuthorize = vi.mocked(authorizeCredentials);
+const FAKE_REQ: FakeRequestInternal = { headers: { "x-forwarded-for": "203.0.113.5" } };
+const mockVerifyCredentials = vi.mocked(apiHttpClient.auth.verifyCredentials.mutate);
+const mockGetClientIp = vi.mocked(getClientIp);
 
 // -- Tests --
 describe("authOptions", () => {
@@ -70,11 +86,15 @@ describe("authOptions", () => {
 
   describe("CredentialsProvider.authorize", () => {
     beforeEach(() => {
-      mockAuthorize.mockResolvedValue(null);
+      mockVerifyCredentials.mockResolvedValue(null);
+      mockGetClientIp.mockReturnValue("203.0.113.5");
     });
 
-    it("returns null when authorizeCredentials returns null", async () => {
-      const result = await getProvider().authorize({ email: "x@x.com", password: "wrong" });
+    it("returns null when auth.verifyCredentials returns null", async () => {
+      const result = await getProvider().authorize(
+        { email: "x@x.com", password: "wrong" },
+        FAKE_REQ,
+      );
 
       expect(result).toBeNull();
     });
@@ -86,30 +106,50 @@ describe("authOptions", () => {
         name: "Alice",
         image: null,
       };
-      mockAuthorize.mockResolvedValue(sessionUser);
+      mockVerifyCredentials.mockResolvedValue(sessionUser);
 
-      const result = await getProvider().authorize({
-        email: "alice@taskflow.dev",
-        password: "Secure@Password1",
-      });
+      const result = await getProvider().authorize(
+        { email: "alice@taskflow.dev", password: "Secure@Password1" },
+        FAKE_REQ,
+      );
 
       expect(result).not.toBeNull();
       expect(result?.id).toBe("user-123");
       expect(result?.email).toBe("alice@taskflow.dev");
     });
 
-    it("passes prisma and the raw credentials to authorizeCredentials", async () => {
+    it("calls auth.verifyCredentials with the credentials and the resolved client IP", async () => {
       const creds = { email: "alice@taskflow.dev", password: "Secure@Password1" };
-      await getProvider().authorize(creds);
+      await getProvider().authorize(creds, FAKE_REQ);
 
-      expect(mockAuthorize).toHaveBeenCalledWith(
-        expect.anything(), // prisma instance
-        creds,
-      );
+      expect(mockVerifyCredentials).toHaveBeenCalledWith({
+        email: "alice@taskflow.dev",
+        password: "Secure@Password1",
+        clientIp: "203.0.113.5",
+      });
     });
 
     it("returns null when credentials are undefined", async () => {
-      const result = await getProvider().authorize(undefined);
+      const result = await getProvider().authorize(undefined, FAKE_REQ);
+
+      expect(result).toBeNull();
+      expect(mockVerifyCredentials).not.toHaveBeenCalled();
+    });
+
+    it("returns null when email is present but password is missing", async () => {
+      const result = await getProvider().authorize({ email: "x@x.com" }, FAKE_REQ);
+
+      expect(result).toBeNull();
+      expect(mockVerifyCredentials).not.toHaveBeenCalled();
+    });
+
+    it("returns null (fails closed) when the call to apps/api throws", async () => {
+      mockVerifyCredentials.mockRejectedValue(new Error("network error"));
+
+      const result = await getProvider().authorize(
+        { email: "alice@taskflow.dev", password: "Secure@Password1" },
+        FAKE_REQ,
+      );
 
       expect(result).toBeNull();
     });

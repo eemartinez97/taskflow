@@ -2,16 +2,16 @@ import { render, screen } from "@testing-library/react";
 import { Suspense } from "react";
 import { describe, expect, it, vi } from "vitest";
 import ResetPasswordPage, { ResetPasswordGate } from "@/app/(auth)/reset-password/page";
-import { findValidAuthToken } from "@/lib/auth/tokens";
+import { getServerTRPC } from "@/lib/trpc/server";
+import { mockGetServerTRPC } from "@/tests/support/trpc";
 
-vi.mock("@taskflow/database", () => ({ prisma: {} }));
-vi.mock("@/lib/auth/tokens", () => ({ findValidAuthToken: vi.fn() }));
-
-const mockFindValidAuthToken = vi.mocked(findValidAuthToken);
+vi.mock("@/lib/trpc/server", () => ({ getServerTRPC: vi.fn() }));
 
 describe("ResetPasswordPage", () => {
   it("renders the new-password form when the token is valid", async () => {
-    mockFindValidAuthToken.mockResolvedValue({ id: "token-1", userId: "user-1" });
+    mockGetServerTRPC(vi.mocked(getServerTRPC), {
+      auth: { checkResetToken: vi.fn().mockResolvedValue({ valid: true }) },
+    });
     const jsx = await ResetPasswordGate({
       searchParams: Promise.resolve({ token: "valid-token" }),
     });
@@ -20,14 +20,18 @@ describe("ResetPasswordPage", () => {
   });
 
   it("renders the invalid-link state when the token is missing", async () => {
+    const checkResetToken = vi.fn().mockResolvedValue({ valid: true });
+    mockGetServerTRPC(vi.mocked(getServerTRPC), { auth: { checkResetToken } });
     const jsx = await ResetPasswordGate({ searchParams: Promise.resolve({}) });
     render(jsx);
     expect(screen.getByRole("heading", { name: /link invalid or expired/i })).toBeInTheDocument();
-    expect(mockFindValidAuthToken).not.toHaveBeenCalled();
+    expect(checkResetToken).not.toHaveBeenCalled();
   });
 
   it("renders the invalid-link state when the token is expired/invalid", async () => {
-    mockFindValidAuthToken.mockResolvedValue(null);
+    mockGetServerTRPC(vi.mocked(getServerTRPC), {
+      auth: { checkResetToken: vi.fn().mockResolvedValue({ valid: false }) },
+    });
     const jsx = await ResetPasswordGate({
       searchParams: Promise.resolve({ token: "expired-token" }),
     });
@@ -36,12 +40,14 @@ describe("ResetPasswordPage", () => {
   });
 
   it("renders the invalid-link state when the token query param is an array", async () => {
+    mockGetServerTRPC(vi.mocked(getServerTRPC));
     const jsx = await ResetPasswordGate({ searchParams: Promise.resolve({ token: ["a", "b"] }) });
     render(jsx);
     expect(screen.getByRole("heading", { name: /link invalid or expired/i })).toBeInTheDocument();
   });
 
   it("renders a link to request a new reset link on the invalid state", async () => {
+    mockGetServerTRPC(vi.mocked(getServerTRPC));
     const jsx = await ResetPasswordGate({ searchParams: Promise.resolve({}) });
     render(jsx);
     expect(screen.getByRole("link", { name: /request a new link/i })).toHaveAttribute(

@@ -9,7 +9,9 @@
     "TRUSTED_PROXY_HOPS",
     "NEXT_PUBLIC_API_URL",
     "NEXT_PUBLIC_WEB_URL",
-    "COOKIE_DOMAIN"
+    "COOKIE_DOMAIN",
+    "INTERNAL_API_SECRET",
+    "PASSWORD_CHANGED_AT_CACHE_TTL_MS"
   ],
   "tasks": {
     "build": {

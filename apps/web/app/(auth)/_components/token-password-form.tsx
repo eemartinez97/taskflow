@@ -1,11 +1,11 @@
 "use client";
-import { useState, type JSX } from "react";
+import { type JSX } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { Alert, Button, FormField, Input } from "@taskflow/ui";
-import { resetPasswordSchema } from "@/lib/auth/schemas";
-import { postJson } from "@/lib/utils/post-json";
+import { resetPasswordSchema } from "@taskflow/shared";
+import { api } from "@/lib/trpc/client";
 
 export interface TokenPasswordInput {
   token: string;
@@ -15,46 +15,49 @@ export interface TokenPasswordInput {
 
 interface TokenPasswordFormProps {
   token: string;
-  endpoint: string;
   redirectTo: string;
   passwordLabel: string;
   confirmLabel: string;
   submitLabel: string;
 }
 
-/** "Set a new password via emailed token" form - used by the password-reset flow. */
+/**
+ * "Set a new password via emailed token" form - used by the password-reset
+ * flow. Only one caller (ResetPasswordForm) and one target procedure
+ * (auth.resetPassword) exist today - kept as its own component for the
+ * label/redirect props' sake, not because another token-consuming mutation
+ * is expected.
+ */
 export function TokenPasswordForm({
   token,
-  endpoint,
   redirectTo,
   passwordLabel,
   confirmLabel,
   submitLabel,
 }: TokenPasswordFormProps): JSX.Element {
   const router = useRouter();
-  const [serverError, setServerError] = useState<string | null>(null);
+  const mutation = api.auth.resetPassword.useMutation({
+    meta: { skipErrorToast: true },
+    onSuccess: () => {
+      router.push(redirectTo);
+    },
+  });
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<TokenPasswordInput>({
     resolver: zodResolver(resetPasswordSchema),
     defaultValues: { token, password: "", confirmPassword: "" },
   });
 
-  async function onSubmit(data: TokenPasswordInput): Promise<void> {
-    setServerError(null);
-    const { ok, body } = await postJson(endpoint, data);
-    if (!ok) {
-      setServerError(body.error ?? "Something went wrong. Please try again.");
-      return;
-    }
-    router.push(redirectTo);
+  function onSubmit(data: TokenPasswordInput): void {
+    mutation.mutate(data);
   }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
-      <Alert message={serverError} />
+      <Alert message={mutation.isError ? mutation.error.message : null} />
       <input type="hidden" {...register("token")} />
       <FormField label={passwordLabel} htmlFor="password" required error={errors.password?.message}>
         <Input
@@ -82,7 +85,7 @@ export function TokenPasswordForm({
           {...register("confirmPassword")}
         />
       </FormField>
-      <Button type="submit" fullWidth loading={isSubmitting}>
+      <Button type="submit" fullWidth loading={mutation.isPending}>
         {submitLabel}
       </Button>
     </form>

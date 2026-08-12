@@ -32,7 +32,6 @@
     "@tanstack/react-query": "^5.101.1",
     "@taskflow/api": "workspace:*",
     "@taskflow/database": "workspace:*",
-    "@taskflow/mail": "workspace:*",
     "@taskflow/shared": "workspace:*",
     "@taskflow/ui": "workspace:*",
     "@trpc/client": "^11.18.0",

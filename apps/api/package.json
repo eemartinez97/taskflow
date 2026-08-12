@@ -12,7 +12,7 @@
     "./trpc": "./src/trpc/router.ts"
   },
   "scripts": {
-    "dev": "tsx watch src/main.ts",
+    "dev": "tsx watch --tsconfig tsconfig.dev.json src/main.ts",
     "build": "node scripts/build.mjs",
     "start": "node dist/main.js",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
@@ -31,8 +31,10 @@
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client-runtime-utils": "^7.8.0",
     "@taskflow/database": "workspace:*",
+    "@taskflow/mail": "workspace:*",
     "@taskflow/shared": "workspace:*",
     "@trpc/server": "^11.17.0",
+    "bcrypt": "^6.0.0",
     "cookie": "^2.0.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
@@ -45,6 +47,9 @@
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
     "prom-client": "^15.1.3",
+    "react": "^19.2.7",
+    "react-email": "^6.9.1",
+    "resend": "^6.18.1",
     "socket.io": "^4.8.3",
     "superjson": "^2.2.6",
     "zod": "^4.4.3"
@@ -52,10 +57,12 @@
   "devDependencies": {
     "@taskflow/config": "workspace:*",
     "@testcontainers/postgresql": "^12.0.4",
+    "@types/bcrypt": "^6.0.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^25.9.1",
+    "@types/react": "^19.2.17",
     "@types/supertest": "^7.2.0",
     "@vitest/coverage-v8": "^4.1.7",
     "esbuild": "^0.28.1",

@@ -1,5 +1,5 @@
 "use client";
-import { useState, type JSX } from "react";
+import { type JSX } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import Link from "next/link";
@@ -13,43 +13,30 @@ import {
   FormField,
   Input,
 } from "@taskflow/ui";
-import { type RegisterInput, registerSchema } from "@/lib/auth/schemas";
-import { postJson } from "@/lib/utils/post-json";
+import { type RegisterInput, registerSchema } from "@taskflow/shared";
+import { api } from "@/lib/trpc/client";
 
 /**
- * Register page (Client Component).
- *
- * Collects name, email, and password in one step. POST /api/auth/register
- * creates the account and emails a confirmation link; no session is created
- * here - the account cannot sign in until that link is confirmed at
- * /verify-email (see authorizeCredentials's `emailVerified` guard).
+ * Collects name, email, and password in one step. auth.register creates the
+ * account and emails a confirmation link; no session is created here - the
+ * account cannot sign in until that link is confirmed at /verify-email (see
+ * auth.verifyCredentials's `emailVerified` guard).
  */
 export default function RegisterPage(): JSX.Element {
-  const [serverError, setServerError] = useState<string | null>(null);
-  const [submitted, setSubmitted] = useState(false);
+  const mutation = api.auth.register.useMutation({ meta: { skipErrorToast: true } });
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<RegisterInput>({
     resolver: zodResolver(registerSchema),
   });
 
-  async function onSubmit(data: RegisterInput): Promise<void> {
-    setServerError(null);
-    const { ok, status, body } = await postJson("/api/auth/register", data);
-    if (status === 409) {
-      setServerError("An account with that email already exists.");
-      return;
-    }
-    if (!ok) {
-      setServerError(body.error ?? "Something went wrong. Please try again.");
-      return;
-    }
-    setSubmitted(true);
+  function onSubmit(data: RegisterInput): void {
+    mutation.mutate(data);
   }
 
-  if (submitted) {
+  if (mutation.isSuccess) {
     return (
       <Card>
         <CardHeader>
@@ -72,7 +59,7 @@ export default function RegisterPage(): JSX.Element {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
-          <Alert message={serverError} />
+          <Alert message={mutation.isError ? mutation.error.message : null} />
           <FormField label="Name" htmlFor="name" required error={errors.name?.message}>
             <Input
               id="name"
@@ -117,7 +104,7 @@ export default function RegisterPage(): JSX.Element {
               {...register("confirmPassword")}
             />
           </FormField>
-          <Button type="submit" fullWidth loading={isSubmitting}>
+          <Button type="submit" fullWidth loading={mutation.isPending}>
             Create account
           </Button>
           <p className="text-center text-sm text-gray-500">

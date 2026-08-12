@@ -1,14 +1,6 @@
-import { describe, expect, it, afterEach } from "vitest";
+import { describe, expect, it } from "vitest";
 import { fullEnvSchema } from "@/lib/env";
 import { VALID_FULL_ENV } from "@/tests/support/fixtures";
-
-const ORIGINAL_ENABLE_TEST_ROUTES = process.env.ENABLE_TEST_ROUTES;
-const ORIGINAL_DATABASE_URL = process.env.DATABASE_URL;
-
-afterEach(() => {
-  process.env.ENABLE_TEST_ROUTES = ORIGINAL_ENABLE_TEST_ROUTES;
-  process.env.DATABASE_URL = ORIGINAL_DATABASE_URL;
-});
 
 describe("fullEnvSchema", () => {
   it("accepts a fully valid environment", () => {
@@ -60,104 +52,33 @@ describe("fullEnvSchema", () => {
     if (result.success) expect(result.data.PASSWORD_CHANGED_AT_CACHE_TTL_MS).toBe(2000);
   });
 
-  describe("EMAIL_FROM", () => {
-    it("accepts a bare email address", () => {
-      const result = fullEnvSchema.safeParse({
-        ...VALID_FULL_ENV,
-        EMAIL_FROM: "onboarding@resend.dev",
-      });
-      expect(result.success).toBe(true);
-    });
+  it("treats INTERNAL_API_SECRET as optional outside production", () => {
+    const result = fullEnvSchema.safeParse(VALID_FULL_ENV);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.INTERNAL_API_SECRET).toBeUndefined();
+  });
 
-    it("accepts a fully-bracketed 'Name <email>' address", () => {
-      const result = fullEnvSchema.safeParse({
-        ...VALID_FULL_ENV,
-        EMAIL_FROM: "TaskFlow <onboarding@resend.dev>",
-      });
-      expect(result.success).toBe(true);
+  it("rejects an INTERNAL_API_SECRET shorter than 32 characters", () => {
+    const result = fullEnvSchema.safeParse({
+      ...VALID_FULL_ENV,
+      INTERNAL_API_SECRET: "short",
     });
-
-    it("rejects a 'Name <email' value missing the closing bracket", () => {
-      const result = fullEnvSchema.safeParse({
-        ...VALID_FULL_ENV,
-        EMAIL_FROM: "TaskFlow <onboarding@resend.dev",
-      });
-      expect(result.success).toBe(false);
-    });
-
-    it("rejects a 'Name email>' value missing the opening bracket", () => {
-      const result = fullEnvSchema.safeParse({
-        ...VALID_FULL_ENV,
-        EMAIL_FROM: "TaskFlow onboarding@resend.dev>",
-      });
-      expect(result.success).toBe(false);
-    });
-
-    it("accepts the Resend sandbox default outside production", () => {
-      const result = fullEnvSchema.safeParse(VALID_FULL_ENV);
-      expect(result.success).toBe(true);
-      if (result.success) expect(result.data.EMAIL_FROM).toBe("TaskFlow <onboarding@resend.dev>");
-    });
+    expect(result.success).toBe(false);
   });
 
   describe("production requirements", () => {
-    it("rejects production with no RESEND_API_KEY", () => {
+    it("rejects production with no INTERNAL_API_SECRET", () => {
       const result = fullEnvSchema.safeParse({ ...VALID_FULL_ENV, NODE_ENV: "production" });
       expect(result.success).toBe(false);
     });
 
-    it("rejects production still using the Resend sandbox EMAIL_FROM default", () => {
+    it("accepts production with INTERNAL_API_SECRET set", () => {
       const result = fullEnvSchema.safeParse({
         ...VALID_FULL_ENV,
         NODE_ENV: "production",
-        RESEND_API_KEY: "re_live_key",
-      });
-      expect(result.success).toBe(false);
-    });
-
-    it("rejects production with a bare onboarding@resend.dev EMAIL_FROM", () => {
-      const result = fullEnvSchema.safeParse({
-        ...VALID_FULL_ENV,
-        NODE_ENV: "production",
-        RESEND_API_KEY: "re_live_key",
-        EMAIL_FROM: "onboarding@resend.dev",
-      });
-      expect(result.success).toBe(false);
-    });
-
-    it("accepts production with a real API key and a non-sandbox EMAIL_FROM", () => {
-      const result = fullEnvSchema.safeParse({
-        ...VALID_FULL_ENV,
-        NODE_ENV: "production",
-        RESEND_API_KEY: "re_live_key",
-        EMAIL_FROM: "TaskFlow <hello@taskflow.dev>",
+        INTERNAL_API_SECRET: "a".repeat(32),
       });
       expect(result.success).toBe(true);
-    });
-
-    it("exempts ENABLE_TEST_ROUTES=true from the production email requirements (E2E always builds as NODE_ENV=production)", () => {
-      process.env.ENABLE_TEST_ROUTES = "true";
-
-      const result = fullEnvSchema.safeParse({ ...VALID_FULL_ENV, NODE_ENV: "production" });
-
-      expect(result.success).toBe(true);
-    });
-
-    it("still enforces the production email requirements when ENABLE_TEST_ROUTES is not 'true'", () => {
-      process.env.ENABLE_TEST_ROUTES = "false";
-
-      const result = fullEnvSchema.safeParse({ ...VALID_FULL_ENV, NODE_ENV: "production" });
-
-      expect(result.success).toBe(false);
-    });
-
-    it("does NOT exempt ENABLE_TEST_ROUTES=true when DATABASE_URL is not local (a leaked flag must not bypass real production checks)", () => {
-      process.env.ENABLE_TEST_ROUTES = "true";
-      process.env.DATABASE_URL = "postgresql://user:pass@db.production-host.example.com:5432/app";
-
-      const result = fullEnvSchema.safeParse({ ...VALID_FULL_ENV, NODE_ENV: "production" });
-
-      expect(result.success).toBe(false);
     });
   });
 });

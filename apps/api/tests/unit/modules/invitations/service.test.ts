@@ -315,11 +315,14 @@ describe("resendInvitation", () => {
     });
   });
 
-  it("throws TOO_MANY_REQUESTS while the resend cooldown is active", async () => {
+  it("throws TOO_MANY_REQUESTS with the remaining cooldown seconds while the cooldown is active", async () => {
     mockDb.invitation.findUnique.mockResolvedValueOnce(buildInvitation({ updatedAt: new Date() }));
 
     await expect(resendInvitation(db, VALID_INVITATION_ID, VALID_USER.id)).rejects.toMatchObject({
       code: "TOO_MANY_REQUESTS",
+      message: expect.stringMatching(
+        /^Please wait \d+s before resending this invitation\.$/,
+      ) as string,
     });
     expect(mockDb.invitation.updateMany).not.toHaveBeenCalled();
   });

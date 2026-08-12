@@ -81,6 +81,37 @@ create-then-send across a network hop.
       that ran actually had a fresh, matching `E2E_TEST_SECRET` before
       touching the limit values.
 
+- [ ] **`apps/api/src/config/env.ts`'s validation is eager (runs at module
+      import time via a top-level `parseEnv(process.env)`, `process.exit(1)`
+      on failure), unlike `apps/api/src/mail/sender.ts`'s sender itself,
+      which is deliberately lazy/memoized for exactly this reason - see that
+      file's own docblock: `apps/web`'s RSC caller
+      (`apps/web/lib/trpc/server.ts`) does `createAppRouter(noOpIo)` at ITS
+      OWN module scope, which imports apps/api's entire router graph
+      (auth/orgs/invitations/etc. routers -> their services -> `config/env.ts`)
+      into apps/web's build/runtime, even though the `noOpIo` caller only
+      ever runs queries and never sends mail. Only half the problem got
+      lazy-fixed: the sender construction is deferred, but `config/env.ts`
+      still eagerly validates EVERY field - including `RESEND_API_KEY`/
+      `EMAIL_FROM`, which `noOpIo` never needs - the moment the module loads.
+      Bit us for real: a Vercel deploy of `apps/web` failed on
+      `RESEND_API_KEY is required in production` (apps/api's own error,
+      surfacing from inside apps/web's build) because Vercel's project only
+      had apps/web's OWN required vars configured, not apps/api's full set -
+      an easy thing to forget since `apps/web/lib/env.ts` (the schema you'd
+      actually check when provisioning `web`) doesn't even mention
+      `RESEND_API_KEY` anymore post auth-consolidation. Fix: make
+      `config/env.ts` validate lazily too (e.g. a `Proxy`-backed `env` that
+      only parses - and only enforces the FULL schema - on first property
+      access, or split the schema so query-path-only consumers like
+      `noOpIo` only need the subset `createAppRouter` structurally requires
+      to build the router, not fields no code path it can reach ever
+      reads). Not urgent by itself - see `apps/web/scripts/check-env.mjs`
+      and the deploy guide for the immediate fix (add apps/api's required
+      vars to Vercel too) - but every future required var added anywhere in
+      apps/api's dependency graph will silently become a required var for
+      `apps/web`'s build too, however unrelated, until this is fixed.
+
 - [ ] Send a "your password was changed" email on successful reset
       (`apps/api/src/modules/auth/service.ts`'s `resetPassword` sends nothing today).
 - [x] Add a GitHub Actions pipeline (lint, typecheck, test, build). Done -
@@ -139,7 +170,7 @@ rate-limit/timing fixes above. Nothing blocking, but worth cleaning up.
       `React.createElement`, no import) instead of the automatic runtime, and
       `sendVerificationEmail`/`sendPasswordResetEmail`/`sendOrgInviteEmail`/
       etc. all crashed at call time with `ReferenceError: React is not
-  defined`. Invisible in `pnpm test` (Vitest's own esbuild pipeline
+defined`. Invisible in `pnpm test` (Vitest's own esbuild pipeline
       resolves tsconfig correctly) and in the production build
       (`apps/api/scripts/build.mjs`'s explicit `jsx: "automatic"` esbuild
       option, a separate but related fix for the equivalent limitation in

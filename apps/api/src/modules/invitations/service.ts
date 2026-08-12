@@ -233,10 +233,14 @@ export async function resendInvitation(
   }
 
   const cooldownEndsAt = invitation.updatedAt.getTime() + INVITATION_RESEND_COOLDOWN_MS;
-  if (Date.now() < cooldownEndsAt) {
+  const remainingMs = cooldownEndsAt - Date.now();
+  if (remainingMs > 0) {
+    // Round up, not down - "0s" would read as "should be allowed right now"
+    // when there's still a sliver of cooldown left.
+    const remainingSeconds = Math.ceil(remainingMs / 1000);
     throw new TRPCError({
       code: "TOO_MANY_REQUESTS",
-      message: "Please wait before resending this invitation.",
+      message: `Please wait ${String(remainingSeconds)}s before resending this invitation.`,
     });
   }
 

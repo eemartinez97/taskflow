@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "InvitationStatus" AS ENUM ('PENDING', 'ACCEPTED', 'DECLINED', 'REVOKED');
+CREATE TYPE "taskflow"."InvitationStatus" AS ENUM ('PENDING', 'ACCEPTED', 'DECLINED', 'REVOKED');
 
 -- AlterEnum
 -- This migration adds more than one value to an enum.
@@ -9,16 +9,16 @@ CREATE TYPE "InvitationStatus" AS ENUM ('PENDING', 'ACCEPTED', 'DECLINED', 'REVO
 -- the enum.
 
 
-ALTER TYPE "NotificationType" ADD VALUE 'INVITATION_ACCEPTED';
-ALTER TYPE "NotificationType" ADD VALUE 'INVITATION_DECLINED';
+ALTER TYPE "taskflow"."NotificationType" ADD VALUE 'INVITATION_ACCEPTED';
+ALTER TYPE "taskflow"."NotificationType" ADD VALUE 'INVITATION_DECLINED';
 
 -- CreateTable
-CREATE TABLE "Invitation" (
+CREATE TABLE "taskflow"."Invitation" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "orgId" UUID NOT NULL,
     "email" VARCHAR(255) NOT NULL,
-    "role" "Role" NOT NULL DEFAULT 'MEMBER',
-    "status" "InvitationStatus" NOT NULL DEFAULT 'PENDING',
+    "role" "taskflow"."Role" NOT NULL DEFAULT 'MEMBER',
+    "status" "taskflow"."InvitationStatus" NOT NULL DEFAULT 'PENDING',
     "tokenHash" TEXT NOT NULL,
     "invitedById" UUID,
     "expiresAt" TIMESTAMP(3) NOT NULL,
@@ -30,25 +30,25 @@ CREATE TABLE "Invitation" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Invitation_tokenHash_key" ON "Invitation"("tokenHash");
+CREATE UNIQUE INDEX "Invitation_tokenHash_key" ON "taskflow"."Invitation"("tokenHash");
 
 -- CreateIndex
-CREATE INDEX "Invitation_email_status_idx" ON "Invitation"("email", "status");
+CREATE INDEX "Invitation_email_status_idx" ON "taskflow"."Invitation"("email", "status");
 
 -- CreateIndex
-CREATE INDEX "Invitation_orgId_status_idx" ON "Invitation"("orgId", "status");
+CREATE INDEX "Invitation_orgId_status_idx" ON "taskflow"."Invitation"("orgId", "status");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Invitation_orgId_email_key" ON "Invitation"("orgId", "email");
+CREATE UNIQUE INDEX "Invitation_orgId_email_key" ON "taskflow"."Invitation"("orgId", "email");
 
 -- AddForeignKey
-ALTER TABLE "Invitation" ADD CONSTRAINT "Invitation_orgId_fkey" FOREIGN KEY ("orgId") REFERENCES "Org"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "taskflow"."Invitation" ADD CONSTRAINT "Invitation_orgId_fkey" FOREIGN KEY ("orgId") REFERENCES "taskflow"."Org"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Invitation" ADD CONSTRAINT "Invitation_invitedById_fkey" FOREIGN KEY ("invitedById") REFERENCES "auth"."User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "taskflow"."Invitation" ADD CONSTRAINT "Invitation_invitedById_fkey" FOREIGN KEY ("invitedById") REFERENCES "auth"."User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- Hand-added: PSL can't express "any Role except one value". A future
 -- `prisma migrate dev` reporting drift on this table should re-add this
 -- constraint in the generated migration, not drop it - see the Invitation
 -- model's docblock in schema.prisma.
-ALTER TABLE "Invitation" ADD CONSTRAINT "Invitation_role_not_owner" CHECK ("role" <> 'OWNER');
+ALTER TABLE "taskflow"."Invitation" ADD CONSTRAINT "Invitation_role_not_owner" CHECK ("role" <> 'OWNER');

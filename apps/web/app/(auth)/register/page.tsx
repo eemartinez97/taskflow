@@ -1,120 +1,54 @@
-"use client";
-import { type JSX } from "react";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import Link from "next/link";
-import {
-  Alert,
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  FormField,
-  Input,
-} from "@taskflow/ui";
-import { type RegisterInput, registerSchema } from "@taskflow/shared";
-import { api } from "@/lib/trpc/client";
+import { Suspense, type JSX } from "react";
+import type { Metadata } from "next";
+
+import { TokenGateFallback } from "../_components/token-gate";
+import { RegisterForm, type RegisterFormInvitePreview } from "./_components/register-form";
+import { getServerTRPC } from "@/lib/trpc/server";
+
+export const metadata: Metadata = { title: "Create your account" };
+
+interface RegisterPageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
 
 /**
- * Collects name, email, and password in one step. auth.register creates the
- * account and emails a confirmation link; no session is created here - the
- * account cannot sign in until that link is confirmed at /verify-email (see
- * auth.verifyCredentials's `emailVerified` guard).
+ * Resolves the public invite preview for `?invite=<token>`, if any.
+ * Silently falls back to `null` (ordinary registration, no banner) for a
+ * missing, invalid, or no-longer-VALID token - a stale/leaked invite link
+ * must never block someone from just registering normally.
  */
-export default function RegisterPage(): JSX.Element {
-  const mutation = api.auth.register.useMutation({ meta: { skipErrorToast: true } });
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<RegisterInput>({
-    resolver: zodResolver(registerSchema),
-  });
-
-  function onSubmit(data: RegisterInput): void {
-    mutation.mutate(data);
+async function resolveInvitePreview(
+  trpc: Awaited<ReturnType<typeof getServerTRPC>>,
+  token: string,
+): Promise<RegisterFormInvitePreview | null> {
+  try {
+    const preview = await trpc.invitations.getByTokenPublic({ token });
+    return preview.state === "VALID" ? preview : null;
+  } catch {
+    return null;
   }
+}
 
-  if (mutation.isSuccess) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Check your email</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-gray-600">
-            We sent a confirmation link to your email address. Click it to activate your account,
-            then sign in. The link expires in 1 hour.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
+/**
+ * Exported separately from the default export so it can be wrapped in
+ * <Suspense> below - same rationale as VerifyEmailGate/ResetPasswordGate:
+ * reading `searchParams` triggers a dynamic/uncached data access under
+ * Next.js 16 cacheComponents, which requires a Suspense boundary.
+ */
+export async function RegisterGate({ searchParams }: RegisterPageProps): Promise<JSX.Element> {
+  const params = await searchParams;
+  const inviteToken = typeof params.invite === "string" ? params.invite : null;
 
+  const trpc = await getServerTRPC();
+  const invitePreview = inviteToken ? await resolveInvitePreview(trpc, inviteToken) : null;
+
+  return <RegisterForm inviteToken={inviteToken} invitePreview={invitePreview} />;
+}
+
+export default function RegisterPage(props: RegisterPageProps): JSX.Element {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Create your account</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
-          <Alert message={mutation.isError ? mutation.error.message : null} />
-          <FormField label="Name" htmlFor="name" required error={errors.name?.message}>
-            <Input
-              id="name"
-              type="text"
-              autoComplete="name"
-              hasError={!!errors.name}
-              {...register("name")}
-            />
-          </FormField>
-          <FormField label="Email" htmlFor="email" required error={errors.email?.message}>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              hasError={!!errors.email}
-              {...register("email")}
-            />
-          </FormField>
-          <FormField label="Password" htmlFor="password" required error={errors.password?.message}>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="new-password"
-              hasError={!!errors.password}
-              {...register("password")}
-            />
-          </FormField>
-          <p className="text-xs text-gray-400">
-            At least 10 characters, with uppercase, lowercase, a number and a symbol.
-          </p>
-          <FormField
-            label="Confirm Password"
-            htmlFor="confirmPassword"
-            required
-            error={errors.confirmPassword?.message}
-          >
-            <Input
-              id="confirmPassword"
-              type="password"
-              autoComplete="new-password"
-              hasError={!!errors.confirmPassword}
-              {...register("confirmPassword")}
-            />
-          </FormField>
-          <Button type="submit" fullWidth loading={mutation.isPending}>
-            Create account
-          </Button>
-          <p className="text-center text-sm text-gray-500">
-            {"Already have an account? "}
-            <Link href="/login" className="font-medium text-brand-600 hover:underline">
-              Sign in
-            </Link>
-          </p>
-        </form>
-      </CardContent>
-    </Card>
+    <Suspense fallback={<TokenGateFallback title="Create your account" />}>
+      <RegisterGate searchParams={props.searchParams} />
+    </Suspense>
   );
 }

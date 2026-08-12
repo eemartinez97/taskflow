@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe } from "vitest";
 
 import {
   createOrg,
@@ -7,11 +7,9 @@ import {
   findMembership,
   findOrgById,
   findOrgsByUser,
-  inviteMember,
   removeMember,
   updateMembershipRole,
   updateOrg,
-  UserNotFoundError,
 } from "../../../../src/modules/orgs/repo";
 import { membershipWithUser, orgWithMembership } from "../../../mocks/database-mock";
 import { buildMembership, buildOrg } from "../../../factories";
@@ -109,26 +107,4 @@ describe("orgs repo", () => {
       },
     },
   ]);
-});
-
-describe("inviteMember", () => {
-  const data = { email: "bob@example.com", role: "MEMBER" as const };
-
-  it("creates the membership when the invitee already has an account", async () => {
-    mockDb.user.findUnique.mockResolvedValueOnce({ id: "user-2" });
-    mockDb.membership.create.mockResolvedValueOnce(membership);
-
-    await expect(inviteMember(db, VALID_ORG_ID, data)).resolves.toEqual(membership);
-
-    expect(mockDb.membership.create).toHaveBeenCalledWith({
-      data: { orgId: VALID_ORG_ID, userId: "user-2", role: "MEMBER" },
-    });
-  });
-
-  it("throws UserNotFoundError when the email has no account", async () => {
-    mockDb.user.findUnique.mockResolvedValueOnce(null);
-
-    await expect(inviteMember(db, VALID_ORG_ID, data)).rejects.toBeInstanceOf(UserNotFoundError);
-    expect(mockDb.membership.create).not.toHaveBeenCalled();
-  });
 });

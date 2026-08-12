@@ -37,7 +37,7 @@ const READ_ORG_NOTIF: MockNotification = {
   read: true,
   createdAt: new Date("2024-03-02"),
   entityType: "org",
-  entityId: null,
+  entityId: "org-uuid-abc",
 };
 
 const UNREAD_NO_ENTITY_NOTIF: MockNotification = {
@@ -274,7 +274,7 @@ describe("NotificationsPanel", () => {
     expect(mockMarkReadMutate).not.toHaveBeenCalled();
   });
 
-  it("navigates to /team and closes panel when clicking an org notification", () => {
+  it("navigates to /organizations/<entityId> and closes panel when clicking an org notification", () => {
     vi.mocked(useNotifications).mockReturnValue({
       notifications: [READ_ORG_NOTIF] as never,
       unreadCount: 0,
@@ -282,7 +282,7 @@ describe("NotificationsPanel", () => {
     renderUI(<NotificationsPanel onClose={mockOnClose} />);
     fireEvent.click(screen.getByText(READ_ORG_NOTIF.message));
 
-    expect(mockRouter.push).toHaveBeenCalledWith("/team");
+    expect(mockRouter.push).toHaveBeenCalledWith(`/organizations/${READ_ORG_NOTIF.entityId ?? ""}`);
     expect(mockOnClose).toHaveBeenCalledOnce();
   });
 

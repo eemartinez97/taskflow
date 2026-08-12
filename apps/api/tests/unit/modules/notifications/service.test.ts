@@ -10,6 +10,7 @@ import {
   markReadById,
   notify,
   notifyCommentCreated,
+  notifyInvitationResolved,
   notifyMemberInvited,
   notifyTaskAssigned,
   notifyTaskEvent,
@@ -134,6 +135,10 @@ describe("buildNotificationMessage", () => {
     ["COMMENT_CREATED", "Alice", undefined, "Alice left a comment"],
     ["MEMBER_INVITED", "Alice", "Acme", 'Alice invited you to "Acme"'],
     ["MEMBER_INVITED", "Alice", undefined, "Alice invited you to an organization"],
+    ["INVITATION_ACCEPTED", "Alice", "Acme", 'Alice accepted your invitation to "Acme"'],
+    ["INVITATION_ACCEPTED", "Alice", undefined, "Alice accepted your invitation"],
+    ["INVITATION_DECLINED", "Alice", "Acme", 'Alice declined your invitation to "Acme"'],
+    ["INVITATION_DECLINED", "Alice", undefined, "Alice declined your invitation"],
     ["TASK_ASSIGNED", null, "Ship it", 'Someone assigned you to "Ship it"'],
     ["TASK_ASSIGNED", "Alice", "", "Alice assigned you to a task"],
   ] as [NotificationType, string | null, string | undefined, string][])(
@@ -217,6 +222,65 @@ describe("notifyMemberInvited", () => {
           entityType: "org",
           message: 'Alice invited you to "Acme"',
         }) as unknown,
+      }),
+    );
+  });
+});
+
+describe("notifyInvitationResolved", () => {
+  it("no-ops when the inviter's account was deleted (recipientId is null)", async () => {
+    await notifyInvitationResolved(db, mockIo, {
+      recipientId: null,
+      actorId: ANOTHER_UUID,
+      orgId: VALID_ORG_ID,
+      orgName: "Acme",
+      type: "INVITATION_ACCEPTED",
+    });
+
+    expect(mockDb.notification.create).not.toHaveBeenCalled();
+    expectNoEmit();
+  });
+
+  it("notifies the original inviter when their invitation is accepted", async () => {
+    mockDb.user.findUnique.mockResolvedValueOnce({ name: "Bob" });
+    mockDb.notification.create.mockResolvedValueOnce(notification);
+
+    await notifyInvitationResolved(db, mockIo, {
+      recipientId: VALID_USER.id,
+      actorId: ANOTHER_UUID,
+      orgId: VALID_ORG_ID,
+      orgName: "Acme",
+      type: "INVITATION_ACCEPTED",
+    });
+
+    expect(mockDb.notification.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: VALID_USER.id,
+          type: "INVITATION_ACCEPTED",
+          entityId: VALID_ORG_ID,
+          entityType: "org",
+          message: 'Bob accepted your invitation to "Acme"',
+        }) as unknown,
+      }),
+    );
+  });
+
+  it("notifies the original inviter when their invitation is declined", async () => {
+    mockDb.user.findUnique.mockResolvedValueOnce({ name: "Bob" });
+    mockDb.notification.create.mockResolvedValueOnce(notification);
+
+    await notifyInvitationResolved(db, mockIo, {
+      recipientId: VALID_USER.id,
+      actorId: ANOTHER_UUID,
+      orgId: VALID_ORG_ID,
+      orgName: "Acme",
+      type: "INVITATION_DECLINED",
+    });
+
+    expect(mockDb.notification.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ type: "INVITATION_DECLINED" }) as unknown,
       }),
     );
   });

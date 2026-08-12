@@ -8,6 +8,7 @@ import {
   VALID_COLUMN_ID,
   VALID_ORG_ID,
   VALID_PROJECT_ID,
+  VALID_USER,
 } from "../../../helpers";
 import { mockIo } from "../../../mocks/socket";
 import { callerFor, expectTRPCError, grantRole } from "../../../support/trpc";
@@ -57,37 +58,58 @@ describe("boards router", () => {
       "update",
       () => caller().update({ ...org, boardId: VALID_BOARD_ID, data: { name: "R" } }),
       () => {
-        expect(service.updateBoardById).toHaveBeenCalledWith(db, mockIo, VALID_BOARD_ID, {
-          name: "R",
-        });
+        expect(service.updateBoardById).toHaveBeenCalledWith(
+          db,
+          mockIo,
+          VALID_BOARD_ID,
+          VALID_USER.id,
+          { name: "R" },
+        );
       },
     ],
     [
       "addColumn",
       () => caller().addColumn({ ...org, boardId: VALID_BOARD_ID, name: "QA" }),
       () => {
-        expect(service.addColumn).toHaveBeenCalledWith(db, mockIo, VALID_BOARD_ID, "QA");
+        expect(service.addColumn).toHaveBeenCalledWith(
+          db,
+          mockIo,
+          VALID_BOARD_ID,
+          VALID_USER.id,
+          "QA",
+        );
       },
     ],
     [
       "renameColumn",
       () => caller().renameColumn({ ...org, columnId: VALID_COLUMN_ID, name: "Done" }),
       () => {
-        expect(service.renameColumn).toHaveBeenCalledWith(db, mockIo, VALID_COLUMN_ID, "Done");
+        expect(service.renameColumn).toHaveBeenCalledWith(
+          db,
+          mockIo,
+          VALID_COLUMN_ID,
+          VALID_USER.id,
+          "Done",
+        );
       },
     ],
     [
       "deleteColumn",
       () => caller().deleteColumn({ ...org, columnId: VALID_COLUMN_ID }),
       () => {
-        expect(service.deleteColumnById).toHaveBeenCalledWith(db, mockIo, VALID_COLUMN_ID);
+        expect(service.deleteColumnById).toHaveBeenCalledWith(
+          db,
+          mockIo,
+          VALID_COLUMN_ID,
+          VALID_USER.id,
+        );
       },
     ],
     [
       "reorderColumns",
       () => caller().reorderColumns({ ...org, payload: { boardId: VALID_BOARD_ID, columns: [] } }),
       () => {
-        expect(service.reorderBoardColumn).toHaveBeenCalledWith(db, mockIo, {
+        expect(service.reorderBoardColumn).toHaveBeenCalledWith(db, mockIo, VALID_USER.id, {
           boardId: VALID_BOARD_ID,
           columns: [],
         });

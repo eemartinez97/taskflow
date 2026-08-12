@@ -43,6 +43,14 @@ export interface RateLimiter {
  * CAVEAT: single-process / in-memory. Fine for one server instance; swap
  * the internals for a shared store (Redis/Upstash) before scaling
  * horizontally to multiple instances.
+ *
+ * NOT used by `apps/api/src/modules/auth/rate-limit.ts`'s Postgres-backed
+ * auth/login limiters, even though they share this same conceptual
+ * contract (check, refundable release keyed by a window token) - this
+ * `RateLimiter` interface is deliberately synchronous (built for the
+ * socket-presence hot path this file backs), while a Postgres-backed
+ * implementation is necessarily async. See that file's own docblock and
+ * BACKLOG.md before attempting to unify them.
  */
 export function createRateLimiter(
   { limit, windowMs }: RateLimitOptions,

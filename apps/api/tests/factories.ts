@@ -3,6 +3,8 @@ import type {
   Column,
   Comment,
   CommentWithAuthor,
+  Invitation,
+  InvitationWithInviter,
   Label,
   Membership,
   Notification,
@@ -132,4 +134,29 @@ export const buildNotificationWithActor = (
 ): NotificationWithActor => ({
   ...buildNotification(o),
   actor: { id: VALID_USER.id, name: VALID_USER.name, image: null },
+});
+
+export const VALID_INVITATION_ID = "0000000a-0000-4000-8000-000000000001";
+
+export const buildInvitation = (o: Partial<Invitation> = {}): Invitation => ({
+  id: VALID_INVITATION_ID,
+  orgId: VALID_ORG_ID,
+  email: "bob@example.com",
+  role: "MEMBER",
+  status: "PENDING",
+  tokenHash: "a".repeat(64),
+  invitedById: VALID_USER.id,
+  // Relative to the REAL clock (not FIXED_DATE): expiry math in
+  // resolveInvitationState/toOrgInvitation reads the real Date.now(), so a
+  // FIXED_DATE-relative default would silently start reporting "expired" as
+  // real time passes FIXED_DATE.
+  expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  respondedAt: null,
+  ...stamps,
+  ...o,
+});
+
+export const buildInvitationWithInviter = (o: Partial<Invitation> = {}): InvitationWithInviter => ({
+  ...buildInvitation(o),
+  invitedBy: { id: VALID_USER.id, name: VALID_USER.name, image: null },
 });

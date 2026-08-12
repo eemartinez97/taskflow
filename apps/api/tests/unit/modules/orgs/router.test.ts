@@ -1,15 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createOrgsRouter } from "../../../../src/modules/orgs/router";
+import { orgsRouter } from "../../../../src/modules/orgs/router";
 import * as service from "../../../../src/modules/orgs/service";
 import { ANOTHER_UUID, db, VALID_ORG_ID, VALID_USER } from "../../../helpers";
-import { mockIo } from "../../../mocks/socket";
 import { callerFor, expectTRPCError, grantRole } from "../../../support/trpc";
 
 vi.mock("../../../../src/modules/orgs/service");
 
-const router = createOrgsRouter(mockIo);
-const caller = () => callerFor(router);
+const caller = () => callerFor(orgsRouter);
 
 describe("orgs router", () => {
   beforeEach(() => {
@@ -47,20 +45,6 @@ describe("orgs router", () => {
     await caller().members({ orgId: VALID_ORG_ID });
 
     expect(service.listMembers).toHaveBeenCalledWith(db, VALID_ORG_ID);
-  });
-
-  it("invite -> inviteMemberToOrg with io injected", async () => {
-    const data = { email: "bob@example.com", role: "MEMBER" as const };
-
-    await caller().invite({ orgId: VALID_ORG_ID, data });
-
-    expect(service.inviteMemberToOrg).toHaveBeenCalledWith(
-      db,
-      mockIo,
-      VALID_ORG_ID,
-      VALID_USER.id,
-      data,
-    );
   });
 
   it("removeMember -> removeMemberFromOrg", async () => {
@@ -104,23 +88,16 @@ describe("orgs router RBAC", () => {
     await expectTRPCError(call(), "FORBIDDEN");
   });
 
-  it.each([
-    ["update", () => caller().update({ orgId: VALID_ORG_ID, data: { name: "x" } })],
-    [
-      "invite",
-      () =>
-        caller().invite({
-          orgId: VALID_ORG_ID,
-          data: { email: "b@example.com", role: "MEMBER" as const },
-        }),
-    ],
-  ])("%s requires OWNER or ADMIN", async (_name, call) => {
+  it("update requires OWNER or ADMIN", async () => {
     grantRole("MEMBER");
 
-    await expectTRPCError(call(), "FORBIDDEN");
+    await expectTRPCError(
+      caller().update({ orgId: VALID_ORG_ID, data: { name: "x" } }),
+      "FORBIDDEN",
+    );
   });
 
   it("list requires a session", async () => {
-    await expectTRPCError(callerFor(router, null).list(), "UNAUTHORIZED");
+    await expectTRPCError(callerFor(orgsRouter, null).list(), "UNAUTHORIZED");
   });
 });

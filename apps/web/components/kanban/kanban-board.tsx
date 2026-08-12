@@ -24,6 +24,7 @@ import type { Column, Label, Task } from "@taskflow/database";
 import type { SocketPresenceUser } from "@taskflow/shared";
 
 import { findColumnIdForTask, findTaskInMap, type TasksMap } from "@/lib/board/tasks-map";
+import { upsertTask } from "@/lib/socket/task-cache";
 import { TaskDetailPanel } from "@/components/task/task-detail-panel";
 import { useColumnDnD } from "@/lib/hooks/use-column-dnd";
 import { AddColumnButton } from "./add-column-button";
@@ -224,18 +225,32 @@ export function KanbanBoard({
   });
 
   const deleteColumnMutation = api.boards.deleteColumn.useMutation({
-    onSuccess: () => {
+    onSuccess: (_result, variables) => {
       toast.success("Column deleted.");
       setDeleteColumnTarget(null);
-      void utils.boards.get.invalidate({ orgId, boardId });
+      utils.boards.get.setData({ orgId, boardId }, (prev) =>
+        prev ? { ...prev, columns: prev.columns.filter((c) => c.id !== variables.columnId) } : prev,
+      );
       // Tasks in the deleted column may have been in "My Tasks"
       void utils.tasks.myTasks.invalidate();
     },
   });
 
   const reorderColumnsMutation = api.boards.reorderColumns.useMutation({
-    onSuccess: () => {
-      void utils.boards.get.invalidate({ orgId, boardId });
+    onSuccess: (_result, variables) => {
+      utils.boards.get.setData({ orgId, boardId }, (prev) => {
+        if (!prev) return prev;
+        const positionById = new Map(variables.payload.columns.map((c) => [c.id, c.position]));
+        return {
+          ...prev,
+          columns: prev.columns
+            .map((c) => {
+              const position = positionById.get(c.id);
+              return position === undefined ? c : { ...c, position };
+            })
+            .sort((a, b) => a.position - b.position),
+        };
+      });
     },
   });
 
@@ -263,9 +278,19 @@ export function KanbanBoard({
   });
 
   // -- Mutations --
+  // createTaskMutation/addColumnMutation write the new row into the cache
+  // directly from the mutation's own response (setData) instead of
+  // invalidate()-ing and waiting on a second round trip. The server excludes
+  // the acting user's own socket from the TASK_CREATED/BOARD_UPDATED
+  // broadcast for exactly this reason (see socket/emit.ts's excludeUserId) -
+  // this is what updates OUR OWN view in its place, landing in sync with
+  // isPending flipping false instead of racing the realtime echo other
+  // viewers get.
   const createTaskMutation = api.tasks.create.useMutation({
     onSuccess: (task) => {
-      void utils.tasks.list.invalidate({ orgId, columnId: task.columnId });
+      utils.tasks.list.setData({ orgId, columnId: task.columnId }, (prev) =>
+        upsertTask(prev, task),
+      );
     },
     onSettled: () => {
       setAddingTaskColId(null);
@@ -273,8 +298,10 @@ export function KanbanBoard({
   });
 
   const addColumnMutation = api.boards.addColumn.useMutation({
-    onSuccess: () => {
-      void utils.boards.get.invalidate({ orgId, boardId });
+    onSuccess: (column) => {
+      utils.boards.get.setData({ orgId, boardId }, (prev) =>
+        prev ? { ...prev, columns: [...prev.columns, column] } : prev,
+      );
     },
   });
 

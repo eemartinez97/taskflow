@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { SOCKET_EVENTS } from "@taskflow/shared";
 
 import {
@@ -43,15 +43,38 @@ describe("createCommentOnTask", () => {
       createCommentOnTask(db, mockIo, VALID_PROJECT_ID, VALID_TASK_ID, VALID_USER.id, "LGTM"),
     ).resolves.toBe(comment);
 
-    expectEmittedToProject(VALID_PROJECT_ID, SOCKET_EVENTS.COMMENT_CREATED, { comment });
-    expect(mockDb.notification.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          type: "COMMENT_CREATED",
-          message: 'Alice commented on "Ship it"',
-        }) as unknown,
-      }),
+    expectEmittedToProject(
+      VALID_PROJECT_ID,
+      SOCKET_EVENTS.COMMENT_CREATED,
+      { comment },
+      VALID_USER.id,
     );
+    // notifyCommentCreated now runs fire-and-forget (see comments/service.ts)
+    // so the response doesn't wait behind it.
+    await vi.waitFor(() => {
+      expect(mockDb.notification.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            type: "COMMENT_CREATED",
+            message: 'Alice commented on "Ship it"',
+          }) as unknown,
+        }),
+      );
+    });
+  });
+
+  it("logs (does not throw) when notifying fails", async () => {
+    mockDb.task.findUnique.mockResolvedValueOnce({
+      assigneeId: ANOTHER_UUID,
+      title: "Ship it",
+    });
+    mockDb.comment.create.mockResolvedValueOnce(comment);
+    mockDb.user.findUnique.mockRejectedValueOnce(new Error("Connection refused"));
+
+    await expect(
+      createCommentOnTask(db, mockIo, VALID_PROJECT_ID, VALID_TASK_ID, VALID_USER.id, "LGTM"),
+    ).resolves.toBe(comment);
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
 
   it("does not notify when the task has no assignee", async () => {
@@ -114,9 +137,11 @@ describe("deleteCommentById", () => {
       deleteCommentById(db, mockIo, VALID_PROJECT_ID, VALID_COMMENT_ID, VALID_USER.id),
     ).resolves.toEqual({ success: true });
 
-    expectEmittedToProject(VALID_PROJECT_ID, SOCKET_EVENTS.COMMENT_DELETED, {
-      commentId: VALID_COMMENT_ID,
-      taskId: VALID_TASK_ID,
-    });
+    expectEmittedToProject(
+      VALID_PROJECT_ID,
+      SOCKET_EVENTS.COMMENT_DELETED,
+      { commentId: VALID_COMMENT_ID, taskId: VALID_TASK_ID },
+      VALID_USER.id,
+    );
   });
 });

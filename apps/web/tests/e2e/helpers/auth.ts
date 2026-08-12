@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Browser, BrowserContext, Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 import { fieldByLabel } from "./field";
 
@@ -132,4 +132,30 @@ export async function registerNewUser(page: Page, user: NewUserPayload): Promise
   await fieldByLabel(page, "Password").fill(user.password);
   await page.getByRole("button", { name: /sign in/i }).click();
   await page.waitForURL(/\/projects/, { timeout: 15_000 });
+}
+
+/**
+ * Opens a brand-new, isolated browser context and fully registers+logs-in a
+ * second user in it - used wherever a test needs two SIMULTANEOUS
+ * authenticated sessions (e.g. an org admin sending an invite in one
+ * context while the invitee sees/accepts it live in another). Callers must
+ * `await context.close()` when done.
+ *
+ * Explicit empty storageState (not just "no option passed"): every spec
+ * that registers a NEW user through the fixture-provided `page` has to
+ * opt out of the default pre-authenticated storageState the same way (see
+ * `test.use({ storageState: { cookies: [], origins: [] } })` in
+ * auth.spec.ts / first-org-and-board-flow.spec.ts) - a manually-created
+ * `browser.newContext()` needs the identical override, or proxy.ts's
+ * `isAuthenticated && isPublicAuthRoute` redirect sends this "new" user
+ * straight to /projects as the ALREADY-authenticated seed admin instead.
+ */
+export async function newAuthenticatedSession(
+  browser: Browser,
+  user: NewUserPayload,
+): Promise<{ context: BrowserContext; page: Page }> {
+  const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const page = await context.newPage();
+  await registerNewUser(page, user);
+  return { context, page };
 }

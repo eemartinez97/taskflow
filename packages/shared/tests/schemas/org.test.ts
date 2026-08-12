@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createOrgSchema,
+  invitableRoleSchema,
   inviteMemberSchema,
   membershipSchema,
   orgSchema,
@@ -105,5 +106,22 @@ describe("inviteMemberSchema", () => {
         role: "MEMBER",
       }),
     ).toThrow();
+  });
+
+  it("trims and lowercases the email", () => {
+    const result = inviteMemberSchema.parse({ email: "  Alice@Example.COM  ", role: "MEMBER" });
+    expect(result.email).toBe("alice@example.com");
+  });
+});
+
+describe("invitableRoleSchema", () => {
+  it("accepts every role except OWNER", () => {
+    expect(invitableRoleSchema.parse("ADMIN")).toBe("ADMIN");
+    expect(invitableRoleSchema.parse("MEMBER")).toBe("MEMBER");
+    expect(invitableRoleSchema.parse("VIEWER")).toBe("VIEWER");
+  });
+
+  it("rejects OWNER", () => {
+    expect(() => invitableRoleSchema.parse("OWNER")).toThrow();
   });
 });

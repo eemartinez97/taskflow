@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { SOCKET_EVENTS } from "@taskflow/shared";
 
 import {
@@ -13,7 +13,13 @@ import {
   updateBoardById,
 } from "../../../../src/modules/boards/service";
 import { buildBoard, buildBoardWithColumns, buildColumn } from "../../../factories";
-import { db, VALID_BOARD_ID, VALID_COLUMN_ID, VALID_PROJECT_ID } from "../../../helpers";
+import {
+  db,
+  VALID_BOARD_ID,
+  VALID_COLUMN_ID,
+  VALID_PROJECT_ID,
+  VALID_USER,
+} from "../../../helpers";
 import { mockDb } from "../../../mocks/database-mock";
 import { mockIo } from "../../../mocks/socket";
 import { expectEmittedToProject, expectNoEmit } from "../../../support/socket-assert";
@@ -47,42 +53,71 @@ describe("updateBoardById", () => {
   it("throws NOT_FOUND when the board does not exist", async () => {
     mockDb.board.findUnique.mockResolvedValueOnce(null);
 
-    await expect(updateBoardById(db, mockIo, VALID_BOARD_ID, { name: "x" })).rejects.toMatchObject({
+    await expect(
+      updateBoardById(db, mockIo, VALID_BOARD_ID, VALID_USER.id, { name: "x" }),
+    ).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
     expect(mockDb.board.update).not.toHaveBeenCalled();
   });
 
-  it("updates and broadcasts the fresh board", async () => {
+  it("updates and broadcasts the fresh board, excluding the actor's own connections", async () => {
     arriveAtEmit();
     mockDb.board.update.mockResolvedValueOnce({ ...board, name: "Renamed" });
 
     await expect(
-      updateBoardById(db, mockIo, VALID_BOARD_ID, { name: "Renamed" }),
+      updateBoardById(db, mockIo, VALID_BOARD_ID, VALID_USER.id, { name: "Renamed" }),
     ).resolves.toMatchObject({ name: "Renamed" });
 
-    expectEmittedToProject(VALID_PROJECT_ID, SOCKET_EVENTS.BOARD_UPDATED, {
-      board: boardWithCols,
+    // broadcastBoardUpdated now runs fire-and-forget (see boards/service.ts)
+    // so the response doesn't wait behind its own board refetch.
+    await vi.waitFor(() => {
+      expectEmittedToProject(
+        VALID_PROJECT_ID,
+        SOCKET_EVENTS.BOARD_UPDATED,
+        { board: boardWithCols },
+        VALID_USER.id,
+      );
     });
   });
 });
 
 describe("addColumn", () => {
-  it("appends at maxPosition + POSITION_STEP and broadcasts", async () => {
+  it("appends at maxPosition + POSITION_STEP and broadcasts, excluding the actor", async () => {
     mockDb.column.findFirst.mockResolvedValueOnce({ position: 4000 });
     mockDb.column.create.mockResolvedValueOnce(buildColumn({ name: "QA", position: 5000 }));
     arriveAtEmit();
 
-    await expect(addColumn(db, mockIo, VALID_BOARD_ID, "QA")).resolves.toMatchObject({
-      name: "QA",
-    });
+    await expect(addColumn(db, mockIo, VALID_BOARD_ID, VALID_USER.id, "QA")).resolves.toMatchObject(
+      {
+        name: "QA",
+      },
+    );
 
     expect(mockDb.column.create).toHaveBeenCalledWith({
       data: { boardId: VALID_BOARD_ID, name: "QA", position: 5000 },
     });
-    expectEmittedToProject(VALID_PROJECT_ID, SOCKET_EVENTS.BOARD_UPDATED, {
-      board: boardWithCols,
+    await vi.waitFor(() => {
+      expectEmittedToProject(
+        VALID_PROJECT_ID,
+        SOCKET_EVENTS.BOARD_UPDATED,
+        { board: boardWithCols },
+        VALID_USER.id,
+      );
     });
+  });
+
+  it("logs (does not throw) when the broadcast fails", async () => {
+    mockDb.column.findFirst.mockResolvedValueOnce({ position: 4000 });
+    mockDb.column.create.mockResolvedValueOnce(buildColumn({ name: "QA", position: 5000 }));
+    mockDb.board.findUnique.mockRejectedValueOnce(new Error("Connection refused"));
+
+    await expect(addColumn(db, mockIo, VALID_BOARD_ID, VALID_USER.id, "QA")).resolves.toMatchObject(
+      {
+        name: "QA",
+      },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
 
   // Covers the `if (!board) return;` guard inside emitBoardUpdated
@@ -91,50 +126,62 @@ describe("addColumn", () => {
     mockDb.column.create.mockResolvedValueOnce(column);
     arriveAtEmit(null);
 
-    await expect(addColumn(db, mockIo, VALID_BOARD_ID, "QA")).resolves.toBe(column);
+    await expect(addColumn(db, mockIo, VALID_BOARD_ID, VALID_USER.id, "QA")).resolves.toBe(column);
 
     expectNoEmit();
   });
 });
 
 describe("reorderBoardColumn", () => {
-  it("persists positions and broadcasts once", async () => {
+  it("persists positions and broadcasts once, excluding the actor", async () => {
     arriveAtEmit();
 
     await expect(
-      reorderBoardColumn(db, mockIo, {
+      reorderBoardColumn(db, mockIo, VALID_USER.id, {
         boardId: VALID_BOARD_ID,
         columns: [{ id: VALID_COLUMN_ID, position: 1000 }],
       }),
     ).resolves.toEqual({ success: true });
 
     expect(mockDb.$transaction).toHaveBeenCalledOnce();
-    expectEmittedToProject(VALID_PROJECT_ID, SOCKET_EVENTS.BOARD_UPDATED, {
-      board: boardWithCols,
+    await vi.waitFor(() => {
+      expectEmittedToProject(
+        VALID_PROJECT_ID,
+        SOCKET_EVENTS.BOARD_UPDATED,
+        { board: boardWithCols },
+        VALID_USER.id,
+      );
     });
   });
 });
 
 describe("renameColumn / deleteColumnById", () => {
   it.each([
-    ["renameColumn", () => renameColumn(db, mockIo, VALID_COLUMN_ID, "Done")],
-    ["deleteColumnById", () => deleteColumnById(db, mockIo, VALID_COLUMN_ID)],
+    ["renameColumn", () => renameColumn(db, mockIo, VALID_COLUMN_ID, VALID_USER.id, "Done")],
+    ["deleteColumnById", () => deleteColumnById(db, mockIo, VALID_COLUMN_ID, VALID_USER.id)],
   ])("%s throws NOT_FOUND for a missing column", async (_name, call) => {
     mockDb.column.findUnique.mockResolvedValueOnce(null);
 
     await expect(call()).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
-  it("renameColumn updates the name and broadcasts the board", async () => {
+  it("renameColumn updates the name and broadcasts the board, excluding the actor", async () => {
     mockDb.column.findUnique.mockResolvedValueOnce(column);
     mockDb.column.update.mockResolvedValueOnce(buildColumn({ name: "Done" }));
     arriveAtEmit();
 
-    await expect(renameColumn(db, mockIo, VALID_COLUMN_ID, "Done")).resolves.toMatchObject({
+    await expect(
+      renameColumn(db, mockIo, VALID_COLUMN_ID, VALID_USER.id, "Done"),
+    ).resolves.toMatchObject({
       name: "Done",
     });
-    expectEmittedToProject(VALID_PROJECT_ID, SOCKET_EVENTS.BOARD_UPDATED, {
-      board: boardWithCols,
+    await vi.waitFor(() => {
+      expectEmittedToProject(
+        VALID_PROJECT_ID,
+        SOCKET_EVENTS.BOARD_UPDATED,
+        { board: boardWithCols },
+        VALID_USER.id,
+      );
     });
   });
 
@@ -142,7 +189,9 @@ describe("renameColumn / deleteColumnById", () => {
     mockDb.column.findUnique.mockResolvedValueOnce(column);
     arriveAtEmit();
 
-    await expect(deleteColumnById(db, mockIo, VALID_COLUMN_ID)).resolves.toEqual({ success: true });
+    await expect(deleteColumnById(db, mockIo, VALID_COLUMN_ID, VALID_USER.id)).resolves.toEqual({
+      success: true,
+    });
 
     expect(mockDb.column.delete).toHaveBeenCalledWith({ where: { id: VALID_COLUMN_ID } });
   });

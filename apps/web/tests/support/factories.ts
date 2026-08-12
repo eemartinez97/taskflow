@@ -7,7 +7,7 @@ import type {
   Membership,
   Label,
 } from "@taskflow/database";
-import type { SocketTask } from "@taskflow/shared";
+import type { MyInvitation, OrgInvitation, SocketTask } from "@taskflow/shared";
 import { type PrismaClient } from "@taskflow/database";
 import { mockDb } from "@/tests/mocks/taskflow-database";
 import {
@@ -139,6 +139,36 @@ export function makeLabel(
     orgId: options.orgId ?? VALID_ORG_ID,
     createdAt: new Date("2026-01-01"),
     updatedAt: new Date("2026-01-01"),
+  };
+}
+
+/** Creates a minimal OrgInvitation fixture (the admin-table row shape) with optional overrides. */
+export function makeOrgInvitation(overrides: Partial<OrgInvitation> = {}): OrgInvitation {
+  return {
+    id: "inv-1",
+    email: "bob@example.com",
+    role: "MEMBER",
+    status: "PENDING",
+    invitedById: mockAuthorizedUser.id,
+    inviterName: "Alice",
+    expiresAt: new Date("2099-01-01"),
+    respondedAt: null,
+    createdAt: new Date("2026-01-01"),
+    updatedAt: new Date("2026-01-01"),
+    ...overrides,
+  };
+}
+
+/** Creates a minimal MyInvitation fixture (the invitee's own list-item shape) with optional overrides. */
+export function makeMyInvitation(overrides: Partial<MyInvitation> = {}): MyInvitation {
+  return {
+    id: "inv-1",
+    orgId: VALID_ORG_ID,
+    orgName: "Acme",
+    role: "MEMBER",
+    expiresAt: new Date("2026-06-13"),
+    createdAt: new Date("2026-01-01"),
+    ...overrides,
   };
 }
 

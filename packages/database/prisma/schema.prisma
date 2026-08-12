@@ -50,6 +50,23 @@ enum NotificationType {
   TASK_UPDATED
   COMMENT_CREATED
   MEMBER_INVITED
+  INVITATION_ACCEPTED
+  INVITATION_DECLINED
+
+  @@schema("taskflow")
+}
+
+/**
+ * No EXPIRED member - expiry is derived from `expiresAt` at read time,
+ * exactly like AuthToken's `findValidAuthToken`. A stored EXPIRED status
+ * would need a cron to stay truthful; deriving it means a row is always
+ * consistent with `now()` no matter how long it sits unread.
+ */
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  REVOKED
 
   @@schema("taskflow")
 }
@@ -90,6 +107,7 @@ model User {
   comments               Comment[]
   notifications          Notification[] @relation("NotificationRecipient")
   triggeredNotifications Notification[] @relation("NotificationActor")
+  sentInvitations        Invitation[]   @relation("InvitationInviter")
 
   @@schema("auth")
 }
@@ -188,6 +206,7 @@ model Org {
   memberships Membership[]
   projects    Project[]
   labels      Label[]
+  invitations Invitation[]
 
   @@schema("taskflow")
 }
@@ -359,5 +378,44 @@ model Attachment {
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@index([taskId])
+  @@schema("taskflow")
+}
+
+/**
+ * A pending (or resolved) org invitation. `Membership` is created only on
+ * accept - never at invite time - so an invitee's consent is required
+ * before they join. The raw token is NEVER persisted, only its SHA-256
+ * hash (`tokenHash`), same rationale as AuthToken.
+ *
+ * `@@unique([orgId, email])` is the whole re-invite story: re-inviting the
+ * same address is a single atomic upsert on this constraint (see
+ * apps/api's `upsertInvitation`), never a second row - a DECLINED/REVOKED/
+ * expired invitation is resurrected in place with a fresh token and expiry.
+ *
+ * The `role <> 'OWNER'` constraint (PSL can't express "any Role except
+ * one value") is added by hand in the migration - see that migration file.
+ */
+model Invitation {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId       String           @db.Uuid
+  // Always lowercase - normalized at the Zod boundary (emailField()) before
+  // it ever reaches this column, which is what makes the unique constraint
+  // below mean what it looks like it means.
+  email       String           @db.VarChar(255)
+  role        Role             @default(MEMBER)
+  status      InvitationStatus @default(PENDING)
+  tokenHash   String           @unique
+  invitedById String?          @db.Uuid
+  expiresAt   DateTime
+  respondedAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  org       Org   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  invitedBy User? @relation("InvitationInviter", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@unique([orgId, email])
+  @@index([email, status])
+  @@index([orgId, status])
   @@schema("taskflow")
 }

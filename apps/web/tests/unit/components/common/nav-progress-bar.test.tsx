@@ -196,6 +196,29 @@ describe("NavProgressBar", () => {
     expect(document.documentElement).not.toHaveClass("tf-nav-loading");
   });
 
+  it("ignores clicks on a nested interactive control inside the anchor", () => {
+    render(
+      <>
+        <NavProgressBar />
+        <TestLink href="/tasks">
+          Tasks
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+          >
+            Menu
+          </button>
+        </TestLink>
+      </>,
+    );
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Menu" }), { button: 0 });
+    });
+    expect(document.documentElement).not.toHaveClass("tf-nav-loading");
+  });
+
   it("removes the click listener on unmount", () => {
     const { unmount } = render(
       <>

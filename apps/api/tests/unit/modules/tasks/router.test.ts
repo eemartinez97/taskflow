@@ -82,7 +82,13 @@ describe("tasks router", () => {
 
     await caller().move({ ...scope, payload });
 
-    expect(service.moveTaskToColumn).toHaveBeenCalledWith(db, mockIo, VALID_PROJECT_ID, payload);
+    expect(service.moveTaskToColumn).toHaveBeenCalledWith(
+      db,
+      mockIo,
+      VALID_PROJECT_ID,
+      VALID_USER.id,
+      payload,
+    );
   });
 
   it("delete -> deleteTaskById", async () => {
@@ -92,6 +98,7 @@ describe("tasks router", () => {
       db,
       mockIo,
       VALID_PROJECT_ID,
+      VALID_USER.id,
       VALID_TASK_ID,
     );
   });
@@ -116,7 +123,7 @@ describe("tasks router", () => {
 
     await caller()[procedure](input);
 
-    expect(service[fn]).toHaveBeenCalledWith(db, mockIo, input);
+    expect(service[fn]).toHaveBeenCalledWith(db, mockIo, VALID_USER.id, input);
   });
 
   it("myTasks needs only a session, not a membership", async () => {

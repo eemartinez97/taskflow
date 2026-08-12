@@ -1,6 +1,7 @@
 import {
   assertBoardInOrg,
   assertColumnInOrg,
+  assertInvitationInOrg,
   assertLabelInOrg,
   assertProjectInOrg,
   assertTaskInOrg,
@@ -20,6 +21,7 @@ function buildTenantShapes(orgId: string) {
     board: { project: { orgId } },
     column: { board: { project: { orgId } } },
     task: { column: { board: { project: { orgId } } } },
+    invitation: { orgId },
   } as const;
 }
 
@@ -79,5 +81,12 @@ export const TENANCY_CASES: readonly TenancyCase[] = [
     inOrg: TENANT.label,
     foreign: FOREIGN.label,
     call: () => assertLabelInOrg(db, "id", VALID_ORG_ID),
+  },
+  {
+    name: "invitation",
+    model: "invitation",
+    inOrg: TENANT.invitation,
+    foreign: FOREIGN.invitation,
+    call: () => assertInvitationInOrg(db, "id", VALID_ORG_ID),
   },
 ];

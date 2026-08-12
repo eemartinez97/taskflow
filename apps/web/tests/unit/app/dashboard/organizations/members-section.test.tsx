@@ -17,17 +17,13 @@ vi.mock("@/components/common/confirm-dialog", () => ({
   },
 }));
 
-vi.mock("@/app/(dashboard)/team/_components/invite-dialog", () => ({
-  InviteDialog: ({ open }: { open: boolean }) => (open ? <div>InviteDialog</div> : null),
-}));
-
 import { api } from "@/lib/trpc/client";
 import { useOnlineUsers } from "@/lib/hooks/use-online-users";
-import { TeamClient } from "@/app/(dashboard)/team/_components/team-client";
+import { MembersSection } from "@/app/(dashboard)/organizations/[orgId]/_components/members-section";
 import { mockUseQuery, setupMutationMock } from "@/tests/support/trpc";
 import { VALID_ORG_ID } from "@/tests/support/fixtures";
 
-describe("TeamClient", () => {
+describe("MembersSection", () => {
   it("renders members, online status, and hides admin controls for members", () => {
     vi.mocked(useOnlineUsers).mockReturnValue(new Set(["online-user"]));
     mockUseQuery(api.orgs.members, [
@@ -46,7 +42,7 @@ describe("TeamClient", () => {
     ]);
 
     render(
-      <TeamClient
+      <MembersSection
         orgId={VALID_ORG_ID}
         currentUserId="online-user"
         currentUserRole="MEMBER"
@@ -55,7 +51,7 @@ describe("TeamClient", () => {
     );
     expect(screen.getByText("Alice")).toBeInTheDocument();
     expect(screen.getAllByLabelText("Online")).toHaveLength(1);
-    expect(screen.queryByRole("button", { name: /invite member/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /remove alice/i })).not.toBeInTheDocument();
   });
 
   it("shows online status for a teammate who is in the roster but isn't the current user", () => {
@@ -69,7 +65,7 @@ describe("TeamClient", () => {
       },
     ]);
     render(
-      <TeamClient
+      <MembersSection
         orgId={VALID_ORG_ID}
         currentUserId="someone-else"
         currentUserRole="MEMBER"
@@ -79,7 +75,7 @@ describe("TeamClient", () => {
     expect(screen.getAllByLabelText("Online")).toHaveLength(1);
   });
 
-  it("shows invite button and changes role for owner", async () => {
+  it("changes role for owner", async () => {
     vi.mocked(useOnlineUsers).mockReturnValue(new Set());
     mockUseQuery(api.orgs.members, [
       {
@@ -91,14 +87,13 @@ describe("TeamClient", () => {
     ]);
     const { mutateMock } = setupMutationMock(api.orgs.updateMemberRole);
     render(
-      <TeamClient
+      <MembersSection
         orgId={VALID_ORG_ID}
         currentUserId="owner-id"
         currentUserRole="OWNER"
         initialMembers={[]}
       />,
     );
-    expect(screen.getByRole("button", { name: /invite member/i })).toBeInTheDocument();
     await userEvent.setup().selectOptions(screen.getByRole("combobox"), "MEMBER");
     expect(mutateMock).toHaveBeenCalledWith({
       orgId: VALID_ORG_ID,
@@ -118,7 +113,7 @@ describe("TeamClient", () => {
       },
     ]);
     render(
-      <TeamClient
+      <MembersSection
         orgId={VALID_ORG_ID}
         currentUserId="owner-id"
         currentUserRole="MEMBER"
@@ -140,7 +135,7 @@ describe("TeamClient", () => {
       },
     ]);
     render(
-      <TeamClient
+      <MembersSection
         orgId={VALID_ORG_ID}
         currentUserId="owner-id"
         currentUserRole="OWNER"
@@ -162,7 +157,7 @@ describe("TeamClient", () => {
       },
     ]);
     render(
-      <TeamClient
+      <MembersSection
         orgId={VALID_ORG_ID}
         currentUserId="owner-id"
         currentUserRole="OWNER"
@@ -184,7 +179,7 @@ describe("TeamClient", () => {
     ]);
     const { mutateMock } = setupMutationMock(api.orgs.removeMember);
     render(
-      <TeamClient
+      <MembersSection
         orgId={VALID_ORG_ID}
         currentUserId="owner-id"
         currentUserRole="OWNER"
@@ -208,7 +203,7 @@ describe("TeamClient", () => {
     ]);
     const { triggerSuccess } = setupMutationMock(api.orgs.updateMemberRole);
     render(
-      <TeamClient
+      <MembersSection
         orgId={VALID_ORG_ID}
         currentUserId="owner-id"
         currentUserRole="OWNER"
@@ -232,7 +227,7 @@ describe("TeamClient", () => {
     ]);
     const { triggerSuccess } = setupMutationMock(api.orgs.removeMember);
     render(
-      <TeamClient
+      <MembersSection
         orgId={VALID_ORG_ID}
         currentUserId="owner-id"
         currentUserRole="OWNER"
@@ -256,7 +251,7 @@ describe("TeamClient", () => {
     ]);
     const { mutateMock } = setupMutationMock(api.orgs.removeMember);
     render(
-      <TeamClient
+      <MembersSection
         orgId={VALID_ORG_ID}
         currentUserId="owner-id"
         currentUserRole="OWNER"
@@ -274,7 +269,7 @@ describe("TeamClient", () => {
     mockUseQuery(api.orgs.members, []);
     const { mutateMock } = setupMutationMock(api.orgs.removeMember);
     render(
-      <TeamClient
+      <MembersSection
         orgId={VALID_ORG_ID}
         currentUserId="owner-id"
         currentUserRole="OWNER"

@@ -7,7 +7,7 @@ import type {
   Role,
 } from "@taskflow/database";
 import { membershipWithUser, orgWithMembership } from "@taskflow/database";
-import type { CreateOrg, InviteMember, UpdateOrg } from "@taskflow/shared";
+import type { CreateOrg, UpdateOrg } from "@taskflow/shared";
 import { stripUndefined } from "../../utils/prisma";
 
 export async function findOrgsByUser(
@@ -56,27 +56,6 @@ export async function findMembers(db: PrismaClient, orgId: string): Promise<Memb
     where: { orgId },
     include: membershipWithUser,
     orderBy: { createdAt: "asc" },
-  });
-}
-
-export class UserNotFoundError extends Error {
-  constructor(public readonly email: string) {
-    super(`No account found for ${email}`);
-    this.name = "UserNotFoundError";
-  }
-}
-
-export async function inviteMember(
-  db: PrismaClient,
-  orgId: string,
-  data: InviteMember,
-): Promise<Membership> {
-  const user = await db.user.findUnique({ where: { email: data.email } });
-
-  if (!user) throw new UserNotFoundError(data.email);
-
-  return db.membership.create({
-    data: { orgId, userId: user.id, role: data.role },
   });
 }
 

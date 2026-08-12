@@ -44,6 +44,14 @@ export const commentWithAuthor = {
   author: { select: { id: true, name: true, email: true, image: true } },
 } as const;
 
+export const invitationWithOrg = {
+  org: { select: { id: true, name: true } },
+} as const;
+
+export const invitationWithInviter = {
+  invitedBy: { select: { id: true, name: true, image: true } },
+} as const;
+
 export class PrismaClientKnownRequestError extends Error {
   code: string;
   constructor(

@@ -1,12 +1,12 @@
 "use client";
 
 import { type JSX, useState, useSyncExternalStore } from "react";
-import { usePathname, useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 
 import { Select } from "@taskflow/ui";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { CreateOrgDialog } from "@/components/organizations/create-org-dialog";
+import { useAppRouter } from "@/lib/hooks/use-app-router";
 import { useDisclosure } from "@/lib/hooks/use-disclosure";
 import { api } from "@/lib/trpc/client";
 import {
@@ -16,7 +16,6 @@ import {
   subscribeActiveOrg,
 } from "@/lib/utils/active-org";
 import { hasUnsavedChanges } from "@/lib/utils/navigation-guard";
-import { startNavProgress } from "@/lib/utils/nav-progress";
 import { CREATE_ORG_VALUE } from "@/lib/constants/org-switcher";
 
 /**
@@ -29,8 +28,7 @@ import { CREATE_ORG_VALUE } from "@/lib/constants/org-switcher";
  * task detail panel's form), a confirmation dialog runs first.
  */
 export function OrgSwitcher(): JSX.Element | null {
-  const router = useRouter();
-  const pathname = usePathname();
+  const router = useAppRouter();
   const { data: orgs } = api.orgs.list.useQuery();
   const activeId = useSyncExternalStore(subscribeActiveOrg, readActiveOrgId, getServerActiveOrgId);
   const createDialog = useDisclosure();
@@ -41,11 +39,11 @@ export function OrgSwitcher(): JSX.Element | null {
 
   function switchTo(orgId: string): void {
     // Only /projects of the NEW org has ids that make sense - always the nav
-    // target. But if we're already there, router.push() won't change the
-    // pathname, so NavProgressBar's usePathname effect never fires and the
-    // bar would stay stuck until its 8s fallback. Skip it in that case -
-    // there's no route transition to show progress for.
-    if (pathname !== "/projects") startNavProgress();
+    // target. refresh() is what actually re-fetches data for the new active
+    // org when we're already on /projects (push alone is a same-URL no-op
+    // in that case) - useAppRouter tracks both calls' real completion via
+    // React transitions, so the progress bar/content-dim show correctly
+    // either way.
     setActiveOrgId(orgId);
     router.push("/projects");
     router.refresh();

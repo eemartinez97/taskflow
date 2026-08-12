@@ -3,15 +3,25 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/hooks/use-notifications", () => ({ useNotifications: vi.fn() }));
+vi.mock("@/components/invitations/use-invitation-actions", () => ({
+  useInvitationActions: vi.fn(() => ({
+    accept: vi.fn(),
+    decline: vi.fn(),
+    isAccepting: false,
+    isDeclining: false,
+  })),
+}));
 
 import { api } from "@/lib/trpc/client";
 import { useNotifications } from "@/lib/hooks/use-notifications";
+import { useInvitationActions } from "@/components/invitations/use-invitation-actions";
 import { NotificationsPanel } from "@/components/layout/notifications-panel";
-import { setupMutationMock } from "@/tests/support/trpc";
+import { mockUseQuery, setupMutationMock } from "@/tests/support/trpc";
 import { setupRouterMock } from "@/tests/support/render";
 import type { AppRouter } from "@taskflow/api/trpc";
 import type { inferRouterOutputs } from "@trpc/server";
-import { VALID_USER_ID } from "@/tests/support/fixtures";
+import { VALID_ORG_ID, VALID_USER_ID } from "@/tests/support/fixtures";
+import { makeMyInvitation } from "@/tests/support/factories";
 
 type NotificationsData = inferRouterOutputs<AppRouter>["notifications"]["list"];
 type NotificationItem = NotificationsData["notifications"][number];
@@ -47,6 +57,7 @@ const orgNotification = makeNotification({
   read: true,
   type: "MEMBER_INVITED",
   entityType: "org",
+  entityId: VALID_ORG_ID,
 });
 
 const genericNotification = makeNotification({
@@ -119,7 +130,7 @@ describe("NotificationsPanel", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("navigates to /team for an org notification without marking read (already read)", async () => {
+  it("navigates to /organizations/<entityId> for an org notification without marking read (already read)", async () => {
     const { pushMock } = setupRouterMock();
     vi.mocked(useNotifications).mockReturnValue({
       notifications: [orgNotification],
@@ -129,7 +140,18 @@ describe("NotificationsPanel", () => {
     render(<NotificationsPanel onClose={vi.fn()} />);
     await userEvent.setup().click(screen.getByText("You joined an org"));
     expect(mutateMock).not.toHaveBeenCalled();
-    expect(pushMock).toHaveBeenCalledWith("/team");
+    expect(pushMock).toHaveBeenCalledWith(`/organizations/${VALID_ORG_ID}`);
+  });
+
+  it("does not navigate for an org notification with no entityId", async () => {
+    const { pushMock } = setupRouterMock();
+    vi.mocked(useNotifications).mockReturnValue({
+      notifications: [makeNotification({ id: "n4", type: "MEMBER_INVITED", entityType: "org" })],
+      unreadCount: 0,
+    });
+    render(<NotificationsPanel onClose={vi.fn()} />);
+    await userEvent.setup().click(screen.getByText("Default notification message"));
+    expect(pushMock).not.toHaveBeenCalled();
   });
 
   it("does not navigate for a notification with no resolvable href", async () => {
@@ -177,5 +199,95 @@ describe("NotificationsPanel", () => {
     const { triggerSuccess } = setupMutationMock(vi.mocked(api.notifications.markRead));
     render(<NotificationsPanel onClose={vi.fn()} />);
     triggerSuccess();
+  });
+
+  describe("inline invitation actions", () => {
+    it("shows Accept/Decline on a MEMBER_INVITED row with a matching pending invitation", () => {
+      vi.mocked(useNotifications).mockReturnValue({
+        notifications: [orgNotification],
+        unreadCount: 0,
+      });
+      mockUseQuery(api.invitations.listMine, [
+        makeMyInvitation({ id: "inv-1", orgId: VALID_ORG_ID }),
+      ]);
+      render(<NotificationsPanel onClose={vi.fn()} />);
+      expect(screen.getByRole("button", { name: "Accept" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Decline" })).toBeInTheDocument();
+    });
+
+    it("hides Accept/Decline when no listMine row matches the notification's org", () => {
+      vi.mocked(useNotifications).mockReturnValue({
+        notifications: [orgNotification],
+        unreadCount: 0,
+      });
+      mockUseQuery(api.invitations.listMine, [
+        makeMyInvitation({ id: "inv-1", orgId: "some-other-org" }),
+      ]);
+      render(<NotificationsPanel onClose={vi.fn()} />);
+      expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument();
+    });
+
+    it("hides Accept/Decline for a non-MEMBER_INVITED org notification even with a matching row", () => {
+      vi.mocked(useNotifications).mockReturnValue({
+        notifications: [
+          makeNotification({ type: "TASK_UPDATED", entityType: "org", entityId: VALID_ORG_ID }),
+        ],
+        unreadCount: 0,
+      });
+      mockUseQuery(api.invitations.listMine, [
+        makeMyInvitation({ id: "inv-1", orgId: VALID_ORG_ID }),
+      ]);
+      render(<NotificationsPanel onClose={vi.fn()} />);
+      expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument();
+    });
+
+    it("accepts without marking read or navigating (stopPropagation)", async () => {
+      const { pushMock } = setupRouterMock();
+      const accept = vi.fn();
+      vi.mocked(useInvitationActions).mockReturnValue({
+        accept,
+        decline: vi.fn(),
+        isAccepting: false,
+        isDeclining: false,
+      });
+      vi.mocked(useNotifications).mockReturnValue({
+        notifications: [orgNotification],
+        unreadCount: 0,
+      });
+      mockUseQuery(api.invitations.listMine, [
+        makeMyInvitation({ id: "inv-1", orgId: VALID_ORG_ID }),
+      ]);
+      const { mutateMock } = setupMutationMock(vi.mocked(api.notifications.markRead));
+      render(<NotificationsPanel onClose={vi.fn()} />);
+
+      await userEvent.setup().click(screen.getByRole("button", { name: "Accept" }));
+
+      expect(accept).toHaveBeenCalledWith({ invitationId: "inv-1" });
+      expect(mutateMock).not.toHaveBeenCalled();
+      expect(pushMock).not.toHaveBeenCalled();
+    });
+
+    it("declines without marking read or navigating (stopPropagation)", async () => {
+      setupRouterMock();
+      const decline = vi.fn();
+      vi.mocked(useInvitationActions).mockReturnValue({
+        accept: vi.fn(),
+        decline,
+        isAccepting: false,
+        isDeclining: false,
+      });
+      vi.mocked(useNotifications).mockReturnValue({
+        notifications: [orgNotification],
+        unreadCount: 0,
+      });
+      mockUseQuery(api.invitations.listMine, [
+        makeMyInvitation({ id: "inv-1", orgId: VALID_ORG_ID }),
+      ]);
+      render(<NotificationsPanel onClose={vi.fn()} />);
+
+      await userEvent.setup().click(screen.getByRole("button", { name: "Decline" }));
+
+      expect(decline).toHaveBeenCalledWith({ invitationId: "inv-1" });
+    });
   });
 });

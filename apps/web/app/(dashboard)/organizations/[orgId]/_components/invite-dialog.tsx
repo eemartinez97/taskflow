@@ -4,47 +4,64 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { type JSX } from "react";
 
-import { inviteMemberSchema, type InviteMember, ROLES } from "@taskflow/shared";
+import { idSchema, inviteMemberSchema, ROLES } from "@taskflow/shared";
+import type { z } from "zod";
 import { Alert, Button, Dialog, FormField, Input, Select } from "@taskflow/ui";
 
+import { canAdminOrg } from "@/lib/utils/role";
 import { toast } from "@/lib/toast/store";
 import { api } from "@/lib/trpc/client";
 import { createDialogCloseHandler } from "@/lib/utils/form";
 
+const inviteFormSchema = inviteMemberSchema.extend({ orgId: idSchema });
+type InviteFormValues = z.infer<typeof inviteFormSchema>;
+
 interface InviteDialogProps {
   orgId: string;
+  orgName: string;
   open: boolean;
   onClose: () => void;
 }
 
-export function InviteDialog({ orgId, open, onClose }: InviteDialogProps): JSX.Element {
+/**
+ * Targets `invitations.create` (not the deprecated `orgs.invite`) and lets
+ * the sender pick ANY org they can admin, not just the one whose page they
+ * opened this from - the "Current (<name>)" option marks which one that is.
+ */
+export function InviteDialog({ orgId, orgName, open, onClose }: InviteDialogProps): JSX.Element {
   const utils = api.useUtils();
+  const { data: orgs } = api.orgs.list.useQuery();
+  const adminOrgs = (orgs ?? []).filter((o) => canAdminOrg(o.memberships[0]?.role ?? "VIEWER"));
 
   const {
     register,
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<InviteMember>({
-    resolver: zodResolver(inviteMemberSchema),
-    defaultValues: { role: "MEMBER" },
+  } = useForm<InviteFormValues>({
+    resolver: zodResolver(inviteFormSchema),
+    defaultValues: { role: "MEMBER", orgId },
   });
 
-  const mutation = api.orgs.invite.useMutation({
+  const mutation = api.invitations.create.useMutation({
     meta: { skipErrorToast: true },
-    onSuccess: () => {
+    onSuccess: (_res, variables) => {
       toast.success("Invitation sent.");
-      void utils.orgs.members.invalidate({ orgId });
-      reset();
+      void utils.invitations.listForOrg.invalidate({ orgId: variables.orgId });
+      reset({ email: "", role: "MEMBER" as const, orgId });
       onClose();
     },
   });
 
-  function onSubmit(data: InviteMember): void {
-    mutation.mutate({ orgId, data });
+  function onSubmit(data: InviteFormValues): void {
+    mutation.mutate({ orgId: data.orgId, data: { email: data.email, role: data.role } });
   }
 
-  const handleClose = createDialogCloseHandler(reset, mutation, onClose);
+  const handleClose = createDialogCloseHandler(reset, mutation, onClose, {
+    email: "",
+    role: "MEMBER" as const,
+    orgId,
+  });
 
   const footer = (
     <>
@@ -76,6 +93,16 @@ export function InviteDialog({ orgId, open, onClose }: InviteDialogProps): JSX.E
             {ROLES.filter((r) => r !== "OWNER").map((r) => (
               <option key={r} value={r}>
                 {r}
+              </option>
+            ))}
+          </Select>
+        </FormField>
+
+        <FormField label="Organization" htmlFor="inv-org" required error={errors.orgId?.message}>
+          <Select id="inv-org" {...register("orgId")}>
+            {adminOrgs.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.id === orgId ? `Current (${orgName})` : o.name}
               </option>
             ))}
           </Select>

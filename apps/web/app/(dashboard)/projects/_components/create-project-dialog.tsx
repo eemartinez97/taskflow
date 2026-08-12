@@ -11,7 +11,7 @@ import { createProjectSchema } from "@taskflow/shared";
 import { toast } from "@/lib/toast/store";
 import { api } from "@/lib/trpc/client";
 import { deriveProjectKey, deriveSlug } from "@/lib/utils/derive";
-import { createDialogCloseHandler } from "@/lib/utils/form";
+import { createDialogCloseHandler, emptyStringToUndefined } from "@/lib/utils/form";
 import { createDerivedFieldHandler } from "@/lib/hooks/use-derived-field";
 
 /** Web-app form schema: CreateProject + orgId context */
@@ -60,7 +60,7 @@ export function CreateProjectDialog({
   function onSubmit(data: FormInput): void {
     mutation.mutate({
       orgId,
-      data: { name: data.name, key: data.key, slug: data.slug },
+      data: { name: data.name, key: data.key, slug: data.slug, description: data.description },
     });
   }
 
@@ -82,6 +82,7 @@ export function CreateProjectDialog({
       title="Create Project"
       description="Projects group related boards and tasks."
       footer={dialogFooter}
+      className="max-w-lg"
     >
       <form
         id="create-project-form"
@@ -126,6 +127,18 @@ export function CreateProjectDialog({
             placeholder="e.g. my-project"
             hasError={!!errors.slug}
             {...register("slug")}
+          />
+        </FormField>
+
+        <FormField label="Description" htmlFor="description" error={errors.description?.message}>
+          <textarea
+            id="description"
+            rows={5}
+            placeholder="What is this project about?"
+            {...register("description", { setValueAs: emptyStringToUndefined })}
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500
+              resize-y"
           />
         </FormField>
       </form>

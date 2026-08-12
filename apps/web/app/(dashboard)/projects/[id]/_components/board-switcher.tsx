@@ -1,13 +1,13 @@
 "use client";
 
 import { type JSX, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
 
 import type { Board } from "@taskflow/database";
 import { Button, Select } from "@taskflow/ui";
 
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
+import { useAppRouter } from "@/lib/hooks/use-app-router";
 import { useDisclosure } from "@/lib/hooks/use-disclosure";
 import { toast } from "@/lib/toast/store";
 import { api } from "@/lib/trpc/client";
@@ -38,7 +38,7 @@ export function BoardSwitcher({
   initialBoards,
   canManage,
 }: BoardSwitcherProps): JSX.Element {
-  const router = useRouter();
+  const router = useAppRouter();
   const utils = api.useUtils();
   const createDialog = useDisclosure();
   const deleteDialog = useDisclosure();

@@ -1,14 +1,16 @@
 "use client";
 
 import { type JSX, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 
 import type { OrgWithMembership } from "@taskflow/database";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@taskflow/ui";
 
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
+import { PendingInvitations } from "@/components/invitations/pending-invitations";
 import { EditOrgDialog } from "./edit-org-dialog";
+import { useAppRouter } from "@/lib/hooks/use-app-router";
 import { useDisclosure } from "@/lib/hooks/use-disclosure";
 import { canAdminOrg, isOrgOwner } from "@/lib/utils/role";
 import { clearActiveOrgId, setActiveOrgId } from "@/lib/utils/active-org";
@@ -21,7 +23,7 @@ interface OrganizationsClientProps {
 }
 
 export function OrganizationsClient({ initialOrgs }: OrganizationsClientProps): JSX.Element {
-  const router = useRouter();
+  const router = useAppRouter();
   const utils = api.useUtils();
   const deleteDialog = useDisclosure();
   const createDialog = useDisclosure();
@@ -46,6 +48,8 @@ export function OrganizationsClient({ initialOrgs }: OrganizationsClientProps): 
 
   return (
     <section aria-labelledby="orgs-heading" className="flex flex-col gap-6">
+      <PendingInvitations />
+
       <div className="flex items-center justify-between">
         <h2 id="orgs-heading" className="text-lg font-semibold text-gray-900">
           Your organizations ({orgs.length})
@@ -61,47 +65,53 @@ export function OrganizationsClient({ initialOrgs }: OrganizationsClientProps): 
           const role = org.memberships[0]?.role ?? "VIEWER";
           return (
             <li key={org.id}>
-              <Card>
-                <CardHeader spacing="compact">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <CardTitle className="text-sm">{org.name}</CardTitle>
-                      <Badge variant={isOrgOwner(role) ? "default" : "outline"}>{role}</Badge>
+              <Link href={`/organizations/${org.id}`} className="block">
+                <Card className="transition-shadow hover:shadow-sm">
+                  <CardHeader spacing="compact">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <CardTitle className="text-sm">{org.name}</CardTitle>
+                        <Badge variant={isOrgOwner(role) ? "default" : "outline"}>{role}</Badge>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {canAdminOrg(role) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Edit ${org.name}`}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setEditTarget(org);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {isOrgOwner(role) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Delete ${org.name}`}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setDeleteTarget(org);
+                              deleteDialog.open();
+                            }}
+                            className="text-gray-400 hover:bg-red-50 hover:text-red-600"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      {canAdminOrg(role) && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Edit ${org.name}`}
-                          onClick={() => {
-                            setEditTarget(org);
-                          }}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      )}
-                      {isOrgOwner(role) && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Delete ${org.name}`}
-                          onClick={() => {
-                            setDeleteTarget(org);
-                            deleteDialog.open();
-                          }}
-                          className="text-gray-400 hover:bg-red-50 hover:text-red-600"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-xs text-gray-400">/{org.slug}</p>
-                </CardContent>
-              </Card>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-gray-400">/{org.slug}</p>
+                  </CardContent>
+                </Card>
+              </Link>
             </li>
           );
         })}

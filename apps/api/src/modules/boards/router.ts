@@ -40,7 +40,9 @@ const _buildBoardsRouter = (io: AppServer) =>
 
     update: memberProcedure
       .input(z.object({ orgId: idSchema, boardId: idSchema, data: updateBoardSchema }))
-      .mutation(async ({ ctx, input }) => updateBoardById(ctx.db, io, input.boardId, input.data)),
+      .mutation(async ({ ctx, input }) =>
+        updateBoardById(ctx.db, io, input.boardId, ctx.user.id, input.data),
+      ),
 
     delete: adminProcedure
       .input(z.object({ orgId: idSchema, boardId: idSchema }))
@@ -48,19 +50,27 @@ const _buildBoardsRouter = (io: AppServer) =>
 
     addColumn: memberProcedure
       .input(z.object({ orgId: idSchema, boardId: idSchema, name: nameField(1, 100) }))
-      .mutation(async ({ ctx, input }) => addColumn(ctx.db, io, input.boardId, input.name)),
+      .mutation(async ({ ctx, input }) =>
+        addColumn(ctx.db, io, input.boardId, ctx.user.id, input.name),
+      ),
 
     renameColumn: memberProcedure
       .input(z.object({ orgId: idSchema, columnId: idSchema, name: nameField(1, 100) }))
-      .mutation(async ({ ctx, input }) => renameColumn(ctx.db, io, input.columnId, input.name)),
+      .mutation(async ({ ctx, input }) =>
+        renameColumn(ctx.db, io, input.columnId, ctx.user.id, input.name),
+      ),
 
     deleteColumn: memberProcedure
       .input(z.object({ orgId: idSchema, columnId: idSchema }))
-      .mutation(async ({ ctx, input }) => deleteColumnById(ctx.db, io, input.columnId)),
+      .mutation(async ({ ctx, input }) =>
+        deleteColumnById(ctx.db, io, input.columnId, ctx.user.id),
+      ),
 
     reorderColumns: memberProcedure
       .input(z.object({ orgId: idSchema, payload: reorderColumnsSchema }))
-      .mutation(async ({ ctx, input }) => reorderBoardColumn(ctx.db, io, input.payload)),
+      .mutation(async ({ ctx, input }) =>
+        reorderBoardColumn(ctx.db, io, ctx.user.id, input.payload),
+      ),
   });
 
 export type BoardsRouter = ReturnType<typeof _buildBoardsRouter>;

@@ -8,7 +8,7 @@ import { type JSX } from "react";
 import { Button } from "@taskflow/ui";
 
 import { NotificationsPanel } from "./notifications-panel";
-import { NAV_ITEMS } from "@/lib/constants/navigation";
+import { NAV_ITEMS, SECONDARY_ROUTE_TITLES } from "@/lib/constants/navigation";
 import { useDisclosure } from "@/lib/hooks/use-disclosure";
 import { userInitials } from "@/lib/utils/user";
 import { api } from "@/lib/trpc/client";
@@ -28,7 +28,9 @@ export function Header(): JSX.Element {
     signOutMutation.mutate(undefined, { onSettled: () => void signOut({ callbackUrl: "/login" }) });
   }
 
-  const title = NAV_ITEMS.find((item) => pathname.startsWith(item.href))?.label ?? "Dashboard";
+  const title =
+    [...NAV_ITEMS, ...SECONDARY_ROUTE_TITLES].find((item) => pathname.startsWith(item.href))
+      ?.label ?? "Dashboard";
 
   const data = useNotifications();
 

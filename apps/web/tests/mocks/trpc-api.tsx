@@ -65,6 +65,17 @@ export const api = {
     removeMember: { useMutation: mutation() },
     updateMemberRole: { useMutation: mutation() },
   },
+  invitations: {
+    listForOrg: { useQuery: query() },
+    listMine: { useQuery: query() },
+    getByToken: { useQuery: query() },
+    getByTokenPublic: { useQuery: query() },
+    create: { useMutation: mutation() },
+    revoke: { useMutation: mutation() },
+    resend: { useMutation: mutation() },
+    accept: { useMutation: mutation() },
+    decline: { useMutation: mutation() },
+  },
   projects: {
     list: { useQuery: query() },
     get: { useQuery: query() },
@@ -116,6 +127,7 @@ export const api = {
   useUtils: vi.fn(() => ({
     invalidate: vi.fn(),
     orgs: { list: utilsInvalidate(), members: utilsInvalidate() },
+    invitations: { listForOrg: utilsInvalidate(), listMine: utilsInvalidate() },
     projects: { list: utilsInvalidate() },
     boards: { list: utilsInvalidate(), get: utilsInvalidate() },
     tasks: {

@@ -113,6 +113,14 @@ export function buildNotificationMessage(
       return entityTitle
         ? `${actor} invited you to "${entityTitle}"`
         : `${actor} invited you to an organization`;
+    case "INVITATION_ACCEPTED":
+      return entityTitle
+        ? `${actor} accepted your invitation to "${entityTitle}"`
+        : `${actor} accepted your invitation`;
+    case "INVITATION_DECLINED":
+      return entityTitle
+        ? `${actor} declined your invitation to "${entityTitle}"`
+        : `${actor} declined your invitation`;
     /* v8 ignore next 4 -- defensive exhaustiveness guard, unreachable by type system */
     default: {
       const _exhaustive: never = type;
@@ -124,9 +132,11 @@ export function buildNotificationMessage(
 /**
  * Fetches the actor's display name from the DB.
  * Returns null when the actor no longer exists (deleted account).
- * Extracted to avoid repeating the same findUnique call in every service.
+ * Extracted to avoid repeating the same findUnique call in every service -
+ * exported so modules/invitations/service.ts can reuse it for invite/accept/
+ * decline emails and notifications without a duplicate implementation.
  */
-async function getActorName(db: PrismaClient, actorId: string): Promise<string | null> {
+export async function getActorName(db: PrismaClient, actorId: string): Promise<string | null> {
   const actor = await db.user.findUnique({ where: { id: actorId }, select: { name: true } });
 
   return actor?.name ?? null;
@@ -206,6 +216,37 @@ export async function notifyMemberInvited(
     actorId: opts.actorId,
     type: "MEMBER_INVITED",
     message: buildNotificationMessage("MEMBER_INVITED", actorName, opts.orgName),
+    entityId: opts.orgId,
+    entityType: "org",
+  });
+}
+
+/**
+ * Notifies the original inviter when an invitation they sent is accepted or
+ * declined. No-ops when `recipientId` is null - the inviter's account was
+ * deleted (`Invitation.invitedById` is `onDelete: SetNull`), so there is no
+ * one left to notify.
+ */
+export async function notifyInvitationResolved(
+  db: PrismaClient,
+  io: AppServer,
+  opts: {
+    recipientId: string | null;
+    actorId: string;
+    orgId: string;
+    orgName: string;
+    type: Extract<NotificationType, "INVITATION_ACCEPTED" | "INVITATION_DECLINED">;
+  },
+): Promise<void> {
+  if (!opts.recipientId) return;
+
+  const actorName = await getActorName(db, opts.actorId);
+
+  await notify(db, io, {
+    userId: opts.recipientId,
+    actorId: opts.actorId,
+    type: opts.type,
+    message: buildNotificationMessage(opts.type, actorName, opts.orgName),
     entityId: opts.orgId,
     entityType: "org",
   });

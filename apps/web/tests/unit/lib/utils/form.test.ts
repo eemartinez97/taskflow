@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { createDialogCloseHandler, emptyStringToNull, selectValueToNull } from "@/lib/utils/form";
+import {
+  createDialogCloseHandler,
+  emptyStringToNull,
+  emptyStringToUndefined,
+  selectValueToNull,
+} from "@/lib/utils/form";
 
 describe("emptyStringToNull", () => {
   it("trims and returns non-empty strings", () => {
@@ -11,6 +16,19 @@ describe("emptyStringToNull", () => {
   it("returns null for non-string input (unmount race guard)", () => {
     expect(emptyStringToNull(undefined)).toBeNull();
     expect(emptyStringToNull(null)).toBeNull();
+  });
+});
+
+describe("emptyStringToUndefined", () => {
+  it("trims and returns non-empty strings", () => {
+    expect(emptyStringToUndefined("  hello  ")).toBe("hello");
+  });
+  it("returns undefined for an empty/whitespace string", () => {
+    expect(emptyStringToUndefined("   ")).toBeUndefined();
+  });
+  it("returns undefined for non-string input (unmount race guard)", () => {
+    expect(emptyStringToUndefined(undefined)).toBeUndefined();
+    expect(emptyStringToUndefined(null)).toBeUndefined();
   });
 });
 

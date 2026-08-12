@@ -1,12 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { authRouter } from "../../../../src/modules/auth/router";
+import { createAuthRouter } from "../../../../src/modules/auth/router";
 import * as service from "../../../../src/modules/auth/service";
 import { db, VALID_USER } from "../../../helpers";
+import { mockIo } from "../../../mocks/socket";
 import { callerFor, expectTRPCError } from "../../../support/trpc";
 
 vi.mock("../../../../src/modules/auth/service");
 
+const authRouter = createAuthRouter(mockIo);
 const caller = () => callerFor(authRouter);
 
 describe("auth router", () => {
@@ -50,12 +52,12 @@ describe("auth router", () => {
     );
   });
 
-  it("verifyEmail -> verifyEmail(db, token), without a session", async () => {
+  it("verifyEmail -> verifyEmail(db, io, token), without a session", async () => {
     vi.mocked(service.verifyEmail).mockResolvedValue({ verified: true });
 
     await callerFor(authRouter, null).verifyEmail({ token: "raw-token" });
 
-    expect(service.verifyEmail).toHaveBeenCalledWith(db, "raw-token");
+    expect(service.verifyEmail).toHaveBeenCalledWith(db, mockIo, "raw-token");
   });
 
   it("requestPasswordReset -> requestPasswordReset with validated email and ctx.clientIp, without a session", async () => {

@@ -256,6 +256,7 @@ interface UtilsInvalidate {
 export interface MockApiUtils {
   invalidate: MockFn;
   orgs: { list: UtilsInvalidate; members: UtilsInvalidate };
+  invitations: { listForOrg: UtilsInvalidate; listMine: UtilsInvalidate };
   projects: { list: UtilsInvalidate };
   boards: { list: UtilsInvalidate; get: UtilsInvalidate };
   tasks: {
@@ -313,6 +314,11 @@ export function makeUseQueriesMock(
 export interface ServerTRPCMockOverrides {
   auth?: { checkResetToken?: ReturnType<typeof vi.fn> };
   orgs?: { list?: ReturnType<typeof vi.fn>; members?: ReturnType<typeof vi.fn> };
+  invitations?: {
+    listForOrg?: ReturnType<typeof vi.fn>;
+    getByToken?: ReturnType<typeof vi.fn>;
+    getByTokenPublic?: ReturnType<typeof vi.fn>;
+  };
   projects?: { list?: ReturnType<typeof vi.fn>; get?: ReturnType<typeof vi.fn> };
   boards?: {
     getByProject?: ReturnType<typeof vi.fn>;
@@ -326,6 +332,11 @@ export interface ServerTRPCMockOverrides {
 export interface ServerTRPCMock {
   auth: { checkResetToken: ReturnType<typeof vi.fn> };
   orgs: { list: ReturnType<typeof vi.fn>; members: ReturnType<typeof vi.fn> };
+  invitations: {
+    listForOrg: ReturnType<typeof vi.fn>;
+    getByToken: ReturnType<typeof vi.fn>;
+    getByTokenPublic: ReturnType<typeof vi.fn>;
+  };
   projects: { list: ReturnType<typeof vi.fn>; get: ReturnType<typeof vi.fn> };
   boards: {
     getByProject: ReturnType<typeof vi.fn>;
@@ -346,6 +357,12 @@ function buildServerTRPCMock(overrides: ServerTRPCMockOverrides = {}): ServerTRP
       list: vi.fn().mockResolvedValue([]),
       members: vi.fn().mockResolvedValue([]),
       ...overrides.orgs,
+    },
+    invitations: {
+      listForOrg: vi.fn().mockResolvedValue([]),
+      getByToken: vi.fn().mockResolvedValue(null),
+      getByTokenPublic: vi.fn().mockResolvedValue(null),
+      ...overrides.invitations,
     },
     projects: {
       list: vi.fn().mockResolvedValue([]),
@@ -385,6 +402,7 @@ function makeUtilsInvalidate(overrides: Partial<UtilsInvalidate> = {}): UtilsInv
 /** Deep-partial override shape accepted by mockApiUtils(). */
 export interface MockApiUtilsOverrides {
   orgs?: { list?: Partial<UtilsInvalidate>; members?: Partial<UtilsInvalidate> };
+  invitations?: { listForOrg?: Partial<UtilsInvalidate>; listMine?: Partial<UtilsInvalidate> };
   projects?: { list?: Partial<UtilsInvalidate> };
   boards?: { list?: Partial<UtilsInvalidate>; get?: Partial<UtilsInvalidate> };
   tasks?: {
@@ -419,6 +437,10 @@ export function mockApiUtils(overrides: MockApiUtilsOverrides = {}): MockApiUtil
     orgs: {
       list: makeUtilsInvalidate(overrides.orgs?.list),
       members: makeUtilsInvalidate(overrides.orgs?.members),
+    },
+    invitations: {
+      listForOrg: makeUtilsInvalidate(overrides.invitations?.listForOrg),
+      listMine: makeUtilsInvalidate(overrides.invitations?.listMine),
     },
     projects: { list: makeUtilsInvalidate(overrides.projects?.list) },
     boards: {

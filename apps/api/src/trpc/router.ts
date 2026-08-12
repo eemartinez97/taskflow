@@ -1,8 +1,9 @@
-import { authRouter } from "../modules/auth/router";
+import { createAuthRouter } from "../modules/auth/router";
 import { createBoardsRouter } from "../modules/boards/router";
+import { createInvitationsRouter } from "../modules/invitations/router";
 import { labelsRouter } from "../modules/labels/router";
 import { notificationsRouter } from "../modules/notifications/router";
-import { createOrgsRouter } from "../modules/orgs/router";
+import { orgsRouter } from "../modules/orgs/router";
 import { projectsRouter } from "../modules/projects/router";
 import { createTasksRouter } from "../modules/tasks/router";
 import { createTRPCRouter } from "./init";
@@ -19,14 +20,15 @@ export type { TRPCContext } from "./init";
  */
 const _buildAppRouter = (io: AppServer) =>
   createTRPCRouter({
-    auth: authRouter,
-    orgs: createOrgsRouter(io),
+    auth: createAuthRouter(io),
+    orgs: orgsRouter,
     projects: projectsRouter,
     boards: createBoardsRouter(io),
     tasks: createTasksRouter(io),
     comments: createCommentsRouter(io),
     labels: labelsRouter,
     notifications: notificationsRouter,
+    invitations: createInvitationsRouter(io),
   });
 
 /** Inferred type from the router factory - built once at startup with the real io instance. */

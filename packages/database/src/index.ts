@@ -38,6 +38,8 @@ export type {
   MembershipWithUser,
   NotificationWithActor,
   CommentWithAuthor,
+  InvitationWithOrg,
+  InvitationWithInviter,
 } from "./types";
 
 // Query fragments - consumed by repo files in apps/api
@@ -49,4 +51,6 @@ export {
   boardWithColumns,
   notificationWithActor,
   commentWithAuthor,
+  invitationWithOrg,
+  invitationWithInviter,
 } from "./selects";

@@ -37,6 +37,7 @@ export const MODEL_NAMES = [
   "comment",
   "label",
   "notification",
+  "invitation",
 ] as const;
 
 export type ModelName = (typeof MODEL_NAMES)[number];

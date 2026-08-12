@@ -3,6 +3,7 @@
 import { useEffect, useSyncExternalStore, type JSX } from "react";
 import { usePathname } from "next/navigation";
 
+import { useGlobalLoading } from "@/lib/hooks/use-global-loading";
 import {
   endNavProgress,
   getNavProgress,
@@ -26,7 +27,16 @@ const FALLBACK_CLEAR_MS = 8000;
  * call startNavProgress() directly at the call site.
  */
 export function NavProgressBar(): JSX.Element | null {
-  const active = useSyncExternalStore(subscribeNavProgress, getNavProgress, getServerNavProgress);
+  // navActive (this store only) arms the fallback timer and the pathname
+  // clear - both exist to un-stick a navigation specifically, and would be
+  // wrong to key off a mutation/query that's legitimately still running.
+  // active (nav OR query/mutation) is what's actually rendered.
+  const navActive = useSyncExternalStore(
+    subscribeNavProgress,
+    getNavProgress,
+    getServerNavProgress,
+  );
+  const active = useGlobalLoading();
   const pathname = usePathname();
 
   useEffect(() => {
@@ -34,12 +44,12 @@ export function NavProgressBar(): JSX.Element | null {
   }, [pathname]);
 
   useEffect(() => {
-    if (!active) return;
+    if (!navActive) return;
     const timer = setTimeout(endNavProgress, FALLBACK_CLEAR_MS);
     return () => {
       clearTimeout(timer);
     };
-  }, [active]);
+  }, [navActive]);
 
   useEffect(() => {
     // Capture phase: must run BEFORE next/link's own click handler, which
@@ -52,10 +62,19 @@ export function NavProgressBar(): JSX.Element | null {
       if (e.button !== 0) return;
       if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
 
-      const anchor = (e.target as HTMLElement).closest("a");
+      const target = e.target as HTMLElement;
+      const anchor = target.closest("a");
       if (!anchor) return;
       if (anchor.target && anchor.target !== "_self") return;
       if (anchor.hasAttribute("download")) return;
+
+      // A nested control (e.g. a card's 3-dot menu button) inside the <a>
+      // handles and stops its own click - the anchor never actually
+      // navigates. Without this check, that stopPropagation() happens too
+      // late (it runs at bubble phase, after this capture-phase listener),
+      // so the bar would start and never clear until the 8s fallback.
+      const nestedControl = target.closest("button, [role='button'], input, select, textarea");
+      if (nestedControl && anchor.contains(nestedControl)) return;
 
       const href = anchor.getAttribute("href");
       if (!href || href.startsWith("#")) return;

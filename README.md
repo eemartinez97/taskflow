@@ -22,14 +22,21 @@ pnpm install
 # 2. Copy env file and fill in values
 cp .env.example .env
 
-# 3. Start Postgres
+# 3. Generate each package's own .env/.env.local from the root .env
+#    (Turborepo runs each package's script with THAT package as its cwd, so
+#    apps/api's dotenv.config() and apps/web's own Next.js env loading never
+#    see the root .env directly - only `docker compose` does. Re-run this
+#    after editing the root .env. See scripts/sync-env.mjs.)
+pnpm sync-env
+
+# 4. Start Postgres
 docker compose up -d postgres
 
-# 4. Run migrations and seed
+# 5. Run migrations and seed
 pnpm --filter @taskflow/database db:migrate:deploy
 pnpm --filter @taskflow/database db:seed
 
-# 5. Start all apps in dev mode
+# 6. Start all apps in dev mode
 pnpm dev
 ```
 
@@ -75,12 +82,12 @@ instead of silently 404ing in prod.
 See `.env.example` for the full list with defaults. The ones specific to the
 Docker/compose setup:
 
-| Variable                                     | Used by            | Notes                                                                            |
-| --------------------------------------------- | ------------------- | --------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_WEB_URL` | `web` (build arg)   | Inlined at `next build` time - changing these needs `docker compose build web`, not just a restart. |
-| `NGINX_PORT`                                 | `nginx`             | Public port, default `80`.                                                       |
-| `TRUSTED_PROXY_HOPS`                         | `api` and `web`     | Read independently by both - nginx is the one hop in front of each. Default `1`. |
-| `ENABLE_TEST_ROUTES`                         | (never set here)    | Do not set this in `docker-compose.yml` - it exposes `apps/web`'s E2E-only `/api/test/*` routes. |
+| Variable                                     | Used by           | Notes                                                                                               |
+| -------------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_WEB_URL` | `web` (build arg) | Inlined at `next build` time - changing these needs `docker compose build web`, not just a restart. |
+| `NGINX_PORT`                                 | `nginx`           | Public port, default `80`.                                                                          |
+| `TRUSTED_PROXY_HOPS`                         | `api` and `web`   | Read independently by both - nginx is the one hop in front of each. Default `1`.                    |
+| `ENABLE_TEST_ROUTES`                         | (never set here)  | Do not set this in `docker-compose.yml` - it exposes `apps/web`'s E2E-only `/api/test/*` routes.    |
 
 ### Verifying it worked
 

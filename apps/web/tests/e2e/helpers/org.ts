@@ -4,6 +4,7 @@ import { expect } from "@playwright/test";
 import { CREATE_ORG_VALUE } from "@/lib/constants/org-switcher";
 import { dialogFieldByLabel } from "./field";
 import { trackOrgForCleanup } from "./org-cleanup";
+import { clickNavLink } from "./nav";
 
 /** Generates a collision-resistant org name/slug pair for parallel test runs. */
 export function uniqueOrgName(prefix = "Test Org"): { name: string; slug: string } {
@@ -29,6 +30,11 @@ export function uniqueOrgName(prefix = "Test Org"): { name: string; slug: string
  * same org would violate the `@@unique([orgId, name])` constraint and flake.
  * A fresh, unique, disposable org per test avoids this without paying the
  * cost of a full re-registration through /register.
+ *
+ * Member/invitation management (formerly at /team, reached via a dedicated
+ * "Team" sidebar link) now lives at /organizations/[orgId] - there is no
+ * standalone nav item for it. Reach it via `goToOrgDetail` below: click
+ * "Organizations" then the org's own name link on its card.
  */
 export async function createIsolatedOrg(page: Page, orgName: string): Promise<void> {
   await page.goto("/projects");
@@ -68,6 +74,19 @@ export async function createIsolatedOrg(page: Page, orgName: string): Promise<vo
   // for the rest of THIS run.
   const orgId = await orgSwitcher.inputValue();
   trackOrgForCleanup(page, orgId);
+}
+
+/**
+ * Navigates from wherever the (already-authenticated) page currently is to
+ * `orgName`'s detail page (members + invitations) via the Organizations
+ * list and the org card's own name link - the only way to reach it, since
+ * it has no sidebar entry of its own.
+ */
+export async function goToOrgDetail(page: Page, orgName: string): Promise<void> {
+  await clickNavLink(page, "Organizations", /\/organizations$/);
+  await page.getByRole("link", { name: orgName }).click();
+  await expect(page).toHaveURL(/\/organizations\/.+/);
+  await expect(page.getByRole("heading", { name: orgName })).toBeVisible();
 }
 
 /**

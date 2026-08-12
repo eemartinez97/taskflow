@@ -62,3 +62,15 @@ export const notificationWithActor = Prisma.validator<Prisma.NotificationInclude
 export const commentWithAuthor = Prisma.validator<Prisma.CommentInclude>()({
   author: { select: { id: true, name: true, email: true, image: true } },
 });
+
+// Invitation fragments
+
+/** Invitation with its org's name - used to build the preview shown before accept/decline. */
+export const invitationWithOrg = Prisma.validator<Prisma.InvitationInclude>()({
+  org: { select: { id: true, name: true } },
+});
+
+/** Invitation with the inviting admin's profile - used in the org's invitations table. */
+export const invitationWithInviter = Prisma.validator<Prisma.InvitationInclude>()({
+  invitedBy: { select: userProfileSelect },
+});

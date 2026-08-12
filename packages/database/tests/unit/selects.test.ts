@@ -7,6 +7,8 @@ import {
   orgWithMembership,
   boardWithColumns,
   notificationWithActor,
+  invitationWithOrg,
+  invitationWithInviter,
 } from "../../src/selects.js";
 
 // -- userBasicSelect --
@@ -100,5 +102,27 @@ describe("notificationWithActor", () => {
   it("does not expose actor email in notification payloads", () => {
     const actorSelect = notificationWithActor.actor.select;
     expect(actorSelect).not.toHaveProperty("email");
+  });
+});
+
+// -- invitationWithOrg --
+describe("invitationWithOrg", () => {
+  it("includes the org relation", () => {
+    expect(invitationWithOrg).toHaveProperty("org");
+  });
+
+  it("selects only id and name from org", () => {
+    expect(invitationWithOrg.org).toEqual({ select: { id: true, name: true } });
+  });
+});
+
+// -- invitationWithInviter --
+describe("invitationWithInviter", () => {
+  it("includes the invitedBy relation", () => {
+    expect(invitationWithInviter).toHaveProperty("invitedBy");
+  });
+
+  it("uses userProfileSelect for the invitedBy relation", () => {
+    expect(invitationWithInviter.invitedBy).toEqual({ select: userProfileSelect });
   });
 });

@@ -1,22 +1,26 @@
 import { expect, test } from "./support/fixtures";
-import { createIsolatedOrg, uniqueOrgName } from "./helpers/org";
+import { createIsolatedOrg, goToOrgDetail, uniqueOrgName } from "./helpers/org";
 import { dialogFieldByLabel } from "./helpers/field";
 import { registerUserViaApi } from "./helpers/auth";
 import { clickNavLink } from "./helpers/nav";
 
 test.describe("Team management and settings", () => {
   test("owner can open the invite dialog and send an invite", async ({ page, registeredUser }) => {
-    await createIsolatedOrg(page, uniqueOrgName("Team Org").name);
+    const org = uniqueOrgName("Team Org");
+    await createIsolatedOrg(page, org.name);
     // The invite target must be an existing account, otherwise the mutation
     // fails with an inline error and the success toast never renders.
     await registerUserViaApi(page, registeredUser);
-    await clickNavLink(page, "Team", /\/team/);
+    await goToOrgDetail(page, org.name);
     await page.getByRole("button", { name: "Invite member" }).click();
 
     const dialog = page.getByRole("dialog");
     await dialogFieldByLabel(page, "Email").fill(registeredUser.email);
     await dialog.getByRole("button", { name: "Send invite", exact: true }).click();
-    await expect(page.getByText(/invitation sent/i)).toBeVisible();
+    // Exact match: a loose /invitation sent/i also matches the (still-
+    // mounted-but-closed) revoke ConfirmDialog's "Revoke the invitation
+    // sent to X?" description elsewhere on the org detail page.
+    await expect(page.getByText("Invitation sent.", { exact: true })).toBeVisible();
   });
 
   test("user can update their profile name", async ({ page }) => {

@@ -2,6 +2,7 @@ import { Suspense, type JSX } from "react";
 
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
+import { DashboardContent } from "@/components/layout/dashboard-content";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -40,7 +41,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): JSX
         <main className="flex-1 overflow-y-auto p-6" id="main-content" aria-label="Main content">
           {/* The error came from ProjectsPage (children), which calls getServerTRPC -> getSession */}
           <Suspense fallback={<div className="text-gray-500 p-4">Loading...</div>}>
-            {children}
+            <DashboardContent>{children}</DashboardContent>
           </Suspense>
         </main>
       </div>

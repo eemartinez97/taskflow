@@ -3,9 +3,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type JSX } from "react";
 import { useForm } from "react-hook-form";
-import { useRouter } from "next/navigation";
 import { createBoardSchema, type CreateBoard } from "@taskflow/shared";
 import { Alert, Button, Dialog, FormField, Input } from "@taskflow/ui";
+import { useAppRouter } from "@/lib/hooks/use-app-router";
 import { toast } from "@/lib/toast/store";
 import { api } from "@/lib/trpc/client";
 import { createDialogCloseHandler } from "@/lib/utils/form";
@@ -25,7 +25,7 @@ export function CreateBoardDialog({
   onClose,
 }: CreateBoardDialogProps): JSX.Element {
   const utils = api.useUtils();
-  const router = useRouter();
+  const router = useAppRouter();
   const {
     register,
     handleSubmit,

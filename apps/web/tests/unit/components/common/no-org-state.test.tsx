@@ -14,8 +14,19 @@ vi.mock("@/components/organizations/create-org-dialog", () => ({
       </button>
     ) : null,
 }));
+vi.mock("@/components/invitations/use-invitation-actions", () => ({
+  useInvitationActions: vi.fn(() => ({
+    accept: vi.fn(),
+    decline: vi.fn(),
+    isAccepting: false,
+    isDeclining: false,
+  })),
+}));
 
+import { api } from "@/lib/trpc/client";
 import { NoOrgState } from "@/components/common/no-org-state";
+import { makeMyInvitation } from "@/tests/support/factories";
+import { mockUseQuery } from "@/tests/support/trpc";
 import { setupRouterMock } from "@/tests/support/render";
 
 describe("NoOrgState", () => {
@@ -45,5 +56,20 @@ describe("NoOrgState", () => {
     await user.click(screen.getByRole("button", { name: /create one/i }));
     await user.click(screen.getByRole("button", { name: /^create$/i }));
     expect(refreshMock).toHaveBeenCalled();
+  });
+
+  it("defaults to the 'ask your team owner' copy with no pending invitations", () => {
+    setupRouterMock();
+    mockUseQuery(api.invitations.listMine, []);
+    render(<NoOrgState />);
+    expect(screen.getByText(/ask your team owner to invite you/i)).toBeInTheDocument();
+  });
+
+  it("switches to the accept-invitation copy and shows PendingInvitations when one exists", () => {
+    setupRouterMock();
+    mockUseQuery(api.invitations.listMine, [makeMyInvitation({ orgName: "Acme" })]);
+    render(<NoOrgState />);
+    expect(screen.getByText(/accept one of your pending invitations below/i)).toBeInTheDocument();
+    expect(screen.getByText("Acme")).toBeInTheDocument();
   });
 });

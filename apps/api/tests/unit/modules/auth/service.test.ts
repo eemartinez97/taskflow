@@ -36,15 +36,18 @@ import {
   releaseAuthRateLimit,
 } from "../../../../src/modules/auth/rate-limit";
 import { getEmailSender } from "../../../../src/mail/sender";
+import { claimInvitationsForUser } from "../../../../src/modules/invitations/service";
 import { TRPCError } from "../../../../src/trpc/init";
 import { db, VALID_USER } from "../../../helpers";
 import { mockDb } from "../../../mocks/database-mock";
+import { mockIo } from "../../../mocks/socket";
 
 vi.mock("../../../../src/modules/auth/password");
 vi.mock("../../../../src/modules/auth/tokens");
 vi.mock("../../../../src/modules/auth/rate-limit");
 vi.mock("../../../../src/mail/sender");
 vi.mock("../../../../src/config/env");
+vi.mock("../../../../src/modules/invitations/service");
 vi.mock("@taskflow/mail", async (importOriginal) => {
   const actual = await importOriginal<typeof TaskflowMail>();
   return {
@@ -70,6 +73,7 @@ const mockGetEmailSender = vi.mocked(getEmailSender);
 const mockSendVerificationEmail = vi.mocked(sendVerificationEmail);
 const mockSendAccountActivatedEmail = vi.mocked(sendAccountActivatedEmail);
 const mockSendPasswordResetEmail = vi.mocked(sendPasswordResetEmail);
+const mockClaimInvitationsForUser = vi.mocked(claimInvitationsForUser);
 const FAKE_SENDER = {} as EmailSender;
 
 const VALID_REGISTER_INPUT = { name: "Ada Lovelace", email: "ada@example.com", password: "pw" };
@@ -370,13 +374,15 @@ describe("verifyEmail", () => {
   beforeEach(() => {
     mockGetEmailSender.mockReturnValue(FAKE_SENDER);
     mockSendAccountActivatedEmail.mockResolvedValue(undefined);
+    mockClaimInvitationsForUser.mockResolvedValue(undefined);
   });
 
   it("returns not-verified for an invalid/expired token", async () => {
     mockVerifyEmailFromToken.mockResolvedValue({ verified: false });
 
-    await expect(verifyEmail(db, "bad-token")).resolves.toEqual({ verified: false });
+    await expect(verifyEmail(db, mockIo, "bad-token")).resolves.toEqual({ verified: false });
     expect(mockSendAccountActivatedEmail).not.toHaveBeenCalled();
+    expect(mockClaimInvitationsForUser).not.toHaveBeenCalled();
   });
 
   it("returns verified without sending a notice for a repeat visit (not freshly activated)", async () => {
@@ -386,10 +392,11 @@ describe("verifyEmail", () => {
       userId: VALID_USER.id,
     });
 
-    await expect(verifyEmail(db, "token")).resolves.toEqual({ verified: true });
+    await expect(verifyEmail(db, mockIo, "token")).resolves.toEqual({ verified: true });
     // Drain microtasks so a wrongly-fired fire-and-forget call would show up.
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(mockSendAccountActivatedEmail).not.toHaveBeenCalled();
+    expect(mockClaimInvitationsForUser).not.toHaveBeenCalled();
   });
 
   it("sends the activation notice exactly once for a freshly activated account, without blocking the response", async () => {
@@ -400,7 +407,7 @@ describe("verifyEmail", () => {
     });
     mockDb.user.findUnique.mockResolvedValue({ email: VALID_USER.email, name: "Ada" });
 
-    const result = await verifyEmail(db, "token");
+    const result = await verifyEmail(db, mockIo, "token");
 
     expect(result).toEqual({ verified: true });
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -409,6 +416,7 @@ describe("verifyEmail", () => {
       name: "Ada",
       loginUrl: expect.stringContaining("/login") as string,
     });
+    expect(mockClaimInvitationsForUser).toHaveBeenCalledWith(db, mockIo, VALID_USER.id);
   });
 
   it("falls back to the email as the display name when the user has none", async () => {
@@ -419,7 +427,7 @@ describe("verifyEmail", () => {
     });
     mockDb.user.findUnique.mockResolvedValue({ email: VALID_USER.email, name: null });
 
-    await verifyEmail(db, "token");
+    await verifyEmail(db, mockIo, "token");
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(mockSendAccountActivatedEmail).toHaveBeenCalledWith(
@@ -436,7 +444,7 @@ describe("verifyEmail", () => {
     });
     mockDb.user.findUnique.mockResolvedValue(null);
 
-    await verifyEmail(db, "token");
+    await verifyEmail(db, mockIo, "token");
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(mockSendAccountActivatedEmail).not.toHaveBeenCalled();
@@ -451,7 +459,34 @@ describe("verifyEmail", () => {
     mockDb.user.findUnique.mockResolvedValue({ email: VALID_USER.email, name: "Ada" });
     mockSendAccountActivatedEmail.mockRejectedValue(new Error("Resend API down"));
 
-    await expect(verifyEmail(db, "token")).resolves.toEqual({ verified: true });
+    await expect(verifyEmail(db, mockIo, "token")).resolves.toEqual({ verified: true });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+
+  it("claims pending invitations exactly once for a freshly activated account", async () => {
+    mockVerifyEmailFromToken.mockResolvedValue({
+      verified: true,
+      freshlyActivated: true,
+      userId: VALID_USER.id,
+    });
+    mockDb.user.findUnique.mockResolvedValue({ email: VALID_USER.email, name: "Ada" });
+
+    await verifyEmail(db, mockIo, "token");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockClaimInvitationsForUser).toHaveBeenCalledExactlyOnceWith(db, mockIo, VALID_USER.id);
+  });
+
+  it("logs (does not throw) when claiming pending invitations fails", async () => {
+    mockVerifyEmailFromToken.mockResolvedValue({
+      verified: true,
+      freshlyActivated: true,
+      userId: VALID_USER.id,
+    });
+    mockDb.user.findUnique.mockResolvedValue({ email: VALID_USER.email, name: "Ada" });
+    mockClaimInvitationsForUser.mockRejectedValue(new Error("DB down"));
+
+    await expect(verifyEmail(db, mockIo, "token")).resolves.toEqual({ verified: true });
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
 });

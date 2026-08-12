@@ -69,14 +69,33 @@ describe("proxy middleware", () => {
       },
     );
 
-    it.each(["/projects", "/settings", "/team", "/organizations", "/tasks"])(
-      "passes through protected route %s without redirecting",
-      async (path) => {
-        const res = await proxy(makeRequest(path));
+    it.each([
+      "/projects",
+      "/settings",
+      "/team",
+      "/organizations",
+      "/organizations/org-1",
+      "/invitations/raw-token",
+      "/tasks",
+    ])("passes through protected route %s without redirecting", async (path) => {
+      const res = await proxy(makeRequest(path));
 
-        expect(location(res)).toBeNull();
-      },
-    );
+      expect(location(res)).toBeNull();
+    });
+
+    it("redirects /register?invite=<token> to /invitations/<token> instead of /projects", async () => {
+      const res = await proxy(makeRequest("/register?invite=raw-token"));
+
+      expect(res.status).toBe(307);
+      expect(location(res)).toContain("/invitations/raw-token");
+    });
+
+    it("redirects a plain /register (no invite token) to /projects as usual", async () => {
+      const res = await proxy(makeRequest("/register"));
+
+      expect(res.status).toBe(307);
+      expect(location(res)).toContain("/projects");
+    });
   });
 
   // -- Unauthenticated user --

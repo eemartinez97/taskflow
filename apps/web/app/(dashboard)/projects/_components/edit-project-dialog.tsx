@@ -9,7 +9,7 @@ import { updateProjectSchema, type UpdateProject } from "@taskflow/shared";
 import { Alert, Button, Dialog, FormField, Input } from "@taskflow/ui";
 import { toast } from "@/lib/toast/store";
 import { api } from "@/lib/trpc/client";
-import { createDialogCloseHandler } from "@/lib/utils/form";
+import { createDialogCloseHandler, emptyStringToUndefined } from "@/lib/utils/form";
 
 interface EditProjectDialogProps {
   project: Project;
@@ -42,12 +42,24 @@ export function EditProjectDialog({
     formState: { errors, isSubmitting },
   } = useForm<UpdateProject>({
     resolver: zodResolver(updateProjectSchema),
-    defaultValues: { name: project.name, key: project.key, slug: project.slug },
+    defaultValues: {
+      name: project.name,
+      key: project.key,
+      slug: project.slug,
+      description: project.description ?? undefined,
+    },
   });
 
   // Reset form when the dialog reopens with a different project
   useEffect(() => {
-    if (open) reset({ name: project.name, key: project.key, slug: project.slug });
+    if (open) {
+      reset({
+        name: project.name,
+        key: project.key,
+        slug: project.slug,
+        description: project.description ?? undefined,
+      });
+    }
   }, [open, project, reset]);
 
   const handleClose = createDialogCloseHandler(reset, mutation, onClose);
@@ -68,7 +80,13 @@ export function EditProjectDialog({
   );
 
   return (
-    <Dialog open={open} onClose={handleClose} title="Edit Project" footer={footer}>
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      title="Edit Project"
+      footer={footer}
+      className="max-w-lg"
+    >
       <form
         id="edit-project-form"
         onSubmit={handleSubmit(onSubmit)}
@@ -87,6 +105,18 @@ export function EditProjectDialog({
 
         <FormField label="Slug" htmlFor="ep-slug" required error={errors.slug?.message}>
           <Input id="ep-slug" hasError={!!errors.slug} {...register("slug")} />
+        </FormField>
+
+        <FormField label="Description" htmlFor="ep-description" error={errors.description?.message}>
+          <textarea
+            id="ep-description"
+            rows={5}
+            placeholder="What is this project about?"
+            {...register("description", { setValueAs: emptyStringToUndefined })}
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500
+              resize-y"
+          />
         </FormField>
       </form>
     </Dialog>

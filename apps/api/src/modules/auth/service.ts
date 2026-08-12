@@ -37,6 +37,8 @@ import { env } from "../../config/env";
 import { getEmailSender } from "../../mail/sender";
 import { withMinimumLatency } from "../../utils/with-minimum-latency";
 import { fireAndForget } from "../../utils/fire-and-forget";
+import { claimInvitationsForUser } from "../invitations/service";
+import type { AppServer } from "../../socket/events";
 
 export async function getMe(db: PrismaClient, userId: string): Promise<SessionUser> {
   const user = await findUserById(db, userId);
@@ -193,13 +195,18 @@ export interface VerifyEmailOutput {
  * the caller is a public tRPC query, not literally a GET, but the same
  * prefetch/idempotency argument applies to any no-auth-required call).
  *
- * The activation-notice email is dispatched without awaiting it - unlike
- * apps/web's former `after()` scheduling (a Next.js-only primitive), a
- * detached promise with its own `.catch()` is the direct Express
- * equivalent: the response returns immediately, and a delivery failure is
- * still logged instead of becoming an unhandled rejection.
+ * The activation-notice email and the invitation claim are both dispatched
+ * without awaiting them - unlike apps/web's former `after()` scheduling (a
+ * Next.js-only primitive), a detached promise with its own `.catch()` is the
+ * direct Express equivalent: the response returns immediately, and a
+ * delivery/claim failure is still logged instead of becoming an unhandled
+ * rejection.
  */
-export async function verifyEmail(db: PrismaClient, token: string): Promise<VerifyEmailOutput> {
+export async function verifyEmail(
+  db: PrismaClient,
+  io: AppServer,
+  token: string,
+): Promise<VerifyEmailOutput> {
   const result = await verifyEmailFromToken(db, token);
   if (!result.verified) return { verified: false };
 
@@ -207,6 +214,10 @@ export async function verifyEmail(db: PrismaClient, token: string): Promise<Veri
     fireAndForget(
       notifyAccountActivated(db, result.userId),
       "auth.verifyEmail: failed to send account-activated email",
+    );
+    fireAndForget(
+      claimInvitationsForUser(db, io, result.userId),
+      "auth.verifyEmail: failed to claim pending invitations",
     );
   }
 

@@ -151,6 +151,12 @@ const BASE_INITIAL_TASKS: TasksMap = {
 
 let deleteColumnMutation: ReturnType<typeof wireCapturableMutation>;
 let addColumnMutation: ReturnType<typeof wireCapturableMutation>;
+let reorderColumnsMutation: ReturnType<typeof wireCapturableMutation>;
+let createTaskMutation: ReturnType<typeof wireCapturableMutation>;
+let setBoardsGetData: ReturnType<typeof vi.fn>;
+let setTasksListData: ReturnType<typeof vi.fn>;
+
+const BOARD_WITH_COLS = { id: "board-1", name: "Main Board", columns: [COL_A, COL_B] };
 
 function buildProps(
   overrides: Partial<Parameters<typeof KanbanBoard>[0]> = {},
@@ -181,10 +187,17 @@ describe("KanbanBoard", () => {
     mockUseQuery(api.labels.list, []);
     mockUseQuery(api.orgs.members, []);
     mockUseQuery(api.tasks.labelsByProject, []);
-    mockApiUtils();
+    setBoardsGetData = vi.fn();
+    setTasksListData = vi.fn();
+    mockApiUtils({
+      boards: { get: { setData: setBoardsGetData } },
+      tasks: { list: { setData: setTasksListData } },
+    });
 
     deleteColumnMutation = wireCapturableMutation(api.boards.deleteColumn);
     addColumnMutation = wireCapturableMutation(api.boards.addColumn);
+    reorderColumnsMutation = wireCapturableMutation(api.boards.reorderColumns);
+    createTaskMutation = wireCapturableMutation(api.tasks.create);
   });
 
   // -- boardCollisionDetection (pure function) --
@@ -287,6 +300,58 @@ describe("KanbanBoard", () => {
       boardId: "board-1",
       name: "New Column",
     });
+  });
+
+  it("appends the new column into the boards.get cache on success (self-echo replacement)", () => {
+    renderUI(<KanbanBoard {...buildProps()} />);
+    const newColumn = makeColumn({ id: "col-3", name: "Done" });
+
+    addColumnMutation.simulateSuccess(newColumn);
+
+    expect(setBoardsGetData).toHaveBeenCalledWith(
+      { orgId: "org-1", boardId: "board-1" },
+      expect.any(Function),
+    );
+    const updater = setBoardsGetData.mock.calls[0]?.[1] as (
+      prev: typeof BOARD_WITH_COLS | undefined,
+    ) => typeof BOARD_WITH_COLS | undefined;
+    expect(updater(BOARD_WITH_COLS)?.columns).toEqual([COL_A, COL_B, newColumn]);
+    expect(updater(undefined)).toBeUndefined();
+  });
+
+  it("writes the created task into the tasks.list cache on success (self-echo replacement)", () => {
+    renderUI(<KanbanBoard {...buildProps()} />);
+    const newTask = makeTask({ id: "task-3", title: "New task", columnId: "col-1" });
+
+    createTaskMutation.simulateSuccess(newTask);
+
+    expect(setTasksListData).toHaveBeenCalledWith(
+      { orgId: "org-1", columnId: "col-1" },
+      expect.any(Function),
+    );
+    const updater = setTasksListData.mock.calls[0]?.[1] as (
+      prev: (typeof TASK_A)[] | undefined,
+    ) => (typeof TASK_A)[];
+    expect(updater(undefined)).toEqual([newTask]);
+    expect(updater([TASK_A])).toEqual([TASK_A, newTask]);
+  });
+
+  it("replaces reordered columns' positions in the boards.get cache on success", () => {
+    renderUI(<KanbanBoard {...buildProps()} />);
+
+    reorderColumnsMutation.simulateSuccess(
+      { success: true },
+      {
+        orgId: "org-1",
+        payload: { boardId: "board-1", columns: [{ id: "col-2", position: 500 }] },
+      },
+    );
+
+    const updater = setBoardsGetData.mock.calls[0]?.[1] as (
+      prev: typeof BOARD_WITH_COLS | undefined,
+    ) => typeof BOARD_WITH_COLS | undefined;
+    expect(updater(BOARD_WITH_COLS)?.columns).toEqual([{ ...COL_B, position: 500 }, COL_A]);
+    expect(updater(undefined)).toBeUndefined();
   });
 
   // -- Cursors toggle --
@@ -419,6 +484,24 @@ describe("KanbanBoard", () => {
       orgId: "org-1",
       columnId: COL_A.id,
     });
+  });
+
+  it("removes the deleted column from the boards.get cache on success (self-echo replacement)", () => {
+    renderUI(<KanbanBoard {...buildProps()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Delete To Do" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm delete" }));
+
+    deleteColumnMutation.simulateSuccess({ success: true }, { orgId: "org-1", columnId: COL_A.id });
+
+    expect(setBoardsGetData).toHaveBeenCalledWith(
+      { orgId: "org-1", boardId: "board-1" },
+      expect.any(Function),
+    );
+    const updater = setBoardsGetData.mock.calls[0]?.[1] as (
+      prev: typeof BOARD_WITH_COLS | undefined,
+    ) => typeof BOARD_WITH_COLS | undefined;
+    expect(updater(BOARD_WITH_COLS)?.columns).toEqual([COL_B]);
+    expect(updater(undefined)).toBeUndefined();
   });
 
   it("closes ConfirmDialog without calling mutate when Cancel is clicked", async () => {

@@ -15,6 +15,7 @@ import { timingSafeEqualStrings } from "../utils/e2e";
 import {
   assertBoardInOrg,
   assertColumnInOrg,
+  assertInvitationInOrg,
   assertLabelInOrg,
   assertProjectInOrg,
   assertTaskInOrg,
@@ -46,6 +47,7 @@ const SCOPE_ASSERTIONS = {
   columnId: assertColumnInOrg,
   taskId: assertTaskInOrg,
   labelId: assertLabelInOrg,
+  invitationId: assertInvitationInOrg,
 } as const;
 
 /**

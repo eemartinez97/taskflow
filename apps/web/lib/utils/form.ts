@@ -20,6 +20,13 @@ export function emptyStringToNull(v: unknown): string | null {
   return trimmed === "" ? null : trimmed;
 }
 
+/** Same, for optional (non-nullable) schemas where empty input -> undefined. */
+export function emptyStringToUndefined(v: unknown): string | undefined {
+  if (typeof v !== "string") return undefined;
+  const trimmed = v.trim();
+  return trimmed === "" ? undefined : trimmed;
+}
+
 /** Same guard for <select>-style values (no trimming - ids aren't free text). */
 export function selectValueToNull(v: unknown): string | null {
   return typeof v === "string" && v !== "" ? v : null;

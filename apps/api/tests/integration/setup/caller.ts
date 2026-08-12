@@ -1,22 +1,30 @@
-import { vi } from "vitest";
-
 import { logger } from "../../../src/config/logger";
 import { createCallerFactory } from "../../../src/trpc/init";
 import { createAppRouter } from "../../../src/trpc/router";
 import { prisma } from "./db";
 import type { AppServer } from "../../../src/socket/events";
 
-export const emitted: { room: string; event: string; payload: unknown }[] = [];
+export const emitted: { room: string; event: string; payload: unknown; exceptRoom?: string }[] = [];
 
-/** Records every broadcast instead of opening a real Socket.IO server. */
+/**
+ * Records every broadcast instead of opening a real Socket.IO server.
+ * `.except(room)` (used by emitToProject/emitToOrg to skip the acting
+ * user's own connections - see socket/emit.ts) still records the emit here,
+ * with the excluded room noted, since this fake has no real per-socket room
+ * membership to filter against - tests assert "was this broadcast" and,
+ * where it matters, "was the actor excluded", not actual delivery.
+ */
 export const recordingIo = {
   to(room: string) {
+    const emit = (event: string, payload: unknown, exceptRoom?: string) => {
+      emitted.push({ room, event, payload, ...(exceptRoom !== undefined && { exceptRoom }) });
+      return true;
+    };
     return {
-      emit: (event: string, payload: unknown) => {
-        emitted.push({ room, event, payload });
-        return true;
-      },
-      except: () => ({ emit: vi.fn() }),
+      emit: (event: string, payload: unknown) => emit(event, payload),
+      except: (exceptRoom: string) => ({
+        emit: (event: string, payload: unknown) => emit(event, payload, exceptRoom),
+      }),
     };
   },
 } as unknown as AppServer;

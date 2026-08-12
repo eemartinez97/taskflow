@@ -4,6 +4,7 @@ import type { OrgWithMembership } from "@taskflow/database";
 
 import type { getServerTRPC } from "@/lib/trpc/server";
 import { cookies } from "next/headers";
+import { notFound } from "next/navigation";
 import { ACTIVE_ORG_COOKIE } from "./active-org";
 
 /**
@@ -31,4 +32,21 @@ export async function getOrgOrNull(
   const active = activeId ? orgs.find((org) => org.id === activeId) : undefined;
 
   return active ?? firstOrg;
+}
+
+/**
+ * Resolves a specific org by id for the `/organizations/[orgId]` detail
+ * page. `trpc.orgs.list()` only ever returns orgs the caller is a member
+ * of, so an id belonging to another org - or one that doesn't exist at all -
+ * is indistinguishable here, and both 404 rather than leaking which case it
+ * was.
+ */
+export async function getOrgByIdOrNotFound(
+  trpc: Awaited<ReturnType<typeof getServerTRPC>>,
+  orgId: string,
+): Promise<OrgWithMembership> {
+  const orgs = await trpc.orgs.list();
+  const org = orgs.find((o) => o.id === orgId);
+  if (!org) notFound();
+  return org;
 }

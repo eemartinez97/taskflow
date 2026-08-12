@@ -202,6 +202,49 @@ describe("TaskDetailPanel", () => {
     });
   });
 
+  it("writes synced labels into labelsByProject using the same shape the realtime socket handler uses", async () => {
+    setupBaseQueries();
+    const setLabelsByProjectData = vi.fn();
+    const template = api.useUtils();
+    vi.mocked(api.useUtils).mockReturnValue({
+      ...template,
+      tasks: {
+        ...template.tasks,
+        labelsByProject: { ...template.tasks.labelsByProject, setData: setLabelsByProjectData },
+      },
+    });
+    const { triggerSuccess } = setupMutationMock(api.tasks.addLabel);
+    render(
+      <TaskDetailPanel
+        task={makeTask()}
+        orgId={VALID_ORG_ID}
+        projectId={VALID_PROJECT_ID}
+        onClose={vi.fn()}
+      />,
+    );
+    await userEvent.setup().click(screen.getByRole("button", { name: /add label/i }));
+
+    const newLabel = { id: "label-1", name: "Bug", color: "#EF4444" };
+    act(() => {
+      triggerSuccess([newLabel]);
+    });
+
+    expect(setLabelsByProjectData).toHaveBeenCalledWith(
+      { orgId: VALID_ORG_ID, projectId: VALID_PROJECT_ID },
+      expect.any(Function),
+    );
+    const updater = setLabelsByProjectData.mock.calls[0]?.[1] as (
+      prev: { taskId: string; label: unknown }[] | undefined,
+    ) => { taskId: string; label: unknown }[];
+    const otherTaskPair = { taskId: "other-task", label: { id: "label-2" } };
+    const stalePair = { taskId: VALID_TASK_1_ID, label: { id: "stale" } };
+    expect(updater([otherTaskPair, stalePair])).toEqual([
+      otherTaskPair,
+      { taskId: VALID_TASK_1_ID, label: newLabel },
+    ]);
+    expect(updater(undefined)).toEqual([{ taskId: VALID_TASK_1_ID, label: newLabel }]);
+  });
+
   it("syncs the labels cache when a label is removed", async () => {
     setupBaseQueries();
     const { mutateMock, triggerSuccess } = setupMutationMock(api.tasks.removeLabel);

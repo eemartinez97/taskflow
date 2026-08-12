@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { SOCKET_EVENTS } from "@taskflow/shared";
 
 import {
@@ -103,7 +103,23 @@ describe("createTaskInColumn", () => {
         creatorId: VALID_USER.id,
       },
     });
-    expectEmittedToProject(VALID_PROJECT_ID, SOCKET_EVENTS.TASK_CREATED, { task });
+    expectEmittedToProject(VALID_PROJECT_ID, SOCKET_EVENTS.TASK_CREATED, { task }, VALID_USER.id);
+  });
+
+  it("logs (does not throw) when notifying the assignee fails", async () => {
+    mockDb.task.findFirst.mockResolvedValueOnce(null);
+    mockDb.task.create.mockResolvedValueOnce(buildTask({ assigneeId: ANOTHER_UUID }));
+    mockDb.user.findUnique.mockRejectedValueOnce(new Error("Connection refused"));
+
+    await expect(
+      createTaskInColumn(db, mockIo, VALID_PROJECT_ID, VALID_USER.id, {
+        columnId: VALID_COLUMN_ID,
+        title: "Ship it",
+        assigneeId: ANOTHER_UUID,
+        priority: "LOW",
+      }),
+    ).resolves.toMatchObject({ assigneeId: ANOTHER_UUID });
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
 
   it("skips the notification when there is no assignee", async () => {
@@ -133,17 +149,22 @@ describe("createTaskInColumn", () => {
       priority: "LOW",
     });
 
-    expect(mockDb.notification.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          userId: ANOTHER_UUID,
-          type: "TASK_ASSIGNED",
-          message: 'Alice assigned you to "Ship it"',
-        }) as unknown,
-      }),
-    );
-    expectEmittedToUser(ANOTHER_UUID, SOCKET_EVENTS.NOTIFICATION_CREATED, {
-      notification: { id: "n1" },
+    // notifyTaskAssigned now runs fire-and-forget (see tasks/service.ts) so
+    // the response doesn't wait behind it - its own DB write/emit land on a
+    // later microtask than this test's own `await` above resolves on.
+    await vi.waitFor(() => {
+      expect(mockDb.notification.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: ANOTHER_UUID,
+            type: "TASK_ASSIGNED",
+            message: 'Alice assigned you to "Ship it"',
+          }) as unknown,
+        }),
+      );
+      expectEmittedToUser(ANOTHER_UUID, SOCKET_EVENTS.NOTIFICATION_CREATED, {
+        notification: { id: "n1" },
+      });
     });
   });
 });
@@ -157,9 +178,12 @@ describe("updateTaskById", () => {
       title: "New",
     });
 
-    expectEmittedToProject(VALID_PROJECT_ID, SOCKET_EVENTS.TASK_UPDATED, {
-      task: { ...task, title: "New" },
-    });
+    expectEmittedToProject(
+      VALID_PROJECT_ID,
+      SOCKET_EVENTS.TASK_UPDATED,
+      { task: { ...task, title: "New" } },
+      VALID_USER.id,
+    );
   });
 
   it.each([
@@ -189,11 +213,15 @@ describe("updateTaskById", () => {
       assigneeId: ANOTHER_UUID,
     });
 
-    expect(mockDb.notification.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ message: 'Someone assigned you to "Ship it"' }) as unknown,
-      }),
-    );
+    await vi.waitFor(() => {
+      expect(mockDb.notification.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            message: 'Someone assigned you to "Ship it"',
+          }) as unknown,
+        }),
+      );
+    });
   });
 
   it("does not notify when the task is unassigned (assigneeId -> null)", async () => {
@@ -223,34 +251,44 @@ describe("moveTaskToColumn / deleteTaskById", () => {
     mockDb.task.update.mockResolvedValueOnce(moved);
 
     await expect(
-      moveTaskToColumn(db, mockIo, VALID_PROJECT_ID, {
+      moveTaskToColumn(db, mockIo, VALID_PROJECT_ID, VALID_USER.id, {
         taskId: VALID_TASK_ID,
         targetColumnId: "col-2",
         position: 1500,
       }),
     ).resolves.toBe(moved);
 
-    expectEmittedToProject(VALID_PROJECT_ID, SOCKET_EVENTS.TASK_MOVED, { task: moved });
+    expectEmittedToProject(
+      VALID_PROJECT_ID,
+      SOCKET_EVENTS.TASK_MOVED,
+      { task: moved },
+      VALID_USER.id,
+    );
   });
 
   it("deleteTaskById broadcasts task:deleted with just the id", async () => {
     mockDb.task.findUnique.mockResolvedValueOnce(task);
 
-    await expect(deleteTaskById(db, mockIo, VALID_PROJECT_ID, VALID_TASK_ID)).resolves.toEqual({
+    await expect(
+      deleteTaskById(db, mockIo, VALID_PROJECT_ID, VALID_USER.id, VALID_TASK_ID),
+    ).resolves.toEqual({
       success: true,
     });
 
-    expectEmittedToProject(VALID_PROJECT_ID, SOCKET_EVENTS.TASK_DELETED, {
-      taskId: VALID_TASK_ID,
-    });
+    expectEmittedToProject(
+      VALID_PROJECT_ID,
+      SOCKET_EVENTS.TASK_DELETED,
+      { taskId: VALID_TASK_ID },
+      VALID_USER.id,
+    );
   });
 
   it("deleteTaskById throws NOT_FOUND without deleting", async () => {
     mockDb.task.findUnique.mockResolvedValueOnce(null);
 
-    await expect(deleteTaskById(db, mockIo, VALID_PROJECT_ID, VALID_TASK_ID)).rejects.toMatchObject(
-      { code: "NOT_FOUND" },
-    );
+    await expect(
+      deleteTaskById(db, mockIo, VALID_PROJECT_ID, VALID_USER.id, VALID_TASK_ID),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(mockDb.task.delete).not.toHaveBeenCalled();
   });
 });
@@ -261,19 +299,23 @@ describe("addLabelToTaskById", () => {
     mockDb.label.findUnique.mockResolvedValueOnce({ orgId: VALID_ORG_ID });
     mockDb.label.findMany.mockResolvedValueOnce([label]);
 
-    await expect(addLabelToTaskById(db, mockIo, labelInput)).resolves.toEqual([label]);
+    await expect(addLabelToTaskById(db, mockIo, VALID_USER.id, labelInput)).resolves.toEqual([
+      label,
+    ]);
 
     expect(mockDb.taskLabel.upsert).toHaveBeenCalledOnce();
-    expectEmittedToProject(VALID_PROJECT_ID, SOCKET_EVENTS.TASK_LABELS_CHANGED, {
-      taskId: VALID_TASK_ID,
-      labels: [label],
-    });
+    expectEmittedToProject(
+      VALID_PROJECT_ID,
+      SOCKET_EVENTS.TASK_LABELS_CHANGED,
+      { taskId: VALID_TASK_ID, labels: [label] },
+      VALID_USER.id,
+    );
   });
 
   it("throws NOT_FOUND for an unknown task", async () => {
     mockDb.task.findUnique.mockResolvedValueOnce(null);
 
-    await expect(addLabelToTaskById(db, mockIo, labelInput)).rejects.toMatchObject({
+    await expect(addLabelToTaskById(db, mockIo, VALID_USER.id, labelInput)).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
   });
@@ -285,7 +327,7 @@ describe("addLabelToTaskById", () => {
     mockDb.task.findUnique.mockResolvedValueOnce(task);
     mockDb.label.findUnique.mockResolvedValueOnce(labelRow);
 
-    await expect(addLabelToTaskById(db, mockIo, labelInput)).rejects.toMatchObject({
+    await expect(addLabelToTaskById(db, mockIo, VALID_USER.id, labelInput)).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
     expect(mockDb.taskLabel.upsert).not.toHaveBeenCalled();
@@ -296,14 +338,18 @@ describe("removeLabelFromTaskById", () => {
   it("detaches and broadcasts the remaining labels", async () => {
     mockDb.label.findMany.mockResolvedValueOnce([]);
 
-    await expect(removeLabelFromTaskById(db, mockIo, labelInput)).resolves.toEqual([]);
+    await expect(removeLabelFromTaskById(db, mockIo, VALID_USER.id, labelInput)).resolves.toEqual(
+      [],
+    );
 
     expect(mockDb.taskLabel.deleteMany).toHaveBeenCalledWith({
       where: { taskId: VALID_TASK_ID, labelId: VALID_LABEL_ID },
     });
-    expectEmittedToProject(VALID_PROJECT_ID, SOCKET_EVENTS.TASK_LABELS_CHANGED, {
-      taskId: VALID_TASK_ID,
-      labels: [],
-    });
+    expectEmittedToProject(
+      VALID_PROJECT_ID,
+      SOCKET_EVENTS.TASK_LABELS_CHANGED,
+      { taskId: VALID_TASK_ID, labels: [] },
+      VALID_USER.id,
+    );
   });
 });

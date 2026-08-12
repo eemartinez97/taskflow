@@ -68,6 +68,32 @@ export default defineConfig([
     },
   },
 
+  // 5a. Ban next/navigation's raw useRouter outside its own wrapper -
+  // lib/hooks/use-app-router.ts's useAppRouter() is what drives the global
+  // nav-progress bar/cursor/content-dim automatically; a call site that
+  // imports useRouter directly gets none of that, silently. Found via code
+  // review (use-invitation-actions.ts had exactly this bug), enforced here
+  // instead of only documented so it can't recur unnoticed.
+  {
+    files: ["**/*.{ts,tsx}"],
+    ignores: ["lib/hooks/use-app-router.ts", "tests/**", "**/*.test.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "next/navigation",
+              importNames: ["useRouter"],
+              message:
+                "Use useAppRouter() from '@/lib/hooks/use-app-router' instead - it drives the global nav-progress indicator automatically. Only use-app-router.ts itself may import the raw useRouter.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // 5b. Playwright E2E test files
   {
     files: ["tests/e2e/**/*.ts"],

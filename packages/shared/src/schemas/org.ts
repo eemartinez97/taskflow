@@ -1,9 +1,12 @@
 import { z } from "zod";
 import { ROLES } from "../constants";
 import { idSchema, slugSchema } from "./common";
-import { nameField } from "../utils/normalize";
+import { emailField, nameField } from "../utils/normalize";
 
 export const roleSchema = z.enum(ROLES);
+
+/** Every role except OWNER - an org can only ever have exactly one OWNER, never invited into. */
+export const invitableRoleSchema = roleSchema.exclude(["OWNER"]);
 
 export const orgSchema = z.object({
   id: idSchema,
@@ -30,8 +33,8 @@ export const membershipSchema = z.object({
 });
 
 export const inviteMemberSchema = z.object({
-  email: z.email(),
-  role: roleSchema.exclude(["OWNER"]),
+  email: emailField(),
+  role: invitableRoleSchema,
 });
 
 export const updateMemberRoleSchema = inviteMemberSchema.pick({ role: true });

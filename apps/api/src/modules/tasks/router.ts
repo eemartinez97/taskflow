@@ -65,13 +65,13 @@ const _buildTasksRouter = (io: AppServer) =>
     move: memberProcedure
       .input(z.object({ orgId: idSchema, projectId: idSchema, payload: moveTaskSchema }))
       .mutation(async ({ ctx, input }) =>
-        moveTaskToColumn(ctx.db, io, input.projectId, input.payload),
+        moveTaskToColumn(ctx.db, io, input.projectId, ctx.user.id, input.payload),
       ),
 
     delete: memberProcedure
       .input(z.object({ orgId: idSchema, projectId: idSchema, taskId: idSchema }))
       .mutation(async ({ ctx, input }) =>
-        deleteTaskById(ctx.db, io, input.projectId, input.taskId),
+        deleteTaskById(ctx.db, io, input.projectId, ctx.user.id, input.taskId),
       ),
 
     // -- labels --
@@ -87,13 +87,13 @@ const _buildTasksRouter = (io: AppServer) =>
       .input(
         z.object({ orgId: idSchema, projectId: idSchema, taskId: idSchema, labelId: idSchema }),
       )
-      .mutation(async ({ ctx, input }) => addLabelToTaskById(ctx.db, io, input)),
+      .mutation(async ({ ctx, input }) => addLabelToTaskById(ctx.db, io, ctx.user.id, input)),
 
     removeLabel: memberProcedure
       .input(
         z.object({ orgId: idSchema, projectId: idSchema, taskId: idSchema, labelId: idSchema }),
       )
-      .mutation(async ({ ctx, input }) => removeLabelFromTaskById(ctx.db, io, input)),
+      .mutation(async ({ ctx, input }) => removeLabelFromTaskById(ctx.db, io, ctx.user.id, input)),
   });
 
 /** Inferred Router type - used by createAppRouter for the `tasks` key. */

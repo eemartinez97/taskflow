@@ -48,6 +48,16 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     return NextResponse.next();
   }
 
+  // An already-authenticated visitor opening their own invite link
+  // (?invite=<token> on /register) still needs to land on the accept/decline
+  // page, not get swept into rule 1 below - they already have an account.
+  if (isAuthenticated && pathname === "/register") {
+    const inviteToken = request.nextUrl.searchParams.get("invite");
+    if (inviteToken) {
+      return NextResponse.redirect(new URL(`/invitations/${inviteToken}`, request.url));
+    }
+  }
+
   // 1. If authenticated and trying to access /, /login, or /register -> redirect to /projects
   if (isAuthenticated && isPublicAuthRoute) {
     return NextResponse.redirect(new URL("/projects", request.url));

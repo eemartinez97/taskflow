@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_PAGE_SIZE,
+  INVITATION_RESEND_COOLDOWN_MS,
+  INVITATION_STATUSES,
+  INVITATION_TTL_HOURS,
   MAX_PAGE_SIZE,
+  MAX_PENDING_INVITATIONS_PER_ORG,
   POSITION_STEP,
   ROLES,
   SOCKET_EVENTS,
@@ -62,6 +66,31 @@ describe("MAX_PAGE_SIZE", () => {
   });
 });
 
+describe("INVITATION_STATUSES", () => {
+  it("contains all four statuses, with no EXPIRED member", () => {
+    expect(INVITATION_STATUSES).toEqual(["PENDING", "ACCEPTED", "DECLINED", "REVOKED"]);
+    expect(INVITATION_STATUSES).not.toContain("EXPIRED");
+  });
+});
+
+describe("INVITATION_TTL_HOURS", () => {
+  it("is 168 (7 days)", () => {
+    expect(INVITATION_TTL_HOURS).toBe(168);
+  });
+});
+
+describe("MAX_PENDING_INVITATIONS_PER_ORG", () => {
+  it("is 100", () => {
+    expect(MAX_PENDING_INVITATIONS_PER_ORG).toBe(100);
+  });
+});
+
+describe("INVITATION_RESEND_COOLDOWN_MS", () => {
+  it("is 60 seconds", () => {
+    expect(INVITATION_RESEND_COOLDOWN_MS).toBe(60_000);
+  });
+});
+
 describe("SOCKET_ROOM_PREFIX", () => {
   it("equal 'project:'", () => {
     expect(SOCKET_ROOM_PREFIX).toBe("project:");
@@ -90,7 +119,12 @@ describe("POSITION_STEP", () => {
 
 describe("SOCKET_EVENTS", () => {
   it("contains all socket event strings", () => {
-    expect(Object.keys(SOCKET_EVENTS)).toHaveLength(18);
+    expect(Object.keys(SOCKET_EVENTS)).toHaveLength(20);
+  });
+
+  it("invitation events use invitation: prefix", () => {
+    expect(SOCKET_EVENTS.INVITATION_RECEIVED).toBe("invitation:received");
+    expect(SOCKET_EVENTS.INVITATION_RESOLVED).toBe("invitation:resolved");
   });
 
   it("task events use task: prefix", () => {

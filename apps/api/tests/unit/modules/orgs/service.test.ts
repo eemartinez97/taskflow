@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { SOCKET_EVENTS } from "@taskflow/shared";
 
 import {
   createOrgForUser,
   deleteOrgById,
-  inviteMemberToOrg,
   listMembers,
   listOrgs,
   removeMemberFromOrg,
@@ -14,8 +12,6 @@ import {
 import { buildMembership, buildOrg } from "../../../factories";
 import { ANOTHER_UUID, db, VALID_ORG_ID, VALID_USER } from "../../../helpers";
 import { mockDb } from "../../../mocks/database-mock";
-import { mockIo } from "../../../mocks/socket";
-import { expectEmittedToUser } from "../../../support/socket-assert";
 
 const org = buildOrg();
 
@@ -65,76 +61,6 @@ describe("updateOrgById / deleteOrgById", () => {
 
     await expect(deleteOrgById(db, VALID_ORG_ID)).resolves.toEqual({ success: true });
     expect(mockDb.org.delete).toHaveBeenCalledOnce();
-  });
-});
-
-describe("inviteMemberToOrg", () => {
-  const data = { email: "bob@example.com", role: "MEMBER" as const };
-  const membership = buildMembership({ userId: ANOTHER_UUID });
-
-  it("creates the membership and notifies the invitee", async () => {
-    mockDb.user.findUnique
-      .mockResolvedValueOnce({ id: ANOTHER_UUID }) // repo.inviteMember lookup
-      .mockResolvedValueOnce({ name: "Alice" }); // getActorName
-    mockDb.membership.create.mockResolvedValueOnce(membership);
-    mockDb.org.findUnique.mockResolvedValueOnce(org);
-    mockDb.notification.create.mockResolvedValueOnce({ id: "n1" });
-
-    await expect(inviteMemberToOrg(db, mockIo, VALID_ORG_ID, VALID_USER.id, data)).resolves.toBe(
-      membership,
-    );
-
-    expectEmittedToUser(ANOTHER_UUID, SOCKET_EVENTS.NOTIFICATION_CREATED, {
-      notification: { id: "n1" },
-    });
-    expect(mockDb.notification.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          type: "MEMBER_INVITED",
-          message: 'Alice invited you to "Acme"',
-          entityType: "org",
-        }) as unknown,
-      }),
-    );
-  });
-
-  it("falls back to an empty org name when the org vanished", async () => {
-    mockDb.user.findUnique
-      .mockResolvedValueOnce({ id: ANOTHER_UUID })
-      .mockResolvedValueOnce({ name: "Alice" });
-    mockDb.membership.create.mockResolvedValueOnce(membership);
-    mockDb.org.findUnique.mockResolvedValueOnce(null);
-    mockDb.notification.create.mockResolvedValueOnce({ id: "n1" });
-
-    await inviteMemberToOrg(db, mockIo, VALID_ORG_ID, VALID_USER.id, data);
-
-    expect(mockDb.notification.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          message: "Alice invited you to an organization",
-        }) as unknown,
-      }),
-    );
-  });
-
-  it("maps UserNotFoundError to a helpful NOT_FOUND", async () => {
-    mockDb.user.findUnique.mockResolvedValueOnce(null);
-
-    await expect(
-      inviteMemberToOrg(db, mockIo, VALID_ORG_ID, VALID_USER.id, data),
-    ).rejects.toMatchObject({
-      code: "NOT_FOUND",
-      message: expect.stringContaining("bob@example.com") as unknown,
-    });
-  });
-
-  it("re-throws unknown errors (e.g. unique constraint)", async () => {
-    mockDb.user.findUnique.mockResolvedValueOnce({ id: ANOTHER_UUID });
-    mockDb.membership.create.mockRejectedValueOnce(new Error("P2002"));
-
-    await expect(inviteMemberToOrg(db, mockIo, VALID_ORG_ID, VALID_USER.id, data)).rejects.toThrow(
-      "P2002",
-    );
   });
 });
 

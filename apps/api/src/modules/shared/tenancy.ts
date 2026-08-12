@@ -70,3 +70,16 @@ export async function assertLabelInOrg(
 
   if (label?.orgId !== orgId) throw new TRPCError(CROSS_TENANT);
 }
+
+export async function assertInvitationInOrg(
+  db: PrismaClient,
+  invitationId: string,
+  orgId: string,
+): Promise<void> {
+  const invitation = await db.invitation.findUnique({
+    where: { id: invitationId },
+    select: { orgId: true },
+  });
+
+  if (invitation?.orgId !== orgId) throw new TRPCError(CROSS_TENANT);
+}

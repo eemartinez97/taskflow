@@ -58,8 +58,11 @@ test.describe("Project -> Board -> Task flow", () => {
     await expect(page.getByRole("dialog", { name: "Task details" })).toBeVisible();
 
     const taskPanel = page.getByRole("dialog", { name: "Task details" });
-    await page.getByLabel("Description").fill("Use the new brand guidelines.");
-    await page.getByLabel("Description").blur();
+    // Scoped to taskPanel: the /projects page's CreateProjectDialog also has
+    // a "Description" field and Next.js keeps that route segment mounted in
+    // its client-side router cache, so an unscoped getByLabel matches both.
+    await taskPanel.getByLabel("Description").fill("Use the new brand guidelines.");
+    await taskPanel.getByLabel("Description").blur();
     // "Saved" exact + scoped to the panel: a page-wide /saved/i also matches
     // the mounted-but-closed "Unsaved changes" ConfirmDialog.
     await expect(taskPanel.getByText("Saved", { exact: true })).toBeVisible();

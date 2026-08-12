@@ -6,7 +6,7 @@ import type {
   PrismaClient,
   Role,
 } from "@taskflow/database";
-import type { CreateOrg, InviteMember, UpdateOrg } from "@taskflow/shared";
+import type { CreateOrg, UpdateOrg } from "@taskflow/shared";
 
 import {
   createOrg,
@@ -15,15 +15,11 @@ import {
   findMembership,
   findOrgById,
   findOrgsByUser,
-  inviteMember,
   removeMember,
   updateMembershipRole,
   updateOrg,
-  UserNotFoundError,
 } from "./repo";
-import { notifyMemberInvited } from "../notifications/service";
 import { TRPCError } from "../../trpc/init";
-import type { AppServer } from "../../socket/events";
 
 export async function listOrgs(db: PrismaClient, userId: string): Promise<OrgWithMembership[]> {
   return findOrgsByUser(db, userId);
@@ -58,37 +54,6 @@ export async function deleteOrgById(db: PrismaClient, orgId: string): Promise<{ 
 
 export async function listMembers(db: PrismaClient, orgId: string): Promise<MembershipWithUser[]> {
   return findMembers(db, orgId);
-}
-
-export async function inviteMemberToOrg(
-  db: PrismaClient,
-  io: AppServer,
-  orgId: string,
-  actorId: string,
-  data: InviteMember,
-): Promise<Membership> {
-  try {
-    const membership = await inviteMember(db, orgId, data);
-
-    const org = await findOrgById(db, orgId);
-    await notifyMemberInvited(db, io, {
-      recipientId: membership.userId,
-      actorId,
-      orgId,
-      orgName: org?.name ?? "",
-    });
-
-    return membership;
-  } catch (err) {
-    if (err instanceof UserNotFoundError) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: `No account found for ${data.email}. Ask them to register first.`,
-      });
-    }
-    // Re-throw unknown error (e.g. unique constraint violation from prisma)
-    throw err;
-  }
 }
 
 export async function removeMemberFromOrg(

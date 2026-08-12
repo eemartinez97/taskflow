@@ -6,8 +6,10 @@ import { Check, CheckCheck, Trash2, X } from "lucide-react";
 import { Button } from "@taskflow/ui";
 
 import { api } from "@/lib/trpc/client";
-import { useRouter } from "next/navigation";
+import { useAppRouter } from "@/lib/hooks/use-app-router";
 import { useNotifications } from "@/lib/hooks/use-notifications";
+import { useInvitationActions } from "@/components/invitations/use-invitation-actions";
+import type { MyInvitation } from "@taskflow/shared";
 
 interface NotificationsPanelProps {
   onClose: () => void;
@@ -16,9 +18,16 @@ interface NotificationsPanelProps {
 export function NotificationsPanel({ onClose }: NotificationsPanelProps): JSX.Element {
   const panelRef = useRef<HTMLDivElement>(null);
   const utils = api.useUtils();
-  const router = useRouter();
+  const router = useAppRouter();
 
   const data = useNotifications();
+  const { data: myInvitations } = api.invitations.listMine.useQuery();
+  const { accept, decline, isAccepting, isDeclining } = useInvitationActions();
+
+  /** MEMBER_INVITED notifications carry the org id as entityId - same value listMine's orgId field. */
+  function findInvitation(orgId: string | null): MyInvitation | undefined {
+    return myInvitations?.find((inv) => inv.orgId === orgId);
+  }
 
   const invalidateList = useCallback(() => {
     void utils.notifications.list.invalidate();
@@ -54,7 +63,7 @@ export function NotificationsPanel({ onClose }: NotificationsPanelProps): JSX.El
     entityId: string | null;
   }): string | null {
     if (n.entityType === "task" && n.entityId) return `/tasks?task=${n.entityId}`;
-    if (n.entityType === "org") return "/team";
+    if (n.entityType === "org" && n.entityId) return `/organizations/${n.entityId}`;
     return null;
   }
 
@@ -115,52 +124,82 @@ export function NotificationsPanel({ onClose }: NotificationsPanelProps): JSX.El
           <li className="px-4 py-6 text-center text-xs text-gray-400">No notifications yet.</li>
         )}
 
-        {data.notifications.map((n) => (
-          <li
-            key={n.id}
-            onClick={() => {
-              handleOpen(n);
-            }}
-            className={`flex items-start gap-3 px-4 py-3 text-sm transition-colors ${
-              notificationHref(n) ? "cursor-pointer hover:bg-gray-50" : ""
-            } ${n.read ? "text-gray-500" : "bg-brand-50/30 text-gray-800"}`}
-          >
-            <div className="flex-1 min-w-0">
-              <p className="leading-snug">{n.message}</p>
-              <p className="mt-0.5 text-xs text-gray-400">
-                {new Date(n.createdAt).toLocaleDateString()}
-              </p>
-            </div>
+        {data.notifications.map((n) => {
+          const invitation = n.type === "MEMBER_INVITED" ? findInvitation(n.entityId) : undefined;
 
-            <div className="flex shrink-0 gap-1">
-              {!n.read && (
-                <button
-                  type="button"
-                  aria-label="Mark as read"
+          return (
+            <li
+              key={n.id}
+              onClick={() => {
+                handleOpen(n);
+              }}
+              className={`flex items-start gap-3 px-4 py-3 text-sm transition-colors ${
+                notificationHref(n) ? "cursor-pointer hover:bg-gray-50" : ""
+              } ${n.read ? "text-gray-500" : "bg-brand-50/30 text-gray-800"}`}
+            >
+              <div className="flex-1 min-w-0">
+                <p className="leading-snug">{n.message}</p>
+                <p className="mt-0.5 text-xs text-gray-400">
+                  {new Date(n.createdAt).toLocaleDateString()}
+                </p>
+
+                {invitation && (
+                  <div className="mt-2 flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={isDeclining}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        decline({ invitationId: invitation.id });
+                      }}
+                    >
+                      Decline
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={isAccepting}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        accept({ invitationId: invitation.id });
+                      }}
+                    >
+                      Accept
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex shrink-0 gap-1">
+                {!n.read && (
+                  <button
+                    type="button"
+                    aria-label="Mark as read"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      markReadMutation.mutate({ ids: [n.id] });
+                    }}
+                    className="rounded p-1 text-gray-300 hover:text-brand-600"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Delete notification"
                   onClick={(e) => {
                     e.stopPropagation();
-                    markReadMutation.mutate({ ids: [n.id] });
+                    deleteMutation.mutate({ notificationId: n.id });
                   }}
-                  className="rounded p-1 text-gray-300 hover:text-brand-600"
+                  className="h-7 w-7 text-gray-300 hover:text-red-500"
                 >
-                  <Check className="h-3.5 w-3.5" />
-                </button>
-              )}
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Delete notification"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  deleteMutation.mutate({ notificationId: n.id });
-                }}
-                className="h-7 w-7 text-gray-300 hover:text-red-500"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          </li>
-        ))}
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

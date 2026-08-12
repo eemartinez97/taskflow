@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -26,7 +26,6 @@ vi.mock("@/components/common/confirm-dialog", () => ({
     ) : null;
   },
 }));
-import { usePathname } from "next/navigation";
 import { api } from "@/lib/trpc/client";
 import { OrgSwitcher } from "@/components/layout/org-switcher";
 import { registerDirtyCheck } from "@/lib/utils/navigation-guard";
@@ -122,21 +121,22 @@ describe("OrgSwitcher", () => {
     await user.click(screen.getByRole("button", { name: /create/i }));
     expect(pushMock).toHaveBeenCalledWith("/projects");
   });
-  it("starts nav progress when switching org from a page other than /projects", async () => {
+  it("starts nav progress when switching org, and clears once the transition settles", async () => {
     mockUseQuery(api.orgs.list, [orgA, orgB]);
-    setupRouterMock();
-    vi.mocked(usePathname).mockReturnValue("/tasks");
+    const { pushMock, refreshMock } = setupRouterMock();
     render(<OrgSwitcher />);
     await userEvent.setup().selectOptions(screen.getByLabelText(/select organization/i), orgB.id);
-    expect(getNavProgress()).toBe(true);
-  });
-  it("does not start nav progress when already on /projects (pathname won't change)", async () => {
-    mockUseQuery(api.orgs.list, [orgA, orgB]);
-    setupRouterMock();
-    vi.mocked(usePathname).mockReturnValue("/projects");
-    render(<OrgSwitcher />);
-    await userEvent.setup().selectOptions(screen.getByLabelText(/select organization/i), orgB.id);
-    expect(getNavProgress()).toBe(false);
+    expect(pushMock).toHaveBeenCalledWith("/projects");
+    expect(refreshMock).toHaveBeenCalled();
+    // Always fires now, regardless of the current pathname: switching org
+    // while already on /projects doesn't change the URL, but refresh()
+    // still does the real work of re-fetching data for the new org, and
+    // useAppRouter tracks that via a real transition instead of a pathname
+    // comparison - see use-app-router.test.ts for the synchronous-start
+    // assertion this component test doesn't need to duplicate.
+    await waitFor(() => {
+      expect(getNavProgress()).toBe(false);
+    });
   });
   it("does nothing when onConfirm fires without a pendingOrgId set", () => {
     mockUseQuery(api.orgs.list, [orgA, orgB]);

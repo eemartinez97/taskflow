@@ -3,8 +3,86 @@
 Non-blocking items found during the auth refactor review. Nothing here is a
 security hole or a broken flow, just stuff that should get done eventually.
 
+## Auth consolidation + org invitations (planned in two epics)
+
+Trigger was investigating org invitations: `orgs.inviteMember` created
+`Membership` rows immediately with no `Invitation` table, no consent, no
+email — and nothing sends invitation email anyway, since `apps/api` had no
+`@taskflow/mail` dependency at all. Fixing invitations properly needed
+`apps/api` to own the whole unauthenticated auth domain first (registration,
+verification, password reset, mail), so exactly one process ever sends
+email and invitations become a normal feature there instead of splitting
+create-then-send across a network hop.
+
+- [x] **Epic A — auth domain moved into `apps/api`.** Registration, email
+      verification, password reset, and credential checking are now public
+      (and one internal) tRPC procedures in `apps/api/src/modules/auth/`,
+      not Next.js Route Handlers. `apps/web` is UI-only for auth. Side
+      effects: login is rate-limited for the first time
+      (`auth.verifyCredentials`, gated by a new `internalProcedure` +
+      `INTERNAL_API_SECRET`), the E2E test routes (`/api/test/*`) and mail
+      sender moved to `apps/api` alongside each other, and
+      `CLAUDE.md`'s "Auth flow specifics" section was rewritten to match.
+      See `apps/api/src/modules/auth/`, `apps/web/lib/trpc/http-server.ts`.
+- [x] **Epic B — org invitations**, on top of Epic A. New `Invitation`
+      model (`PENDING`/`ACCEPTED`/`DECLINED`/`REVOKED`, `role <> 'OWNER'`
+      CHECK, `@@unique([orgId, email])` for atomic re-invite),
+      `apps/api/src/modules/invitations/` (create/listForOrg/revoke/resend/
+      listMine/getByToken/getByTokenPublic/accept/decline, all IDOR-guarded
+      via `assertInvitationInOrg`), `Membership` created only on accept
+      (`acceptInvitationTx`'s conditional `updateMany`, race-safe under
+      concurrent accepts), `/organizations/[orgId]` route with a real
+      Members + Invitations UI (replacing `/team`, kept as a redirect for
+      old links/notifications), unregistered-invitee signup via
+      `/register?invite=<token>` (prefilled read-only email), inline
+      accept/decline from the notifications panel and a pending-invitations
+      card, and full E2E coverage (`tests/e2e/invitations.spec.ts`) reading
+      the real invite email through `/api/test/last-email`. `orgs.inviteMember`
+      is gone (was the trigger for this whole epic - see above); `Membership`
+      is now only ever created through `invitations.accept`. The
+      pending-invitations card also shows each invite's expiry date, so an
+      invitee can see they're on a clock before it lapses.
+- [x] **Stale invitation purge**, the epic's optional follow-up.
+      `packages/database/src/scripts/cleanup-stale-invitations.ts` deletes
+      `PENDING` `Invitation` rows expired more than
+      `STALE_INVITATION_GRACE_DAYS` (30 days) ago - `DECLINED`/`REVOKED`/
+      `ACCEPTED` rows are left alone as resolved history. Wired into
+      `.github/workflows/cleanup-cron.yml` alongside the other two daily
+      cleanup jobs.
+
+- [ ] **Known gotcha: repeated local E2E runs can trip the shared login
+      rate limiter and cause flaky `auth.spec.ts` failures** (a login stuck
+      on `/login`, `waitForURL(/\/projects/)` timing out - `verifyCredentials`
+      returned `null` because `checkLoginIpRateLimit` actually limited it).
+      Confirmed by querying `auth."RateLimitBucket"` directly after a flaky
+      run: `login-ip:::1` had `count = 38` against `LOGIN_IP_RATE_LIMIT = 20`
+      (`apps/api/src/modules/auth/rate-limit.ts`) - every local Playwright
+      request shares one IP (`::1`), so this bucket is cumulative across
+      however many `playwright test` invocations happen inside the same
+      15-minute window, not just one run. The bypass itself
+      (`isAuthorizedE2ERequest`, gated on `ENABLE_TEST_ROUTES` + a local
+      `DATABASE_URL` + a matching `x-e2e-secret` header) was verified
+      working correctly in an isolated run (added a temporary debug log,
+      confirmed apps/web's `x-e2e-secret` header reaches apps/api and
+      matches on every login call, zero real bucket writes) - the 38-count
+      row was already outside its window (harmless) by the time this was
+      investigated, so the exact run that produced it wasn't caught live.
+      Likely cause: manual/ad-hoc testing against the same local Postgres
+      before the bypass was fully wired up, or a `playwright test` run
+      whose webServer didn't have `E2E_TEST_SECRET`/`ENABLE_TEST_ROUTES`
+      set (e.g. `reuseExistingServer` picking up a stale process, or the
+      server started outside `playwright.config.ts`). `RateLimitBucket`
+      rows are never cleared mid-session (only the daily cron, and only
+      once actually expired) - see also `/api/test/reset`'s own docblock
+      for the identical caveat on the auth (register/reset) buckets.
+      Deliberately NOT raising `LOGIN_IP_RATE_LIMIT`/`LOGIN_EMAIL_RATE_LIMIT`
+      to paper over this - the bypass is the correct fix path when it's
+      actually engaged; if this recurs, check first whether the webServer
+      that ran actually had a fresh, matching `E2E_TEST_SECRET` before
+      touching the limit values.
+
 - [ ] Send a "your password was changed" email on successful reset
-      (`apps/web/app/api/auth/reset-password/route.ts` sends nothing today).
+      (`apps/api/src/modules/auth/service.ts`'s `resetPassword` sends nothing today).
 - [x] Add a GitHub Actions pipeline (lint, typecheck, test, build). Done -
       `.github/workflows/ci.yml` - lint/typecheck/test + a docker-build job
       that brings up the full compose stack and smoke-tests it, + gitleaks.
@@ -49,6 +127,29 @@ rate-limit/timing fixes above. Nothing blocking, but worth cleaning up.
       but a local/manual `docker compose up --build` skips that check and can
       ship a type error silently. Either run `tsc --noEmit` as a pre-build
       step in the script, or document that `build` alone isn't a type-check.
+- [x] **`pnpm --filter @taskflow/api dev` (`tsx watch`) silently broke every
+      real email send - now fixed for real.** Found while building Epic B's
+      E2E coverage: `tsx` resolves exactly ONE tsconfig per process (from
+      `--tsconfig`, or discovered from cwd) and only applies its `jsx`
+      compilerOption to files matched by THAT tsconfig's own `include` - it
+      does not walk up to each file's nearest tsconfig.json the way `tsc`
+      does. `apps/api/tsconfig.json` has no reason to include anything
+      outside `src`/`tests`, so `packages/mail`'s `.tsx` email templates fell
+      outside it, silently got esbuild's classic JSX transform (bare
+      `React.createElement`, no import) instead of the automatic runtime, and
+      `sendVerificationEmail`/`sendPasswordResetEmail`/`sendOrgInviteEmail`/
+      etc. all crashed at call time with `ReferenceError: React is not
+  defined`. Invisible in `pnpm test` (Vitest's own esbuild pipeline
+      resolves tsconfig correctly) and in the production build
+      (`apps/api/scripts/build.mjs`'s explicit `jsx: "automatic"` esbuild
+      option, a separate but related fix for the equivalent limitation in
+      esbuild's own bundler). Real fix: `apps/api/tsconfig.dev.json` (used
+      only by the `dev` script, via `tsx watch --tsconfig tsconfig.dev.json`)
+      widens `include` to also cover `packages/mail/src` and sets
+      `"jsx": "react-jsx"` - see that file's own docblock. Verified by
+      booting `pnpm --filter @taskflow/api dev` and both registering a real
+      user (200, real verification email sent) and calling
+      `sendOrgInviteEmail` directly (the exact file/line that used to crash).
 - [ ] `docker-compose.yml`'s `nginx` service has no `healthcheck` (unlike
       `postgres`/`api`/`web`), so `.github/workflows/ci.yml`'s wait-loop can't
       see nginx-specific startup failures - it only catches them later via the
@@ -77,13 +178,56 @@ rate-limit/timing fixes above. Nothing blocking, but worth cleaning up.
       `apps/api/src/socket/rate-limit.ts`). Rename one of the two to avoid
       wrong-import mistakes (IDE auto-import, search-and-replace) when wiring
       up a new route or socket handler.
-- [ ] `packages/database/src/scripts/cleanup-abandoned-registrations.ts` and
-      `cleanup-expired-rate-limits.ts` duplicate an identical ~15-line CLI
-      bootstrap block (dotenv config, PrismaPg adapter + client construction,
-      try/finally disconnect, `import.meta.url` entrypoint guard,
-      `process.exit(1)` on error). Extract a shared runner helper before the
-      already-planned third cleanup job (expired `AuthToken` rows, see the
-      "never get cleaned up" item above) copies it a third time.
+- [x] `packages/database/src/scripts/cleanup-abandoned-registrations.ts` and
+      `cleanup-expired-rate-limits.ts` duplicated an identical ~15-line CLI
+      bootstrap block. Extracted into `run-cleanup.ts`'s `runCleanupCli()`
+      when the stale-invitations cleanup job (see the invitations epic above)
+      became the third copy of it - each script is now just its
+      `cleanupXxx(db, ...)` pure function plus a one-line entrypoint guard.
+- [ ] **Revisit `apps/web/lib/http/client-ip.ts`'s hand-rolled XFF hop-count
+      parsing vs. apps/api's Express `trust proxy` (`proxy-addr`/`forwarded`).**
+      Both implement the identical "trust N hops" algorithm independently.
+      Investigated unifying them and concluded it's not a safe mechanical
+      fix: `forwarded`'s address list construction requires
+      `req.socket.remoteAddress` (the raw TCP peer) as its first entry, and
+      `client-ip.ts`'s caller (`auth.ts`'s NextAuth `authorize()`) only has
+      a plain object with headers - no underlying socket at all - so those
+      packages cannot be dropped in without either silently misbehaving
+      (no real socket to seed the address list with) or threading a raw
+      socket through NextAuth's callback signature, which is a bigger
+      change than a cleanup pass justifies. If this gets revisited: check
+      whether Next.js's Route Handler / Server Action runtime ever exposes
+      a reliable raw socket reference across all deployment targets this
+      project supports - if so, that access point (not this file's current
+      caller) is where real reuse becomes possible. Until then, keep the
+      two implementations' _algorithm_ in sync by comment (see both files'
+      docblocks), not by shared code.
+- [ ] **Revisit the auth rate limiter's relationship to `packages/shared`'s
+      `RateLimiter`.** `apps/api/src/modules/auth/rate-limit.ts`'s
+      Postgres-backed `checkRateLimitBucket`/`releaseRateLimitBucket` (added
+      for register/password-reset/login) reinvent the exact same
+      `windowToken`/`release` "refundable sliding window" contract already
+      defined as the `RateLimiter` interface in
+      `packages/shared/src/utils/rate-limit.ts`, as a fully independent,
+      parallel implementation with no shared interface. Investigated
+      unifying them directly and concluded it's not a safe mechanical fix:
+      `RateLimiter` is deliberately fully SYNCHRONOUS (built for the
+      in-memory socket-presence limiter's hot path -
+      `apps/api/src/socket/rate-limit.ts` /
+      `apps/api/src/middleware/rate-limit.ts` - see that file's own
+      perf-motivated docblock), while the Postgres-backed one is
+      necessarily ASYNCHRONOUS (every operation is a DB round-trip).
+      Sharing one interface would mean making `RateLimiter` async and
+      updating every socket-layer consumer to `await` it - a cross-cutting
+      change to already-correct, performance-sensitive code, not something
+      to do opportunistically alongside an auth bugfix pass. If/when this
+      gets revisited: the honest options are (a) a proper `RateLimiter`
+      variant/generic that supports both sync and async backends
+      (`Promise<T> | T` return types, or two named interfaces sharing a
+      spec), designed deliberately rather than retrofitted, or (b) accept
+      the duplication permanently and just keep the two implementations'
+      _semantics_ (refundable release, window-token staleness check) in
+      sync by comment, which is the status quo today.
 - [ ] `apps/web/tests/e2e/auth.spec.ts`'s session-revocation-TTL test lost its
       `test.slow()` call, so the real wait (`cacheTtlMs + 1000`, falling back
       to a real 61s if `PASSWORD_CHANGED_AT_CACHE_TTL_MS` isn't propagated to

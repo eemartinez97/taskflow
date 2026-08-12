@@ -239,8 +239,8 @@ describe("markNotificationsReadSchema", () => {
 });
 
 describe("NOTIFICATION_TYPES constant (sync guard)", () => {
-  it("contains exactly 4 notification types", () => {
-    expect(NOTIFICATION_TYPES).toHaveLength(4);
+  it("contains exactly 6 notification types", () => {
+    expect(NOTIFICATION_TYPES).toHaveLength(6);
   });
 
   it("contains TASK_ASSIGNED", () => {
@@ -257,6 +257,14 @@ describe("NOTIFICATION_TYPES constant (sync guard)", () => {
 
   it("contains MEMBER_INVITED", () => {
     expect(NOTIFICATION_TYPES).toContain("MEMBER_INVITED");
+  });
+
+  it("contains INVITATION_ACCEPTED", () => {
+    expect(NOTIFICATION_TYPES).toContain("INVITATION_ACCEPTED");
+  });
+
+  it("contains INVITATION_DECLINED", () => {
+    expect(NOTIFICATION_TYPES).toContain("INVITATION_DECLINED");
   });
 
   it("matches notificationTypeSchema.options exactly (constant IS the schema source)", () => {

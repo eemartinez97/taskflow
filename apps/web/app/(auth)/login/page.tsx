@@ -4,7 +4,6 @@ import Link from "next/link";
 import { Suspense, useState, useSyncExternalStore, type JSX } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 
 import {
@@ -18,6 +17,7 @@ import {
   Alert,
 } from "@taskflow/ui";
 import { type LoginInput, loginSchema } from "@/lib/auth/schemas";
+import { useAppRouter } from "@/lib/hooks/use-app-router";
 
 /** Maps a known query flag to a one-line success message shown above the form. */
 export function successMessageFor(params: URLSearchParams): string | null {
@@ -91,7 +91,7 @@ function getCallbackUrl(): string {
  */
 
 function LoginForm(): JSX.Element {
-  const router = useRouter();
+  const router = useAppRouter();
   const [serverError, setServerError] = useState<string | null>(null);
   // Reading window.location directly here - not via useSearchParams - avoids
   // forcing a Suspense boundary under Next 16 cacheComponents, same

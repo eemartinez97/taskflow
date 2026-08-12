@@ -14,3 +14,5 @@ export { sendPasswordResetEmail } from "./send-password-reset-email";
 export type { SendPasswordResetEmailParams } from "./send-password-reset-email";
 export { sendAccountActivatedEmail } from "./send-account-activated-email";
 export type { SendAccountActivatedEmailParams } from "./send-account-activated-email";
+export { sendOrgInviteEmail } from "./send-org-invite-email";
+export type { SendOrgInviteEmailParams } from "./send-org-invite-email";

@@ -24,17 +24,51 @@ import {
 import { TRPCError } from "../../trpc/init";
 import type { AppServer } from "../../socket/events";
 import { emitToProject } from "../../socket/emit";
+import { fireAndForget } from "../../utils/fire-and-forget";
 
 /**
  * Broadcasts the fresh board (name + columns) to everyone viewing the
  * project. One event covers board rename + column add/rename/delete/reorder;
  * clients replace their boards.getByProject cache wholesale (server truth).
+ *
+ * Excludes the acting user's own connections - a WebSocket push structurally
+ * beats their own mutation's HTTP response under any real latency, so
+ * without this their board would visibly update while their own
+ * button/spinner is still showing loading. Their own view updates from
+ * their own mutation's response instead (see each client mutation's
+ * onSuccess, which calls setData directly rather than invalidate).
  */
-async function emitBoardUpdated(db: PrismaClient, io: AppServer, boardId: string): Promise<void> {
+async function emitBoardUpdated(
+  db: PrismaClient,
+  io: AppServer,
+  boardId: string,
+  actorId: string,
+): Promise<void> {
   const board = await findBoardWithColumns(db, boardId);
   if (!board) return;
 
-  emitToProject(io, board.projectId, SOCKET_EVENTS.BOARD_UPDATED, { board });
+  emitToProject(io, board.projectId, SOCKET_EVENTS.BOARD_UPDATED, { board }, actorId);
+}
+
+/**
+ * Fire-and-forget wrapper for emitBoardUpdated - callers already committed
+ * their DB write by the time they call this, so a broadcast failure must
+ * never turn an already-successful mutation into a 500, and the caller's
+ * own HTTP response shouldn't wait behind the extra board refetch this does
+ * before emitting.
+ */
+function broadcastBoardUpdated(
+  db: PrismaClient,
+  io: AppServer,
+  boardId: string,
+  actorId: string,
+  context: string,
+): void {
+  fireAndForget(
+    emitBoardUpdated(db, io, boardId, actorId),
+    `${context}: failed to broadcast board update`,
+    { boardId },
+  );
 }
 
 export async function listBoards(db: PrismaClient, projectId: string): Promise<Board[]> {
@@ -68,12 +102,13 @@ export async function updateBoardById(
   db: PrismaClient,
   io: AppServer,
   boardId: string,
+  actorId: string,
   data: UpdateBoard,
 ): Promise<Board> {
   await getBoard(db, boardId);
 
   const updated = await updateBoard(db, boardId, data);
-  await emitBoardUpdated(db, io, boardId);
+  broadcastBoardUpdated(db, io, boardId, actorId, "boards.updateBoardById");
 
   return updated;
 }
@@ -82,12 +117,13 @@ export async function addColumn(
   db: PrismaClient,
   io: AppServer,
   boardId: string,
+  actorId: string,
   name: string,
 ): Promise<Column> {
   const position = await getMaxColumnPosition(db, boardId);
   const column = await createColumn(db, { boardId, name, position });
 
-  await emitBoardUpdated(db, io, boardId);
+  broadcastBoardUpdated(db, io, boardId, actorId, "boards.addColumn");
 
   return column;
 }
@@ -95,10 +131,11 @@ export async function addColumn(
 export async function reorderBoardColumn(
   db: PrismaClient,
   io: AppServer,
+  actorId: string,
   payload: ReorderColumns,
 ): Promise<{ success: true }> {
   await reorderColumns(db, payload);
-  await emitBoardUpdated(db, io, payload.boardId);
+  broadcastBoardUpdated(db, io, payload.boardId, actorId, "boards.reorderBoardColumn");
 
   return { success: true };
 }
@@ -107,6 +144,7 @@ export async function renameColumn(
   db: PrismaClient,
   io: AppServer,
   columnId: string,
+  actorId: string,
   name: string,
 ): Promise<Column> {
   const column = await findColumnById(db, columnId);
@@ -114,7 +152,7 @@ export async function renameColumn(
   if (!column) throw new TRPCError({ code: "NOT_FOUND", message: "Column not found." });
 
   const updated = await updateColumnName(db, columnId, name);
-  await emitBoardUpdated(db, io, column.boardId);
+  broadcastBoardUpdated(db, io, column.boardId, actorId, "boards.renameColumn");
 
   return updated;
 }
@@ -123,6 +161,7 @@ export async function deleteColumnById(
   db: PrismaClient,
   io: AppServer,
   columnId: string,
+  actorId: string,
 ): Promise<{ success: true }> {
   const column = await findColumnById(db, columnId);
 
@@ -130,7 +169,7 @@ export async function deleteColumnById(
 
   // Cascades to the column's tasks (schema: Task.column onDelete: Cascade)
   await deleteColumn(db, columnId);
-  await emitBoardUpdated(db, io, column.boardId);
+  broadcastBoardUpdated(db, io, column.boardId, actorId, "boards.deleteColumnById");
 
   return { success: true };
 }

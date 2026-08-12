@@ -65,6 +65,14 @@ describe("OrganizationsClient", () => {
     expect(screen.getByText("Member Org")).toBeInTheDocument();
   });
 
+  it("links the whole org card to its detail page", () => {
+    mockUseQuery(api.orgs.list, [ownerOrg]);
+    render(<OrganizationsClient initialOrgs={[ownerOrg]} />);
+    const link = screen.getByRole("link", { name: /Owner Org/ });
+    expect(link).toHaveAttribute("href", "/organizations/org-1");
+    expect(link).toContainElement(screen.getByRole("button", { name: /edit owner org/i }));
+  });
+
   it("opens the create dialog and triggers onCreated", async () => {
     const { refreshMock } = setupRouterMock();
     mockUseQuery(api.orgs.list, [ownerOrg]);

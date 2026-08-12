@@ -10,7 +10,9 @@ import type {
   boardSchema,
   columnSchema,
   commentSchema,
+  invitationStatusSchema,
   labelSchema,
+  myInvitationSchema,
   notificationSchema,
   presenceCursorSchema,
   presenceUserSchema,
@@ -26,6 +28,8 @@ export type SocketNotification = z.infer<typeof notificationSchema>;
 export type SocketPresenceUser = z.infer<typeof presenceUserSchema>;
 export type SocketColumn = z.infer<typeof columnSchema>;
 export type SocketBoard = z.infer<typeof boardSchema> & { columns: SocketColumn[] };
+export type SocketMyInvitation = z.infer<typeof myInvitationSchema>;
+export type SocketInvitationStatus = z.infer<typeof invitationStatusSchema>;
 
 /** Events emitted FROM the client TO the server. */
 export interface ClientToServerEvents {
@@ -56,4 +60,12 @@ export interface ServerToClientEvents {
   [SOCKET_EVENTS.PRESENCE_ONLINE]: (payload: { userId: string }) => void;
   [SOCKET_EVENTS.PRESENCE_OFFLINE]: (payload: { userId: string }) => void;
   [SOCKET_EVENTS.PRESENCE_ONLINE_SYNC]: (payload: { userIds: string[] }) => void;
+  /** Sent to the invitee's personal user: room - they aren't an org member yet, so no org room applies. */
+  [SOCKET_EVENTS.INVITATION_RECEIVED]: (payload: { invitation: SocketMyInvitation }) => void;
+  /** Sent to the org: room so the admin's invitations table updates live on accept/decline/revoke. */
+  [SOCKET_EVENTS.INVITATION_RESOLVED]: (payload: {
+    invitationId: string;
+    orgId: string;
+    status: SocketInvitationStatus;
+  }) => void;
 }

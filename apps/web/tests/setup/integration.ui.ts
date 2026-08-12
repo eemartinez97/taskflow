@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
+import type * as TanstackReactQuery from "@tanstack/react-query";
 import "./env";
 import "./silence-console";
 
@@ -12,6 +13,12 @@ vi.mock("server-only", async () => await import("@/tests/mocks/server-only"));
 vi.mock("next/navigation", async () => await import("@/tests/mocks/next-navigation"));
 vi.mock("next-auth/react", async () => await import("@/tests/mocks/next-auth"));
 vi.mock("next/link", async () => await import("@/tests/mocks/next-link"));
+// Partial mock: preserves every real export - only useIsFetching/useIsMutating
+// (used by useGlobalLoading) are stubbed. See tests/mocks/tanstack-query.ts.
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+  ...(await importOriginal<typeof TanstackReactQuery>()),
+  ...(await import("@/tests/mocks/tanstack-query")),
+}));
 
 afterEach(() => {
   cleanup();

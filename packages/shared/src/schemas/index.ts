@@ -2,6 +2,7 @@ export * from "./auth";
 export * from "./common";
 export * from "./user";
 export * from "./org";
+export * from "./invitation";
 export * from "./project";
 export * from "./board";
 export * from "./task";

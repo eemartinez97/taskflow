@@ -65,10 +65,17 @@ export function TaskDetailPanel({
   const { data: taskLabels = [] } = api.tasks.labels.useQuery({ orgId, taskId: task.id });
 
   // Both mutations return the fresh Label[] - write it straight into the
-  // panel cache and refresh the board's chips map
+  // panel cache and the board's project-wide chips map (same shape
+  // onTaskLabelsChanged's socket handler writes - see
+  // use-board-realtime.ts), which the server excludes the acting user's
+  // own socket from receiving for exactly this reason (see
+  // socket/emit.ts's excludeUserId).
   const syncLabels = (labels: Label[]): void => {
     utils.tasks.labels.setData({ orgId, taskId: task.id }, labels);
-    void utils.tasks.labelsByProject.invalidate({ orgId, projectId });
+    utils.tasks.labelsByProject.setData({ orgId, projectId }, (prev) => [
+      ...(prev ?? []).filter((pair) => pair.taskId !== task.id),
+      ...labels.map((label) => ({ taskId: task.id, label })),
+    ]);
   };
 
   const addLabelMutation = api.tasks.addLabel.useMutation({ onSuccess: syncLabels });

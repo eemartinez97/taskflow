@@ -5,6 +5,20 @@ import { notifyCommentCreated } from "../notifications/service";
 import { emitToProject } from "../../socket/emit";
 import { SOCKET_EVENTS } from "@taskflow/shared";
 import type { AppServer } from "../../socket/events";
+import { fireAndForget } from "../../utils/fire-and-forget";
+
+/**
+ * Fire-and-forget: notifyCommentCreated does its own DB write plus a
+ * socket emit. Awaiting it before returning would delay the HTTP response
+ * - which the comment form's disabled/loading state is bound to - behind
+ * work the caller doesn't need to wait for, and would turn a failed
+ * notification into a false failure of an already-successful comment.
+ */
+function notifyCommentCreatedInBackground(...args: Parameters<typeof notifyCommentCreated>): void {
+  fireAndForget(notifyCommentCreated(...args), "comments: failed to notify", {
+    taskId: args[2].taskId,
+  });
+}
 
 export async function listComments(db: PrismaClient, taskId: string): Promise<CommentWithAuthor[]> {
   return findCommentsByTask(db, taskId);
@@ -27,9 +41,9 @@ export async function createCommentOnTask(
 
   const comment = await createComment(db, taskId, authorId, body);
 
-  emitToProject(io, projectId, SOCKET_EVENTS.COMMENT_CREATED, { comment });
+  emitToProject(io, projectId, SOCKET_EVENTS.COMMENT_CREATED, { comment }, authorId);
 
-  await notifyCommentCreated(db, io, {
+  notifyCommentCreatedInBackground(db, io, {
     taskId,
     taskTitle: task.title,
     assigneeId: task.assigneeId,
@@ -58,10 +72,13 @@ export async function deleteCommentById(
 
   await deleteComment(db, commentId);
 
-  emitToProject(io, projectId, SOCKET_EVENTS.COMMENT_DELETED, {
-    commentId,
-    taskId: comment.taskId,
-  });
+  emitToProject(
+    io,
+    projectId,
+    SOCKET_EVENTS.COMMENT_DELETED,
+    { commentId, taskId: comment.taskId },
+    requesterId,
+  );
 
   return { success: true };
 }

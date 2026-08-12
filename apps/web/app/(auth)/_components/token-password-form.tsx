@@ -2,10 +2,10 @@
 import { type JSX } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { useRouter } from "next/navigation";
 import { Alert, Button, FormField, Input } from "@taskflow/ui";
 import { resetPasswordSchema } from "@taskflow/shared";
 import { api } from "@/lib/trpc/client";
+import { useAppRouter } from "@/lib/hooks/use-app-router";
 
 export interface TokenPasswordInput {
   token: string;
@@ -35,7 +35,7 @@ export function TokenPasswordForm({
   confirmLabel,
   submitLabel,
 }: TokenPasswordFormProps): JSX.Element {
-  const router = useRouter();
+  const router = useAppRouter();
   const mutation = api.auth.resetPassword.useMutation({
     meta: { skipErrorToast: true },
     onSuccess: () => {

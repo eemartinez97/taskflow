@@ -19,6 +19,21 @@ import { TRPCError } from "../../trpc/init";
 import { notifyTaskAssigned } from "../notifications/service";
 import type { AppServer } from "../../socket/events";
 import { emitToProject } from "../../socket/emit";
+import { fireAndForget } from "../../utils/fire-and-forget";
+
+/**
+ * Fire-and-forget: notifyTaskAssigned does its own DB write (creating a
+ * Notification row) plus a socket emit. Awaiting it before returning would
+ * delay the HTTP response - which every mutating button's disabled/loading
+ * state is bound to - behind work the caller doesn't need to wait for, and
+ * would turn a failed notification into a false failure of an
+ * already-successful task mutation.
+ */
+function notifyTaskAssignedInBackground(...args: Parameters<typeof notifyTaskAssigned>): void {
+  fireAndForget(notifyTaskAssigned(...args), "tasks: failed to notify assignee", {
+    taskId: args[2].taskId,
+  });
+}
 
 export async function listTasks(db: PrismaClient, columnId: string): Promise<Task[]> {
   return findTasksByColumn(db, columnId);
@@ -34,6 +49,15 @@ export async function getMyTasks(db: PrismaClient, userId: string): Promise<Task
   return findTaskByUser(db, userId);
 }
 
+/**
+ * Every emit below excludes the acting user's own connections
+ * (`emitToProject(..., actorId)`) - a WebSocket push structurally beats
+ * their own mutation's HTTP response under any real latency, so without
+ * this the board would visibly update while their own button/spinner is
+ * still showing loading. Their own view updates from their own mutation's
+ * response instead (see each client mutation's onSuccess, which calls
+ * setData directly rather than invalidate).
+ */
 export async function createTaskInColumn(
   db: PrismaClient,
   io: AppServer,
@@ -44,9 +68,9 @@ export async function createTaskInColumn(
   const position = await getMaxTaskPosition(db, data.columnId);
   const task = await createTask(db, { ...data, position, creatorId: actorId });
 
-  emitToProject(io, projectId, SOCKET_EVENTS.TASK_CREATED, { task });
+  emitToProject(io, projectId, SOCKET_EVENTS.TASK_CREATED, { task }, actorId);
 
-  await notifyTaskAssigned(db, io, {
+  notifyTaskAssignedInBackground(db, io, {
     taskId: task.id,
     taskTitle: task.title,
     assigneeId: task.assigneeId,
@@ -68,13 +92,13 @@ export async function updateTaskById(
   const existing = await getTask(db, taskId);
   const updated = await updateTask(db, taskId, data);
 
-  emitToProject(io, projectId, SOCKET_EVENTS.TASK_UPDATED, { task: updated });
+  emitToProject(io, projectId, SOCKET_EVENTS.TASK_UPDATED, { task: updated }, actorId);
 
   // Only notify when the assignee actually changed
   const assigneeChanged = data.assigneeId !== undefined && data.assigneeId !== existing.assigneeId;
 
   if (assigneeChanged) {
-    await notifyTaskAssigned(db, io, {
+    notifyTaskAssignedInBackground(db, io, {
       taskId: updated.id,
       taskTitle: updated.title,
       assigneeId: updated.assigneeId,
@@ -90,11 +114,12 @@ export async function moveTaskToColumn(
   db: PrismaClient,
   io: AppServer,
   projectId: string,
+  actorId: string,
   payload: MoveTask,
 ): Promise<Task> {
   const task = await moveTask(db, payload);
 
-  emitToProject(io, projectId, SOCKET_EVENTS.TASK_MOVED, { task });
+  emitToProject(io, projectId, SOCKET_EVENTS.TASK_MOVED, { task }, actorId);
 
   return task;
 }
@@ -103,12 +128,13 @@ export async function deleteTaskById(
   db: PrismaClient,
   io: AppServer,
   projectId: string,
+  actorId: string,
   taskId: string,
 ): Promise<{ success: true }> {
   await getTask(db, taskId);
   await deleteTask(db, taskId);
 
-  emitToProject(io, projectId, SOCKET_EVENTS.TASK_DELETED, { taskId });
+  emitToProject(io, projectId, SOCKET_EVENTS.TASK_DELETED, { taskId }, actorId);
 
   return { success: true };
 }
@@ -139,10 +165,11 @@ async function emitLabelsChanged(
   io: AppServer,
   projectId: string,
   taskId: string,
+  actorId: string,
 ): Promise<Label[]> {
   const labels = await findLabelsByTask(db, taskId);
 
-  emitToProject(io, projectId, SOCKET_EVENTS.TASK_LABELS_CHANGED, { taskId, labels });
+  emitToProject(io, projectId, SOCKET_EVENTS.TASK_LABELS_CHANGED, { taskId, labels }, actorId);
 
   return labels;
 }
@@ -150,6 +177,7 @@ async function emitLabelsChanged(
 export async function addLabelToTaskById(
   db: PrismaClient,
   io: AppServer,
+  actorId: string,
   input: TaskLabelInput,
 ): Promise<Label[]> {
   await getTask(db, input.taskId); // NOT_FOUND when the task doesn't exist
@@ -160,15 +188,16 @@ export async function addLabelToTaskById(
   }
 
   await attachLabelToTask(db, input.taskId, input.labelId);
-  return emitLabelsChanged(db, io, input.projectId, input.taskId);
+  return emitLabelsChanged(db, io, input.projectId, input.taskId, actorId);
 }
 
 export async function removeLabelFromTaskById(
   db: PrismaClient,
   io: AppServer,
+  actorId: string,
   input: TaskLabelInput,
 ): Promise<Label[]> {
   await detachLabelFromTask(db, input.taskId, input.labelId);
 
-  return emitLabelsChanged(db, io, input.projectId, input.taskId);
+  return emitLabelsChanged(db, io, input.projectId, input.taskId, actorId);
 }

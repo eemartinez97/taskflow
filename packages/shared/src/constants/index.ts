@@ -11,7 +11,27 @@ export const NOTIFICATION_TYPES = [
   "TASK_UPDATED",
   "COMMENT_CREATED",
   "MEMBER_INVITED",
+  "INVITATION_ACCEPTED",
+  "INVITATION_DECLINED",
 ] as const;
+
+// Invitation lifecycle states - no EXPIRED member, see the Invitation model's
+// docblock in packages/database for why expiry is derived, not stored.
+export const INVITATION_STATUSES = ["PENDING", "ACCEPTED", "DECLINED", "REVOKED"] as const;
+
+// 7 days - stamped on every issued/resent invitation token and rendered in
+// both the invite email and the token page, same pattern as AUTH_TOKEN_TTL_HOURS.
+export const INVITATION_TTL_HOURS = 168;
+
+// Caps the number of PENDING invitations a single org can have outstanding
+// at once - guards against one admin (or a compromised admin account)
+// spamming invite emails.
+export const MAX_PENDING_INVITATIONS_PER_ORG = 100;
+
+// Minimum time between resends of the SAME invitation - guards against an
+// admin (accidentally or otherwise) hammering "resend" and spamming the
+// invitee's inbox.
+export const INVITATION_RESEND_COOLDOWN_MS = 60_000;
 
 // Pagination defaults
 export const DEFAULT_PAGE_SIZE = 25;
@@ -61,6 +81,12 @@ export const SOCKET_EVENTS = {
   PRESENCE_SYNC: "presence:sync",
   // Typing indicator (client -> server, server -> room)
   TASK_TYPING: "task:typing",
+  // Invitation events (server -> client). RECEIVED goes to the invitee's
+  // personal user: room (they aren't an org member yet, so no org room to
+  // use); RESOLVED goes to the org: room so the admin's invitations table
+  // updates live on accept/decline/revoke.
+  INVITATION_RECEIVED: "invitation:received",
+  INVITATION_RESOLVED: "invitation:resolved",
 } as const;
 
 /** Union type of all valid socket event name strings. */

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SOCKET_EVENTS } from "@taskflow/shared";
 
 import { callerAs, clearEmitted, emitted } from "./setup/caller";
@@ -22,13 +22,16 @@ describe("notifications end to end", () => {
       data: { columnId: todo.id, title: "Ship it", assigneeId: bob.id },
     });
 
-    const { notifications, unreadCount } = await callerAs(bob).notifications.list();
-
-    expect(unreadCount).toBe(1);
-    expect(notifications[0]).toMatchObject({
-      type: "TASK_ASSIGNED",
-      message: 'Olivia Owner assigned you to "Ship it"',
-      read: false,
+    // notifyTaskAssigned now runs fire-and-forget (see tasks/service.ts) so
+    // tasks.create's own response doesn't wait behind it.
+    await vi.waitFor(async () => {
+      const { notifications, unreadCount } = await callerAs(bob).notifications.list();
+      expect(unreadCount).toBe(1);
+      expect(notifications[0]).toMatchObject({
+        type: "TASK_ASSIGNED",
+        message: 'Olivia Owner assigned you to "Ship it"',
+        read: false,
+      });
     });
     expect(emitted).toContainEqual(
       expect.objectContaining({
@@ -68,6 +71,15 @@ describe("notifications end to end", () => {
       body: "on it",
     });
 
+    // notifyTaskAssigned/notifyCommentCreated now run fire-and-forget (see
+    // tasks/service.ts, comments/service.ts) - wait for both notifications
+    // to actually land before marking them read, or markAllRead could race
+    // ahead of the write it's meant to consume.
+    await vi.waitFor(async () => {
+      expect(await prisma.notification.count({ where: { userId: bob.id } })).toBe(1);
+      expect(await prisma.notification.count({ where: { userId: owner.id } })).toBe(1);
+    });
+
     // bob marks his own notifications as read
     await expect(callerAs(bob).notifications.markAllRead()).resolves.toEqual({ count: 1 });
 
@@ -92,10 +104,16 @@ describe("notifications end to end", () => {
       projectId: project.id,
       data: { columnId: todo.id, title: "Ship it", assigneeId: bob.id },
     });
-    const { notifications } = await callerAs(bob).notifications.list();
 
-    await expect(
-      callerAs(owner).notifications.delete({ notificationId: notifications[0]?.id ?? "" }),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    let notificationId = "";
+    await vi.waitFor(async () => {
+      const { notifications } = await callerAs(bob).notifications.list();
+      expect(notifications).toHaveLength(1);
+      notificationId = notifications[0]?.id ?? "";
+    });
+
+    await expect(callerAs(owner).notifications.delete({ notificationId })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
   });
 });

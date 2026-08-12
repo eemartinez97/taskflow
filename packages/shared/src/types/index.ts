@@ -11,10 +11,19 @@ import type {
   createOrgSchema,
   createProjectSchema,
   createTaskSchema,
+  invitableRoleSchema,
   inviteMemberSchema,
+  invitationPreviewSchema,
+  invitationPreviewStateSchema,
+  invitationRefSchema,
+  invitationSchema,
+  invitationStatusSchema,
+  invitationTokenSchema,
   labelSchema,
   membershipSchema,
   moveTaskSchema,
+  myInvitationSchema,
+  orgInvitationSchema,
   orgSchema,
   presenceCursorSchema,
   presenceUserSchema,
@@ -52,8 +61,19 @@ export type Org = z.infer<typeof orgSchema>;
 export type CreateOrg = z.infer<typeof createOrgSchema>;
 export type UpdateOrg = z.infer<typeof updateOrgSchema>;
 export type Membership = z.infer<typeof membershipSchema>;
+export type InvitableRole = z.infer<typeof invitableRoleSchema>;
 export type InviteMember = z.infer<typeof inviteMemberSchema>;
 export type UpdateMemberRole = z.infer<typeof updateMemberRoleSchema>;
+
+// Invitations
+export type InvitationStatus = z.infer<typeof invitationStatusSchema>;
+export type Invitation = z.infer<typeof invitationSchema>;
+export type OrgInvitation = z.infer<typeof orgInvitationSchema>;
+export type MyInvitation = z.infer<typeof myInvitationSchema>;
+export type InvitationPreviewState = z.infer<typeof invitationPreviewStateSchema>;
+export type InvitationPreview = z.infer<typeof invitationPreviewSchema>;
+export type InvitationToken = z.infer<typeof invitationTokenSchema>;
+export type InvitationRef = z.infer<typeof invitationRefSchema>;
 
 // Project
 export type Project = z.infer<typeof projectSchema>;
@@ -122,4 +142,6 @@ export type {
   SocketPresenceUser,
   SocketBoard,
   SocketColumn,
+  SocketMyInvitation,
+  SocketInvitationStatus,
 } from "./socket-events";

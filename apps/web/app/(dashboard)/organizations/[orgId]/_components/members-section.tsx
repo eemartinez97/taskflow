@@ -1,6 +1,6 @@
 "use client";
 
-import { UserPlus, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { useState, type JSX } from "react";
 
 import type { MembershipWithUser } from "@taskflow/database";
@@ -8,15 +8,13 @@ import { Badge, Button, Select, type BadgeProps } from "@taskflow/ui";
 import { ROLES, type Role } from "@taskflow/shared";
 
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
-import { useDisclosure } from "@/lib/hooks/use-disclosure";
-import { InviteDialog } from "./invite-dialog";
 import { canAdminOrg, isOrgOwner } from "@/lib/utils/role";
 import { displayName } from "@/lib/utils/user";
 import { toast } from "@/lib/toast/store";
 import { api } from "@/lib/trpc/client";
 import { useOnlineUsers } from "@/lib/hooks/use-online-users";
 
-interface TeamClientProps {
+interface MembersSectionProps {
   orgId: string;
   currentUserId: string;
   currentUserRole: Role;
@@ -30,13 +28,13 @@ const ROLE_COLORS: Record<Role, NonNullable<BadgeProps["variant"]>> = {
   VIEWER: "outline",
 };
 
-export function TeamClient({
+/** Near-verbatim move of the former /team page's member list - no behavior change. */
+export function MembersSection({
   orgId,
   currentUserId,
   currentUserRole,
   initialMembers,
-}: TeamClientProps): JSX.Element {
-  const inviteDialog = useDisclosure();
+}: MembersSectionProps): JSX.Element {
   const [removeTarget, setRemoveTarget] = useState<MembershipWithUser | null>(null);
   const utils = api.useUtils();
 
@@ -70,17 +68,10 @@ export function TeamClient({
   });
 
   return (
-    <section aria-labelledby="team-heading">
-      <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900">Team members ({members.length})</h2>
-
-        {canAdmin && (
-          <Button size="sm" onClick={inviteDialog.open}>
-            <UserPlus className="mr-1.5 h-4 w-4" />
-            Invite member
-          </Button>
-        )}
-      </div>
+    <section aria-labelledby="members-heading">
+      <h3 id="members-heading" className="mb-3 text-sm font-semibold text-gray-900">
+        Members ({members.length})
+      </h3>
 
       <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
         {members.map((m) => (
@@ -140,8 +131,6 @@ export function TeamClient({
           </li>
         ))}
       </ul>
-
-      <InviteDialog orgId={orgId} open={inviteDialog.isOpen} onClose={inviteDialog.close} />
 
       <ConfirmDialog
         open={!!removeTarget}

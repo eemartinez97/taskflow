@@ -9,18 +9,34 @@ interface NewUserPayload {
 }
 
 /**
- * Registers a user directly through the Route Handler, bypassing the UI.
- * Use when a test only needs the account to EXIST (e.g. as an invite
- * target) - inviteMember only checks that a User row with this email
- * exists, never its verification state.
+ * Registers a user directly through apps/api's auth.register mutation,
+ * bypassing the UI. Use when a test only needs the account to EXIST (e.g.
+ * as an invite target) - inviteMember only checks that a User row with
+ * this email exists, never its verification state.
+ *
+ * Registration lives in apps/api now (auth-consolidation epic), not a
+ * apps/web Route Handler - this hits its tRPC HTTP endpoint directly using
+ * the batch-link envelope (`?batch=1`, numbered inputs), the same wire
+ * format apps/web's own browser client sends, so no extra tRPC client
+ * dependency is needed just for this one call.
  */
 export async function registerUserViaApi(page: Page, user: NewUserPayload): Promise<void> {
-  const response = await page.request.post("/api/auth/register", {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+  const response = await page.request.post(`${apiUrl}/trpc/auth.register?batch=1`, {
+    // page.request does NOT automatically apply any config-level headers -
+    // x-e2e-secret must be attached per-call so this counts toward the
+    // rate-limit bypass in apps/api/src/modules/auth/rate-limit.ts, same as
+    // getEmailedToken below.
+    headers: { "x-e2e-secret": process.env.E2E_TEST_SECRET ?? "" },
     data: {
-      name: user.name,
-      email: user.email,
-      password: user.password,
-      confirmPassword: user.password,
+      "0": {
+        json: {
+          name: user.name,
+          email: user.email,
+          password: user.password,
+          confirmPassword: user.password,
+        },
+      },
     },
   });
   if (!response.ok()) {
@@ -46,20 +62,35 @@ export async function registerViaUI(page: Page, user: NewUserPayload): Promise<v
 }
 
 /**
- * Extracts the raw token from the most recently captured email for `email`
- * and navigates to it. Relies on /api/test/last-email, a backdoor route
- * that only exists when ENABLE_TEST_ROUTES=true (see playwright.config.ts) -
- * there is no real mailbox in this environment, so this is the E2E
- * equivalent of "open the email and click the link".
+ * Extracts the raw token from the most recently captured email for `email`.
+ * Relies on /api/test/last-email, a backdoor route that only exists when
+ * ENABLE_TEST_ROUTES=true (see playwright.config.ts) - there is no real
+ * mailbox in this environment, so this is the E2E equivalent of "open the
+ * email and read the link out of it".
+ *
+ * Hits apps/api directly (NEXT_PUBLIC_API_URL, same fallback as
+ * registerUserViaApi above), NOT a relative path against apps/web's
+ * baseURL: the auth-consolidation epic moved every /api/test/* route (and
+ * the mail sender it reads from) onto apps/api, and apps/web has no rewrite
+ * proxying that prefix back to it.
+ *
+ * Returns the bare token rather than navigating anywhere - callers build
+ * their own destination URL, since it's a `?token=` query param for
+ * verify-email/reset-password but a `/invitations/<token>` path segment (or
+ * a `?invite=` param on /register) for invitations. See `followEmailedLink`
+ * below for the common `?token=` case.
+ *
+ * The regex matches all three shapes: `token=<t>`, `invite=<t>`, and
+ * `/invitations/<t>` - the raw token itself is base64url
+ * (generateRawToken/tokens.ts), so `[A-Za-z0-9_-]+` is a safe charset for
+ * any of them.
  */
-export async function followEmailedLink(
-  page: Page,
-  email: string,
-  destinationPath: string,
-): Promise<void> {
-  const response = await page.request.get(`/api/test/last-email?to=${encodeURIComponent(email)}`, {
-    headers: { "x-e2e-secret": process.env.E2E_TEST_SECRET ?? "" },
-  });
+export async function getEmailedToken(page: Page, email: string): Promise<string> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+  const response = await page.request.get(
+    `${apiUrl}/api/test/last-email?to=${encodeURIComponent(email)}`,
+    { headers: { "x-e2e-secret": process.env.E2E_TEST_SECRET ?? "" } },
+  );
   if (!response.ok()) {
     throw new Error(
       `No email captured for ${email}. Ensure ENABLE_TEST_ROUTES=true is set for the ` +
@@ -67,11 +98,21 @@ export async function followEmailedLink(
     );
   }
   const { html } = (await response.json()) as { html: string };
-  const match = /token=([^"&\s]+)/.exec(html);
+  const match = /(?:token=|invite=|\/invitations\/)([A-Za-z0-9_-]+)/.exec(html);
   if (!match?.[1]) {
     throw new Error(`Could not extract a token from the captured email for ${email}.`);
   }
-  await page.goto(`${destinationPath}?token=${match[1]}`);
+  return match[1];
+}
+
+/** Extracts the raw token from the most recently captured email for `email` and navigates to it. */
+export async function followEmailedLink(
+  page: Page,
+  email: string,
+  destinationPath: string,
+): Promise<void> {
+  const token = await getEmailedToken(page, email);
+  await page.goto(`${destinationPath}?token=${token}`);
 }
 
 /**

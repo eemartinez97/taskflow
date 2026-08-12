@@ -10,7 +10,6 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps): JSX.Elemen
   return (
     <TokenPasswordForm
       token={token}
-      endpoint="/api/auth/reset-password"
       redirectTo="/login?reset=1"
       passwordLabel="New Password"
       confirmLabel="Confirm New Password"

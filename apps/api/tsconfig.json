@@ -2,6 +2,14 @@
   "$schema": "https://json.schemastore.org/tsconfig",
   "extends": "@taskflow/config/typescript/node",
   "compilerOptions": {
+    // apps/api itself never authors JSX, but it imports @taskflow/mail,
+    // whose .tsx email templates it type-checks transitively (tsc checks
+    // every file reachable from an included one, not just files matched by
+    // `include` itself) - without this, `tsc` fails with "but '--jsx' is
+    // not set." on packages/mail/src/index.ts's re-exports. See
+    // tsconfig.dev.json's docblock for the separate, tsx-watch-specific
+    // reason this same setting alone isn't enough for `pnpm dev`.
+    "jsx": "react-jsx",
     "types": ["node"]
   },
   "include": ["src", "tests"],

@@ -5,11 +5,12 @@ import path from "node:path";
 const AUTH_FILE = path.join(process.cwd(), "playwright/.auth/user.json");
 
 /**
- * Second gate on the /api/test/* backdoor routes, on top of
- * ENABLE_TEST_ROUTES - see lib/http/test-route-guard.ts. Generated fresh
- * per config load (once per `playwright test` invocation) and never written
- * to any deployment's env, so a leaked/misconfigured ENABLE_TEST_ROUTES flag
- * alone can no longer reach these routes.
+ * Second gate on apps/api's /api/test/* backdoor routes, on top of
+ * ENABLE_TEST_ROUTES - see apps/api/src/utils/e2e.ts's
+ * isAuthorizedE2ERequest(). Generated fresh per config load (once per
+ * `playwright test` invocation) and never written to any deployment's env,
+ * so a leaked/misconfigured ENABLE_TEST_ROUTES flag alone can no longer
+ * reach these routes.
  *
  * Assigning it onto process.env here (not just the webServer's env below)
  * makes it visible to global-setup.ts, global-teardown.ts, and every test
@@ -18,6 +19,15 @@ const AUTH_FILE = path.join(process.cwd(), "playwright/.auth/user.json");
  */
 const E2E_TEST_SECRET = process.env.E2E_TEST_SECRET ?? randomBytes(32).toString("hex");
 process.env.E2E_TEST_SECRET = E2E_TEST_SECRET;
+
+/**
+ * Shared between the api and web webServer entries below - apps/web's
+ * server-side HTTP tRPC client (lib/trpc/http-server.ts) sends this as
+ * `x-internal-secret` to reach apps/api's internalProcedure-gated
+ * auth.verifyCredentials. Both processes need the SAME value, the same way
+ * docker-compose.yml's shared anchor keeps them equal in that environment.
+ */
+const INTERNAL_API_SECRET = process.env.INTERNAL_API_SECRET ?? randomBytes(32).toString("hex");
 
 /**
  * lib/auth/session-revocation.ts's passwordChangedAt cache defaults to a
@@ -93,10 +103,26 @@ export default defineConfig({
 
   webServer: [
     {
-      command: "pnpm --filter @taskflow/api dev",
+      // A production build, not `tsx watch` (dev) - both now correctly
+      // handle packages/mail's .tsx email templates (see
+      // apps/api/tsconfig.dev.json's docblock for how `pnpm dev` does it),
+      // this just matches production more closely and skips watch-mode's
+      // first-request compile lag for a test run that never edits files.
+      command: "pnpm --filter @taskflow/api build && pnpm --filter @taskflow/api start",
       url: "http://localhost:8000/healthz",
-      reuseExistingServer: !process.env.CI,
+      // Always false (unlike before the auth-consolidation epic): apps/api
+      // now also serves the /api/test/* backdoor routes and
+      // auth.verifyCredentials, both gated by E2E_TEST_SECRET /
+      // INTERNAL_API_SECRET below - a reused process predates this run's
+      // values, the same staleness problem the web server comment below
+      // describes for its own env.
+      reuseExistingServer: false,
       timeout: 120_000,
+      env: {
+        ENABLE_TEST_ROUTES: "true",
+        E2E_TEST_SECRET,
+        INTERNAL_API_SECRET,
+      },
     },
     {
       // ALWAYS a production build, even locally - `next dev` compiles routes
@@ -108,9 +134,8 @@ export default defineConfig({
       // request latency stays flat regardless of concurrency.
       command: "pnpm --filter @taskflow/web build && pnpm --filter @taskflow/web start",
       url: "http://localhost:3000",
-      // Always false, even locally (unlike the api server below): a reused
-      // server predates this run's E2E_TEST_SECRET and
-      // PASSWORD_CHANGED_AT_CACHE_TTL_MS env values below, so
+      // Always false: a reused server predates this run's E2E_TEST_SECRET
+      // and PASSWORD_CHANGED_AT_CACHE_TTL_MS env values below, so
       // auth.spec.ts's revocation test would wait out the wrong TTL against
       // a stale process - same correctness reasoning as always running a
       // fresh production build instead of `next dev`.
@@ -120,7 +145,12 @@ export default defineConfig({
       env: {
         ENABLE_TEST_ROUTES: "true",
         E2E_TEST_SECRET,
+        INTERNAL_API_SECRET,
         PASSWORD_CHANGED_AT_CACHE_TTL_MS: String(E2E_PASSWORD_CHANGED_AT_CACHE_TTL_MS),
+        // NEXT_PUBLIC_* vars are inlined at build time, so this must be set
+        // before the build step in `command` runs, not just at server start
+        // - see lib/trpc/client.tsx for the consumer.
+        NEXT_PUBLIC_E2E_TEST_SECRET: E2E_TEST_SECRET,
       },
     },
   ],

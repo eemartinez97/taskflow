@@ -53,6 +53,10 @@ ARG NEXTAUTH_SECRET="docker-build-time-placeholder-not-a-real-secret"
 ARG NEXTAUTH_URL="http://localhost:3000"
 ARG RESEND_API_KEY="re_docker_build_time_placeholder"
 ARG EMAIL_FROM="TaskFlow <noreply@example.com>"
+# Required unconditionally in production by lib/env.server.ts's
+# serverEnvSchema (no E2E exemption, unlike RESEND_API_KEY) - without this,
+# `next build`'s page-data-collection step throws when it imports auth.ts.
+ARG INTERNAL_API_SECRET="docker-build-time-placeholder-32-chars-min"
 
 RUN pnpm --filter @taskflow/web build
 

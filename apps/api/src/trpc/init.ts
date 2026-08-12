@@ -7,6 +7,7 @@ import { type Role } from "@taskflow/shared";
 import { isProduction } from "../config/env";
 import { type Logger, logger } from "../config/logger";
 import { getSessionUser } from "../utils/auth";
+import { E2E_SECRET_HEADER } from "../utils/e2e";
 
 // Context
 
@@ -27,6 +28,33 @@ export interface TRPCContext {
   db: PrismaClient;
   logger: Logger;
   user: CtxUser | null;
+  /**
+   * The caller's IP, as resolved by Express's `trust proxy` setting
+   * (src/app.ts) - the same "count from the right" hop-trust semantics as
+   * apps/web's TRUSTED_PROXY_HOPS. Only auth's per-IP rate limiter reads
+   * this today; null is defensive (req.ip can theoretically be undefined
+   * for a malformed request Express never fully parsed), not an expected
+   * runtime state.
+   */
+  clientIp: string | null;
+  /**
+   * Raw `x-internal-secret` header value, read here (not deep inside
+   * `internalProcedure`) so the header name has exactly one place it's
+   * spelled. Compared against `env.INTERNAL_API_SECRET` by
+   * `internalProcedure` (procedures.ts) - never used for anything else.
+   */
+  internalSecretHeader: string | null;
+  /**
+   * Raw `x-e2e-secret` header value, read here for the same reason as
+   * `internalSecretHeader` above. Threaded down to the auth rate limiters
+   * (modules/auth/rate-limit.ts) so their E2E bypass only fires for the
+   * specific request that proves it knows the per-run secret - matching the
+   * /api/test/* route guard's isAuthorizedE2ERequest() pattern
+   * (utils/e2e.ts) - instead of bypassing rate limiting for every request
+   * server-wide whenever E2E_TEST_SECRET merely happens to be set in the
+   * process env.
+   */
+  e2eSecretHeader: string | null;
 }
 
 export interface TRPCAuthedContext extends Omit<TRPCContext, "user"> {
@@ -55,7 +83,18 @@ export async function createTRPCContext({
   req,
 }: CreateExpressContextOptions): Promise<TRPCContext> {
   const user = await getSessionUser(req.headers.cookie ?? null);
-  return { db: prisma, logger, user };
+  const rawInternalSecret = req.headers["x-internal-secret"];
+  const internalSecretHeader = typeof rawInternalSecret === "string" ? rawInternalSecret : null;
+  const rawE2ESecret = req.headers[E2E_SECRET_HEADER];
+  const e2eSecretHeader = typeof rawE2ESecret === "string" ? rawE2ESecret : null;
+  return {
+    db: prisma,
+    logger,
+    user,
+    clientIp: req.ip ?? null,
+    internalSecretHeader,
+    e2eSecretHeader,
+  };
 }
 
 // tRPC instance

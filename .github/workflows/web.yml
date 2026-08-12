@@ -38,6 +38,12 @@ env:
   NEXT_PUBLIC_API_URL: "http://localhost:8000"
   NEXT_PUBLIC_WEB_URL: "http://localhost:3000"
   TRUSTED_PROXY_HOPS: "1"
+  # Required unconditionally in production by lib/env.server.ts's
+  # serverEnvSchema (no E2E exemption, unlike RESEND_API_KEY) - `next build`
+  # forces NODE_ENV=production and its page-data-collection step imports
+  # every route module, including auth.ts -> lib/env.server.ts's module-scope
+  # parseServerEnv() call, so this must be set here too or the build fails.
+  INTERNAL_API_SECRET: "ci-build-time-placeholder-32-chars-min"
 
 jobs:
   quality:

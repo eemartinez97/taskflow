@@ -7,7 +7,7 @@ export interface SentEmail extends SendEmailParams {
 /**
  * Test-only EmailSender that captures every send() call in memory instead
  * of delivering anything. Used exclusively by the E2E suite (gated behind
- * ENABLE_TEST_ROUTES - see apps/web/lib/mail/sender.ts) so Playwright can
+ * ENABLE_TEST_ROUTES - see apps/api/src/mail/sender.ts) so Playwright can
  * retrieve a verification/reset link without a real mailbox.
  */
 export class InMemoryEmailSender implements EmailSender {

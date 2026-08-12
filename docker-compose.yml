@@ -4,6 +4,11 @@ x-database-url: &database-url postgresql://${POSTGRES_USER:-taskflow}:${POSTGRES
 # X-Forwarded-For hop is the real client) with no automated check catching it.
 x-trusted-proxy-hops: &trusted-proxy-hops ${TRUSTED_PROXY_HOPS:-1}
 x-nextauth-secret: &nextauth-secret ${NEXTAUTH_SECRET:-changeme}
+# Server-to-server secret gating apps/api's internalProcedure (e.g.
+# auth.verifyCredentials) - shared between api (which validates it) and web
+# (which sends it as a header) so a value edited on only one service's block
+# can't leave them disagreeing.
+x-internal-api-secret: &internal-api-secret ${INTERNAL_API_SECRET:-changeme-internal-api-secret-32-chars-min}
 
 services:
   postgres:
@@ -62,6 +67,12 @@ services:
       WEB_ORIGIN: http://localhost:${NGINX_PORT:-80}
       API_LOG_LEVEL: ${API_LOG_LEVEL:-info}
       METRICS_TOKEN: ${METRICS_TOKEN:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      # See web's own EMAIL_FROM comment below - same non-sandbox
+      # placeholder, same reason (NODE_ENV=production above rejects
+      # Resend's onboarding@resend.dev sandbox address).
+      EMAIL_FROM: ${EMAIL_FROM:-TaskFlow <noreply@example.com>}
+      INTERNAL_API_SECRET: *internal-api-secret
       # nginx is the one trusted hop in front of this container - see
       # .env.example's note on TRUSTED_PROXY_HOPS. apps/api's own schema
       # defaults to 0 (no proxy trusted) precisely so this must be set
@@ -98,6 +109,9 @@ services:
       # run with no .env file / a .env missing this line, not the tested path.
       EMAIL_FROM: ${EMAIL_FROM:-TaskFlow <noreply@example.com>}
       TRUSTED_PROXY_HOPS: *trusted-proxy-hops
+      # Sent as `x-internal-secret` by lib/trpc/http-server.ts to reach
+      # apps/api's auth.verifyCredentials - must match api's copy exactly.
+      INTERNAL_API_SECRET: *internal-api-secret
       # Deliberately NOT set: ENABLE_TEST_ROUTES would expose
       # apps/web/app/api/test/* - see lib/http/test-route-guard.ts.
     depends_on:

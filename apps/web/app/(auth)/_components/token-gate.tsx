@@ -1,30 +1,27 @@
 import type { JSX } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@taskflow/ui";
-import type { AuthTokenType, PrismaClient } from "@taskflow/database";
-import { findValidAuthToken } from "@/lib/auth/tokens";
+import { getServerTRPC } from "@/lib/trpc/server";
 
 export type TokenGateResult = { valid: true; token: string } | { valid: false };
 
 /**
- * Shared token-extraction-and-validation step behind both /reset-password
- * and /verify-email: pulls `?token` out of `searchParams` and checks it with
- * `findValidAuthToken` (read-only - see that function's docblock for why a
- * GET/render must stay side-effect free). Each page still owns its own
- * rendering (different form, different invalid-state copy) - this only
- * removes the token-extraction/validation logic the two pages used to
- * duplicate verbatim.
+ * Token-extraction-and-validation step behind /reset-password: pulls
+ * `?token` out of `searchParams` and checks it via apps/api's
+ * auth.checkResetToken (read-only - see that procedure's docblock for why a
+ * GET/render must stay side-effect free) through the RSC in-process caller,
+ * since this is a query, not a mutation.
  */
 export async function resolveTokenGate(
-  db: PrismaClient,
   searchParams: Promise<Record<string, string | string[] | undefined>>,
-  tokenType: AuthTokenType,
 ): Promise<TokenGateResult> {
   const params = await searchParams;
   const token = typeof params.token === "string" ? params.token : null;
-  const validToken = token ? await findValidAuthToken(db, token, tokenType) : null;
-  if (!token || !validToken) return { valid: false };
-  return { valid: true, token };
+  if (!token) return { valid: false };
+
+  const trpc = await getServerTRPC();
+  const { valid } = await trpc.auth.checkResetToken({ token });
+  return valid ? { valid: true, token } : { valid: false };
 }
 
 interface InvalidTokenCardProps {

@@ -2,6 +2,16 @@ import "server-only";
 import type { NextRequest } from "next/server";
 import { serverEnv } from "@/lib/env.server";
 
+/**
+ * Narrowed to just the one property this function reads. Its only caller
+ * (auth.ts's authorize(), forwarding the browser's IP to
+ * auth.verifyCredentials) has a NextAuth v4 `RequestInternal`, not a real
+ * NextRequest - it builds a `Headers` instance from that plain object and
+ * passes `{ headers }`, which satisfies this type without a full NextRequest.
+ * A real NextRequest (used by every existing test) already satisfies it too.
+ */
+type RequestWithHeaders = Pick<NextRequest, "headers">;
+
 const IPV4_RE = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
 const IPV6_RE = /^[0-9a-fA-F:]+$/;
 
@@ -39,12 +49,29 @@ function looksLikeIp(value: string): boolean {
  * entry in the header was ever appended by anything this deployment
  * trusts, so the whole header is ignored.
  *
+ * NOT unified with apps/api's identical-in-spirit resolution (Express's
+ * built-in `trust proxy` setting, backed by the `proxy-addr` + `forwarded`
+ * packages - see apps/api/src/config/env.ts's TRUSTED_PROXY_HOPS doc and
+ * apps/api/src/app.ts's `app.set("trust proxy", ...)`) despite the
+ * duplicated algorithm: `forwarded`'s address list is required to start
+ * from `req.socket.remoteAddress` (the raw TCP peer), which this function's
+ * caller genuinely does not have - `auth.ts`'s NextAuth `authorize()` builds
+ * a `Headers` instance from a plain object with no underlying socket at
+ * all (see `RequestWithHeaders` above), and Next.js Route Handlers/Server
+ * Actions don't otherwise expose one reliably across deployment targets.
+ * Importing `proxy-addr`/`forwarded` here would either silently misbehave
+ * (no real socket address to seed the list with) or require threading a
+ * raw socket through NextAuth's callback signature - not a change to make
+ * opportunistically. If this algorithm ever needs a fix, apply it in BOTH
+ * this function and (if applicable) verify apps/api's Express config still
+ * agrees - they cannot share an implementation, only a spec.
+ *
  * Falls back to `x-real-ip`, then to `null` if genuinely unavailable -
  * callers should treat `null` as "skip IP-based limiting for this request"
  * rather than block it, since blocking on an unknown IP would make every
  * such request share one bucket.
  */
-export function getClientIp(req: NextRequest): string | null {
+export function getClientIp(req: RequestWithHeaders): string | null {
   const forwardedFor = req.headers.get("x-forwarded-for");
   if (forwardedFor) {
     const hops = forwardedFor

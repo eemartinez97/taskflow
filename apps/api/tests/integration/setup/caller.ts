@@ -23,12 +23,26 @@ export const recordingIo = {
 
 const appRouter = createAppRouter(recordingIo);
 
-const _dummyCaller = createCallerFactory(appRouter)({ db: prisma, logger, user: null });
+const _dummyCaller = createCallerFactory(appRouter)({
+  db: prisma,
+  logger,
+  user: null,
+  clientIp: "203.0.113.1",
+  internalSecretHeader: null,
+  e2eSecretHeader: null,
+});
 
 export type CallerType = typeof _dummyCaller;
 
 export function callerAs(user: { id: string; email: string } | null): CallerType {
-  return createCallerFactory(appRouter)({ db: prisma, logger, user });
+  return createCallerFactory(appRouter)({
+    db: prisma,
+    logger,
+    user,
+    clientIp: "203.0.113.1",
+    internalSecretHeader: null,
+    e2eSecretHeader: null,
+  });
 }
 
 export function clearEmitted(): void {

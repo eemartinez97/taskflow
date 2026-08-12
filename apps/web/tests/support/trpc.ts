@@ -311,6 +311,7 @@ export function makeUseQueriesMock(
 // -- Server tRPC mock factory --
 
 export interface ServerTRPCMockOverrides {
+  auth?: { checkResetToken?: ReturnType<typeof vi.fn> };
   orgs?: { list?: ReturnType<typeof vi.fn>; members?: ReturnType<typeof vi.fn> };
   projects?: { list?: ReturnType<typeof vi.fn>; get?: ReturnType<typeof vi.fn> };
   boards?: {
@@ -323,6 +324,7 @@ export interface ServerTRPCMockOverrides {
 }
 
 export interface ServerTRPCMock {
+  auth: { checkResetToken: ReturnType<typeof vi.fn> };
   orgs: { list: ReturnType<typeof vi.fn>; members: ReturnType<typeof vi.fn> };
   projects: { list: ReturnType<typeof vi.fn>; get: ReturnType<typeof vi.fn> };
   boards: {
@@ -336,6 +338,10 @@ export interface ServerTRPCMock {
 
 function buildServerTRPCMock(overrides: ServerTRPCMockOverrides = {}): ServerTRPCMock {
   return {
+    auth: {
+      checkResetToken: vi.fn().mockResolvedValue({ valid: false }),
+      ...overrides.auth,
+    },
     orgs: {
       list: vi.fn().mockResolvedValue([]),
       members: vi.fn().mockResolvedValue([]),

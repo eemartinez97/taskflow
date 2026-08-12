@@ -91,11 +91,19 @@ export function makeMockNext(): NextFunction {
 // tRPC context factory
 
 /** Creates a typed tRPC context for unit-testing procedures and middleware */
-export function makeCtx(user: { id: string; email: string } | null = null): TRPCContext {
+export function makeCtx(
+  user: { id: string; email: string } | null = null,
+  clientIp: string | null = "203.0.113.1",
+  internalSecretHeader: string | null = null,
+  e2eSecretHeader: string | null = null,
+): TRPCContext {
   return {
     db: mockDb as unknown as PrismaClient,
     logger: mockLogger,
     user,
+    clientIp,
+    internalSecretHeader,
+    e2eSecretHeader,
   };
 }
 

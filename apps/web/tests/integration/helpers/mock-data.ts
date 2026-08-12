@@ -1,9 +1,5 @@
-import type {
-  ForgotPasswordInput,
-  LoginInput,
-  RegisterInput,
-  ResetPasswordInput,
-} from "@/lib/auth/schemas";
+import type { ForgotPasswordInput, RegisterInput, ResetPasswordInput } from "@taskflow/shared";
+import type { LoginInput } from "@/lib/auth/schemas";
 
 /** A valid registration payload that passes every schema rule. */
 export const VALID_REGISTER_PAYLOAD: RegisterInput = {

@@ -23,3 +23,19 @@ export function nameField(
     .max(max, { error: `Must be at most ${String(max)} characters.` })
     .transform(collapseSpaces);
 }
+
+/**
+ * Zod string for an email address: trims and lowercases BEFORE validating
+ * the format (via `.pipe()`, not chained after `z.email()`), so
+ * whitespace-padded input from browser autofill is tolerated rather than
+ * rejected, and the parsed value is always lowercase - what
+ * `@@unique([orgId, email])`-style constraints and case-insensitive lookups
+ * assume everywhere they're used.
+ */
+export function emailField(): z.ZodPipe<z.ZodString, z.ZodEmail> {
+  return z
+    .string()
+    .trim()
+    .toLowerCase()
+    .pipe(z.email({ error: "Please enter a valid email address." }));
+}

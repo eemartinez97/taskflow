@@ -21,7 +21,8 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
-    "check:env-parity": "node scripts/check-env-parity.mjs",
+    "check:env-parity": "tsx scripts/check-env-parity.mjs",
+    "sync-env": "node scripts/sync-env.mjs",
     "clean": "turbo run clean && rm -rf node_modules",
     "prepare": "husky || true"
   },
@@ -41,6 +42,7 @@
     "lint-staged": "^17.0.5",
     "prettier": "^3.8.3",
     "turbo": "^2.9.16",
+    "tsx": "^4.22.3",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.60.0"
   }

@@ -50,6 +50,10 @@ export const api = {
     me: { useQuery: query() },
     updateProfile: { useMutation: mutation() },
     signOut: { useMutation: mutation() },
+    register: { useMutation: mutation() },
+    verifyEmail: { useMutation: mutation() },
+    requestPasswordReset: { useMutation: mutation() },
+    resetPassword: { useMutation: mutation() },
   },
   orgs: {
     list: { useQuery: query() },

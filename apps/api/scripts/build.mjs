@@ -15,6 +15,15 @@ await build({
   target: "node24",
   sourcemap: true,
   logLevel: "info",
+  // packages/mail ships .tsx email templates. esbuild resolves each source
+  // file's nearest tsconfig.json independently while bundling across
+  // workspace packages, and that per-file lookup does not reliably pick up
+  // "jsx": "react-jsx" here - the templates silently compile with the
+  // classic transform (bare `React.createElement` calls, no import) instead
+  // of the automatic runtime, crashing at call time with "React is not
+  // defined" the moment any email is actually sent. Setting it explicitly
+  // on the bundle removes the per-file ambiguity entirely.
+  jsx: "automatic",
   banner: {
     // Prisma's generated client bundles CJS internals (e.g. requires
     // @prisma/client-runtime-utils) that esbuild can't rewrite to ESM

@@ -15,6 +15,27 @@ export interface WebTRPCContext {
   db: PrismaClient;
   logger: Logger;
   user: SessionUser | null;
+  /**
+   * Always null here: RSCs run queries exclusively (see server.ts's
+   * docblock), and no query procedure reads clientIp today - only the
+   * public auth mutations do, which always go through the browser's direct
+   * HTTP client instead. Present only so this type stays structurally
+   * assignable to apps/api's TRPCContext.
+   */
+  clientIp: null;
+  /**
+   * Always null here - internalProcedure-gated mutations (e.g.
+   * auth.verifyCredentials) go through their own dedicated server-side HTTP
+   * client (lib/trpc/http-server.ts), never this RSC caller. Present only
+   * so this type stays structurally assignable to apps/api's TRPCContext.
+   */
+  internalSecretHeader: null;
+  /**
+   * Always null here, for the same reason as `internalSecretHeader` above -
+   * the login/register/reset mutations that read this always go through the
+   * browser's direct HTTP client or http-server.ts, never this RSC caller.
+   */
+  e2eSecretHeader: null;
 }
 
 /**
@@ -25,5 +46,12 @@ export interface WebTRPCContext {
  */
 export async function createWebTRPCContext(_opts: { headers: Headers }): Promise<WebTRPCContext> {
   const session = await getSession();
-  return { db: prisma, logger, user: session };
+  return {
+    db: prisma,
+    logger,
+    user: session,
+    clientIp: null,
+    internalSecretHeader: null,
+    e2eSecretHeader: null,
+  };
 }

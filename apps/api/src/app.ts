@@ -11,6 +11,7 @@ import { createAppRouter } from "./trpc/router";
 import { createTRPCContext, TRPCError } from "./trpc/init";
 import { appCollectors, appRegistry, createMetricsMiddleware } from "./metrics";
 import { env, isProduction } from "./config/env";
+import { testRouter } from "./routes/test";
 import type { AppServer } from "./socket/events";
 
 export function isHealthCheckUrl(url: string | undefined): boolean {
@@ -28,7 +29,7 @@ export function isHealthCheckUrl(url: string | undefined): boolean {
  * against nginx.conf's `location` blocks; keep them in sync when adding a
  * new top-level route.
  */
-export const PROXIED_API_PATHS = ["/metrics", "/healthz", "/readyz", "/trpc"] as const;
+export const PROXIED_API_PATHS = ["/metrics", "/healthz", "/readyz", "/trpc", "/api/test"] as const;
 
 /**
  * Extracted so it can be unit-tested independently
@@ -57,7 +58,12 @@ export function createApp(io: AppServer): Express {
 
   // Behind nginx in Docker/prod, req.ip and X-Forwarded-For based rate
   // limiting would otherwise see nginx's own IP for every client. Must be
-  // set before defaultRateLimiter is mounted.
+  // set before defaultRateLimiter is mounted. Delegates the actual
+  // "trust N hops" algorithm to Express's `proxy-addr`/`forwarded`
+  // dependencies - apps/web/lib/http/client-ip.ts implements the same
+  // algorithm independently (it cannot depend on this Express-only path;
+  // see that file's docblock for why) - keep both in sync by spec, not by
+  // shared code, if this algorithm ever changes.
   app.set("trust proxy", env.TRUSTED_PROXY_HOPS);
 
   // Security headers
@@ -129,6 +135,10 @@ export function createApp(io: AppServer): Express {
       onError: handleTRPCError,
     }),
   );
+
+  // E2E-only backdoor routes - always mounted, 404'd per-request by their
+  // own guard unless isAuthorizedE2ERequest() passes (see routes/test.ts).
+  app.use("/api/test", testRouter);
 
   // Catch-all 404
   app.all("/{*splat}", (_req, res) => {

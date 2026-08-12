@@ -1,6 +1,4 @@
 import { z } from "zod";
-import { isResendSandboxAddress } from "@taskflow/shared";
-import { isE2ERun } from "@/lib/utils/local-database";
 
 /**
  * Environment schemas for apps/web (Single Source of Truth).
@@ -19,13 +17,6 @@ import { isE2ERun } from "@/lib/utils/local-database";
  *   validation logic or secret variables to the browser bundle.
  */
 
-// The "Name <email>" form requires BOTH brackets, not each independently
-// optional - `<?...>?` would let "Name <email" or "Name email>" (missing one
-// bracket) pass here and only fail later at Resend's own send-time
-// validation, defeating the point of validating this at boot.
-const EMAIL_FROM_REGEX =
-  /^(?:[^<>]+\s<[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+>|[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+)$/;
-
 export const serverEnvSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -42,19 +33,6 @@ export const serverEnvSchema = z
     // Leave unset for single-host setups (e.g. localhost) - NextAuth's
     // default host-only cookie is what you want there.
     COOKIE_DOMAIN: z.string().optional(),
-    // Optional in dev/test: @taskflow/mail's createEmailSender falls back to a
-    // console logger when this is absent. Required in production - see the
-    // superRefine below.
-    RESEND_API_KEY: z.string().min(1).optional(),
-    // Defaults to Resend's sandbox address so local dev never needs a real
-    // Resend account. The superRefine below rejects this same sandbox value
-    // in production, so a deploy that never set EMAIL_FROM fails at env
-    // validation instead of silently shipping an address that can't deliver
-    // to real recipients.
-    EMAIL_FROM: z
-      .string()
-      .regex(EMAIL_FROM_REGEX, { error: 'EMAIL_FROM must be an email or "Name <email>" format' })
-      .default("TaskFlow <onboarding@resend.dev>"),
     // How many reverse-proxy hops sit between the public internet and this
     // process for the CURRENT deployment target - platform-agnostic on
     // purpose (this project has no confirmed single hosting provider). Used
@@ -73,32 +51,33 @@ export const serverEnvSchema = z
     // tests/e2e/auth.spec.ts's revocation test can wait out the REAL TTL
     // instead of a 60s one - same guarantee, not a fake/mocked shortcut.
     PASSWORD_CHANGED_AT_CACHE_TTL_MS: z.coerce.number().int().min(0).default(60_000),
+    // Shared secret this app's server-side HTTP tRPC client
+    // (lib/trpc/http-server.ts) sends as `x-internal-secret` to reach
+    // apps/api's internalProcedure-gated auth.verifyCredentials - must be
+    // byte-for-byte equal to apps/api's own INTERNAL_API_SECRET (see
+    // docker-compose.yml's shared anchor). Required in production
+    // (including E2E, which always builds/starts for real - see the
+    // superRefine below) - login genuinely needs this working end to end,
+    // unlike RESEND_API_KEY there was never a reason to exempt it.
+    INTERNAL_API_SECRET: z.string().min(32).optional(),
+    // Only ever set by playwright.config.ts's webServer env (both apps/api
+    // and apps/web get the SAME value). Forwarded as `x-e2e-secret` by
+    // lib/trpc/http-server.ts's apiHttpClient so auth.ts's authorize() ->
+    // auth.verifyCredentials also gets apps/api's rate-limiter bypass
+    // (rate-limit.ts) during E2E - without this, login's checkLoginEmailRateLimit/
+    // checkLoginIpRateLimit apply for real, and repeated E2E runs against the
+    // same local Postgres accumulate real RateLimitBucket rows (never cleared
+    // by /api/test/reset - see its own docblock) until logins start failing.
+    // Undefined in every real deployment - never added to .env.example.
+    E2E_TEST_SECRET: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV !== "production") return;
-    // E2E always runs against a real production build (`next build && next
-    // start` - see playwright.config.ts's own comment on this), which forces
-    // NODE_ENV=production regardless of any other env var. isE2ERun() is the
-    // single shared definition of "this is an E2E run" (also used by
-    // lib/http/test-route-guard.ts and lib/mail/sender.ts) - it requires
-    // BOTH ENABLE_TEST_ROUTES=true AND a local database connection, so a
-    // leaked ENABLE_TEST_ROUTES flag in a real deployment (a remote
-    // database) still hits these checks instead of silently skipping them.
-    if (isE2ERun()) return;
-    if (!data.RESEND_API_KEY) {
+    if (!data.INTERNAL_API_SECRET) {
       ctx.addIssue({
         code: "custom",
-        path: ["RESEND_API_KEY"],
-        message: "RESEND_API_KEY is required in production.",
-      });
-    }
-    if (isResendSandboxAddress(data.EMAIL_FROM)) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["EMAIL_FROM"],
-        message:
-          "EMAIL_FROM must not be Resend's onboarding@resend.dev sandbox address in " +
-          "production - set it to a verified sending domain.",
+        path: ["INTERNAL_API_SECRET"],
+        message: "INTERNAL_API_SECRET is required in production.",
       });
     }
   });
@@ -112,6 +91,14 @@ export const publicEnvSchema = z.object({
     .url()
     .regex(/^https?:\/\//, "NEXT_PUBLIC_WEB_URL must start with http:// or https://")
     .default("http://localhost:3000"),
+  // Only ever set by playwright.config.ts's web webServer env, mirroring the
+  // same E2E_TEST_SECRET apps/api checks in utils/e2e.ts. Lets the browser's
+  // own httpBatchLink client (lib/trpc/client.tsx) send `x-e2e-secret` on
+  // auth.register/requestPasswordReset so apps/api's rate limiter bypass
+  // (rate-limit.ts's checkRateLimitBucket) actually applies to UI-driven
+  // registration during E2E, not just the /api/test/* backdoor routes.
+  // Undefined in every real deployment - never added to .env.example.
+  NEXT_PUBLIC_E2E_TEST_SECRET: z.string().optional(),
 });
 
 /**

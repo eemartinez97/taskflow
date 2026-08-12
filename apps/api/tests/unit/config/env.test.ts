@@ -75,6 +75,105 @@ describe("envSchema", () => {
 
     expect(result.success).toBe(false);
   });
+
+  it("defaults EMAIL_FROM to the Resend sandbox address when omitted", () => {
+    expect(envSchema.parse(REQUIRED).EMAIL_FROM).toBe("TaskFlow <onboarding@resend.dev>");
+  });
+
+  it("rejects an EMAIL_FROM missing a bracket", () => {
+    const result = envSchema.safeParse({ ...REQUIRED, EMAIL_FROM: "TaskFlow <a@b.com" });
+    expect(result.success).toBe(false);
+  });
+
+  it("treats RESEND_API_KEY: '' the same as unset", () => {
+    expect(envSchema.parse({ ...REQUIRED, RESEND_API_KEY: "" }).RESEND_API_KEY).toBeUndefined();
+  });
+
+  it("treats INTERNAL_API_SECRET: '' the same as unset", () => {
+    expect(
+      envSchema.parse({ ...REQUIRED, INTERNAL_API_SECRET: "" }).INTERNAL_API_SECRET,
+    ).toBeUndefined();
+  });
+
+  it("rejects an INTERNAL_API_SECRET shorter than 32 characters", () => {
+    const result = envSchema.safeParse({
+      ...REQUIRED,
+      INTERNAL_API_SECRET: "a".repeat(31),
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts a 32-character INTERNAL_API_SECRET", () => {
+    const secret = "a".repeat(32);
+    expect(envSchema.parse({ ...REQUIRED, INTERNAL_API_SECRET: secret }).INTERNAL_API_SECRET).toBe(
+      secret,
+    );
+  });
+
+  describe("production requirements", () => {
+    const PROD_READY = {
+      ...REQUIRED,
+      NODE_ENV: "production",
+      RESEND_API_KEY: "re_live_key",
+      EMAIL_FROM: "TaskFlow <hello@taskflow.dev>",
+      INTERNAL_API_SECRET: "a".repeat(32),
+    };
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("rejects production with no RESEND_API_KEY", () => {
+      const { RESEND_API_KEY: _omit, ...rest } = PROD_READY;
+      expect(envSchema.safeParse(rest).success).toBe(false);
+    });
+
+    it("rejects production still using the sandbox EMAIL_FROM default", () => {
+      const { EMAIL_FROM: _omit, ...rest } = PROD_READY;
+      expect(envSchema.safeParse(rest).success).toBe(false);
+    });
+
+    it("rejects production with no INTERNAL_API_SECRET", () => {
+      const { INTERNAL_API_SECRET: _omit, ...rest } = PROD_READY;
+      expect(envSchema.safeParse(rest).success).toBe(false);
+    });
+
+    it("accepts production with every required secret set", () => {
+      expect(envSchema.safeParse(PROD_READY).success).toBe(true);
+    });
+
+    it("flags EXACTLY the known set of production-only issues when only shape-required fields are given - guards scripts/check-env-parity.mjs's hand-maintained PRODUCTION_ONLY_REQUIRED_KEYS list against silently drifting if a future superRefine adds a new conditional requirement without updating that list too", () => {
+      const result = envSchema.safeParse({ ...REQUIRED, NODE_ENV: "production" });
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+
+      const issuePaths = new Set(result.error.issues.map((issue) => issue.path.join(".")));
+      expect(issuePaths).toEqual(new Set(["RESEND_API_KEY", "EMAIL_FROM", "INTERNAL_API_SECRET"]));
+    });
+
+    it("exempts an E2E run (ENABLE_TEST_ROUTES=true + local DATABASE_URL) from the mail-sending requirements", () => {
+      vi.stubEnv("ENABLE_TEST_ROUTES", "true");
+      const { RESEND_API_KEY: _a, EMAIL_FROM: _b, ...rest } = PROD_READY;
+
+      expect(envSchema.safeParse(rest).success).toBe(true);
+    });
+
+    it("does NOT exempt an E2E run from requiring INTERNAL_API_SECRET - playwright.config.ts always sets a real one", () => {
+      vi.stubEnv("ENABLE_TEST_ROUTES", "true");
+      const { INTERNAL_API_SECRET: _omit, ...rest } = PROD_READY;
+
+      expect(envSchema.safeParse(rest).success).toBe(false);
+    });
+
+    it("does NOT exempt ENABLE_TEST_ROUTES=true when DATABASE_URL is not local", () => {
+      vi.stubEnv("ENABLE_TEST_ROUTES", "true");
+      vi.stubEnv("DATABASE_URL", "postgresql://user:pass@db.production-host.example.com:5432/app");
+      const { RESEND_API_KEY: _a, ...rest } = PROD_READY;
+
+      expect(envSchema.safeParse(rest).success).toBe(false);
+    });
+  });
 });
 
 describe("environment predicates", () => {
@@ -95,6 +194,14 @@ describe("environment predicates", () => {
   ])("reports %s after re-import", async (nodeEnv, expected) => {
     vi.resetModules();
     vi.stubEnv("NODE_ENV", nodeEnv);
+    if (nodeEnv === "production") {
+      // Real module re-import runs the full superRefine - satisfy its
+      // production-only requirements so this test stays about the
+      // isProduction/isDevelopment/isTest predicates, not env validation.
+      vi.stubEnv("RESEND_API_KEY", "re_live_key");
+      vi.stubEnv("EMAIL_FROM", "TaskFlow <hello@taskflow.dev>");
+      vi.stubEnv("INTERNAL_API_SECRET", "a".repeat(32));
+    }
 
     const mod = await import("../../../src/config/env");
 

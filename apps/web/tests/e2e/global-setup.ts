@@ -8,13 +8,17 @@ const AUTH_FILE = path.join(process.cwd(), "playwright/.auth/user.json");
 
 /**
  * Wipes every non-seed Org/User before the run starts (see
- * apps/web/app/api/test/reset/route.ts for the full rationale). Runs ONCE
- * per `playwright test` invocation, before the shared storageState is
- * captured, so every run starts from the exact same DB state regardless of
- * how many orgs previous runs left behind.
+ * apps/api/src/routes/test.ts for the full rationale - the auth-
+ * consolidation epic moved every /api/test/* backdoor route there
+ * alongside the mail sender it reads from; apps/web has no rewrite
+ * proxying this prefix back to it, so this must hit apps/api directly).
+ * Runs ONCE per `playwright test` invocation, before the shared
+ * storageState is captured, so every run starts from the exact same DB
+ * state regardless of how many orgs previous runs left behind.
  */
 async function resetE2EData(): Promise<void> {
-  const response = await fetch("http://localhost:3000/api/test/reset", {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+  const response = await fetch(`${apiUrl}/api/test/reset`, {
     method: "POST",
     headers: { "x-e2e-secret": process.env.E2E_TEST_SECRET ?? "" },
   });

@@ -69,20 +69,20 @@ describe("LabelManager", () => {
   // -- Rendering --
 
   it("renders the 'Labels' card heading", () => {
-    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} />);
+    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} canManage />);
 
     expect(screen.getByText("Labels")).toBeInTheDocument();
   });
 
   it("renders 'No labels yet.' when the labels list is empty", () => {
-    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} />);
+    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} canManage />);
 
     expect(screen.getByText("No labels yet.")).toBeInTheDocument();
   });
 
   it("renders a chip for each existing label", () => {
     setupLabelsQuery([LABEL_BUG, LABEL_URGENT]);
-    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[LABEL_BUG, LABEL_URGENT]} />);
+    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[LABEL_BUG, LABEL_URGENT]} canManage />);
 
     expect(screen.getByText("Bug")).toBeInTheDocument();
     expect(screen.getByText("Urgent")).toBeInTheDocument();
@@ -90,7 +90,7 @@ describe("LabelManager", () => {
 
   it("renders a delete button for each existing label chip", () => {
     setupLabelsQuery([LABEL_BUG, LABEL_URGENT]);
-    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[LABEL_BUG, LABEL_URGENT]} />);
+    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[LABEL_BUG, LABEL_URGENT]} canManage />);
 
     expect(screen.getByRole("button", { name: "Delete label Bug" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Delete label Urgent" })).toBeInTheDocument();
@@ -99,19 +99,19 @@ describe("LabelManager", () => {
   // -- Label name input --
 
   it("renders the label name input with placeholder 'e.g. Bug'", () => {
-    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} />);
+    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} canManage />);
 
     expect(screen.getByPlaceholderText("e.g. Bug")).toBeInTheDocument();
   });
 
   it("disables the Add button when the name input is empty", () => {
-    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} />);
+    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} canManage />);
 
     expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
   });
 
   it("enables the Add button when the name input has content", () => {
-    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} />);
+    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} canManage />);
 
     fireEvent.change(screen.getByPlaceholderText("e.g. Bug"), {
       target: { value: "Performance" },
@@ -123,7 +123,7 @@ describe("LabelManager", () => {
   // -- Color picker --
 
   it("renders 7 color preset buttons", () => {
-    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} />);
+    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} canManage />);
 
     const colorButtons = PRESET_COLORS.map((c) =>
       screen.getByRole("button", { name: `Select color ${c}` }),
@@ -132,7 +132,7 @@ describe("LabelManager", () => {
   });
 
   it("marks the first preset color as selected (aria-pressed=true) by default", () => {
-    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} />);
+    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} canManage />);
 
     expect(
       screen.getByRole("button", { name: `Select color ${PRESET_COLORS[0]}` }),
@@ -140,7 +140,7 @@ describe("LabelManager", () => {
   });
 
   it("changes the selected color when a different preset is clicked", () => {
-    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} />);
+    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} canManage />);
 
     const secondColor = PRESET_COLORS[1];
     fireEvent.click(screen.getByRole("button", { name: `Select color ${secondColor}` }));
@@ -157,7 +157,7 @@ describe("LabelManager", () => {
   // -- Create label --
 
   it("calls createMutation.mutate with orgId, name, and selected color when Add is clicked", () => {
-    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} />);
+    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} canManage />);
 
     fireEvent.change(screen.getByPlaceholderText("e.g. Bug"), {
       target: { value: "Performance" },
@@ -171,7 +171,7 @@ describe("LabelManager", () => {
   });
 
   it("calls createMutation.mutate when Enter is pressed in the name input", () => {
-    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} />);
+    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} canManage />);
 
     const nameInput = screen.getByPlaceholderText("e.g. Bug");
     fireEvent.change(nameInput, { target: { value: "Blocker" } });
@@ -183,7 +183,7 @@ describe("LabelManager", () => {
   });
 
   it("clears the name input on mutation success", async () => {
-    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} />);
+    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} canManage />);
 
     fireEvent.change(screen.getByPlaceholderText("e.g. Bug"), {
       target: { value: "Performance" },
@@ -199,7 +199,7 @@ describe("LabelManager", () => {
   });
 
   it("shows a toast with the label name on create success", () => {
-    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} />);
+    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} canManage />);
 
     createMutation.simulateSuccess(makeLabel("new-id", "Performance"));
 
@@ -207,7 +207,7 @@ describe("LabelManager", () => {
   });
 
   it("invalidates labels.list on create success", () => {
-    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} />);
+    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} canManage />);
 
     createMutation.simulateSuccess(makeLabel("new-id", "Performance"));
 
@@ -219,7 +219,7 @@ describe("LabelManager", () => {
   it("shows the inline error alert when createMutation is in error state", () => {
     const errorText = "Label name already exists in this organization.";
     mockMutationError(api.labels.create, createMutation, errorText);
-    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} />);
+    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} canManage />);
     expect(screen.getByRole("alert")).toHaveTextContent(errorText);
   });
 
@@ -227,7 +227,7 @@ describe("LabelManager", () => {
 
   it("opens ConfirmDialog when a label's delete button is clicked", () => {
     setupLabelsQuery([LABEL_BUG]);
-    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[LABEL_BUG]} />);
+    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[LABEL_BUG]} canManage />);
 
     fireEvent.click(screen.getByRole("button", { name: "Delete label Bug" }));
 
@@ -237,7 +237,7 @@ describe("LabelManager", () => {
 
   it("calls deleteMutation.mutate with orgId and labelId when confirmed", () => {
     setupLabelsQuery([LABEL_BUG]);
-    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[LABEL_BUG]} />);
+    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[LABEL_BUG]} canManage />);
 
     fireEvent.click(screen.getByRole("button", { name: "Delete label Bug" }));
     fireEvent.click(screen.getByRole("button", { name: "Confirm delete" }));
@@ -250,7 +250,7 @@ describe("LabelManager", () => {
 
   it("closes ConfirmDialog without calling mutate when Cancel is clicked", () => {
     setupLabelsQuery([LABEL_BUG]);
-    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[LABEL_BUG]} />);
+    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[LABEL_BUG]} canManage />);
 
     fireEvent.click(screen.getByRole("button", { name: "Delete label Bug" }));
     fireEvent.click(screen.getByRole("button", { name: "Cancel delete" }));
@@ -262,7 +262,7 @@ describe("LabelManager", () => {
 
   it("invalidates labels.list and closes dialog on delete success", async () => {
     setupLabelsQuery([LABEL_BUG]);
-    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[LABEL_BUG]} />);
+    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[LABEL_BUG]} canManage />);
 
     fireEvent.click(screen.getByRole("button", { name: "Delete label Bug" }));
     fireEvent.click(screen.getByRole("button", { name: "Confirm delete" }));
@@ -276,5 +276,21 @@ describe("LabelManager", () => {
     await waitFor(() => {
       expect(screen.queryByTestId("confirm-dialog")).not.toBeInTheDocument();
     });
+  });
+
+  // -- canManage=false --
+
+  it("hides the create-label form when canManage is false", () => {
+    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[]} canManage={false} />);
+
+    expect(screen.queryByPlaceholderText("e.g. Bug")).not.toBeInTheDocument();
+  });
+
+  it("hides each label's delete button when canManage is false", () => {
+    setupLabelsQuery([LABEL_BUG]);
+    renderUI(<LabelManager orgId={ORG_ID} initialLabels={[LABEL_BUG]} canManage={false} />);
+
+    expect(screen.getByText("Bug")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete label Bug" })).not.toBeInTheDocument();
   });
 });

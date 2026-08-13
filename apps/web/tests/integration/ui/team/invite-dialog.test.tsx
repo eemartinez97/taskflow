@@ -1,12 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent, waitFor, act } from "@testing-library/react";
-import { InviteDialog } from "@/app/(dashboard)/organizations/[orgId]/_components/invite-dialog";
+import { InviteDialog } from "@/app/(dashboard)/team/_components/invite-dialog";
 import { api } from "@/lib/trpc/client";
 import { toast } from "@/lib/toast/store";
 import { renderUI } from "../../helpers/render";
 import { wireCapturableMutation, mockMutationError } from "../../helpers/mutation";
-import { mockApiUtils, mockUseQuery } from "@/tests/support/trpc";
-import { makeOrg } from "@/tests/support/factories";
+import { mockApiUtils } from "@/tests/support/trpc";
 import { VALID_ORG_ID } from "@/tests/support/fixtures";
 
 // -- Helpers --
@@ -17,7 +16,6 @@ let inviteMutation: ReturnType<typeof wireCapturableMutation>;
 function buildProps(overrides: { open?: boolean } = {}) {
   return {
     orgId: VALID_ORG_ID,
-    orgName: "Acme",
     open: true,
     onClose: mockOnClose,
     ...overrides,
@@ -30,7 +28,6 @@ describe("InviteDialog", () => {
     mockInvalidateListForOrg = vi.fn();
     mockApiUtils({ invitations: { listForOrg: { invalidate: mockInvalidateListForOrg } } });
     inviteMutation = wireCapturableMutation(api.invitations.create);
-    mockUseQuery(api.orgs.list, [makeOrg({ id: VALID_ORG_ID, name: "Acme", role: "OWNER" })]);
   });
 
   // -- Rendering --
@@ -66,13 +63,6 @@ describe("InviteDialog", () => {
     expect(screen.getByRole("option", { name: "ADMIN" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "MEMBER" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "VIEWER" })).toBeInTheDocument();
-  });
-
-  it("renders the Organization select defaulting to the current org", () => {
-    renderUI(<InviteDialog {...buildProps()} />);
-
-    expect(screen.getByLabelText("Organization")).toHaveValue(VALID_ORG_ID);
-    expect(screen.getByText("Current (Acme)")).toBeInTheDocument();
   });
 
   it("renders 'Send invite' and 'Close' footer buttons", () => {
@@ -138,7 +128,7 @@ describe("InviteDialog", () => {
     expect(vi.mocked(toast.success)).toHaveBeenCalledWith("Invitation sent.");
   });
 
-  it("invalidates invitations.listForOrg for the submitted org on mutation success", () => {
+  it("invalidates invitations.listForOrg for the active org on mutation success", () => {
     renderUI(<InviteDialog {...buildProps()} />);
 
     act(() => {

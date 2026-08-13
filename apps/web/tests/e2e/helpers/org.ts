@@ -31,10 +31,9 @@ export function uniqueOrgName(prefix = "Test Org"): { name: string; slug: string
  * A fresh, unique, disposable org per test avoids this without paying the
  * cost of a full re-registration through /register.
  *
- * Member/invitation management (formerly at /team, reached via a dedicated
- * "Team" sidebar link) now lives at /organizations/[orgId] - there is no
- * standalone nav item for it. Reach it via `goToOrgDetail` below: click
- * "Organizations" then the org's own name link on its card.
+ * Member/invitation management lives at /team, a sidebar nav item scoped to
+ * whichever org the switcher currently has active - not picked by name.
+ * Reach it via `goToTeam` below.
  */
 export async function createIsolatedOrg(page: Page, orgName: string): Promise<void> {
   await page.goto("/projects");
@@ -78,14 +77,13 @@ export async function createIsolatedOrg(page: Page, orgName: string): Promise<vo
 
 /**
  * Navigates from wherever the (already-authenticated) page currently is to
- * `orgName`'s detail page (members + invitations) via the Organizations
- * list and the org card's own name link - the only way to reach it, since
- * it has no sidebar entry of its own.
+ * the Team page (members + invitations) for whichever org is currently
+ * active. Team is scoped to the active org rather than picked by name, so
+ * `orgName` here only verifies we landed on the right one - the one
+ * `createIsolatedOrg` just made active - not how we got there.
  */
-export async function goToOrgDetail(page: Page, orgName: string): Promise<void> {
-  await clickNavLink(page, "Organizations", /\/organizations$/);
-  await page.getByRole("link", { name: orgName }).click();
-  await expect(page).toHaveURL(/\/organizations\/.+/);
+export async function goToTeam(page: Page, orgName: string): Promise<void> {
+  await clickNavLink(page, "Team", /\/team$/);
   await expect(page.getByRole("heading", { name: orgName })).toBeVisible();
 }
 

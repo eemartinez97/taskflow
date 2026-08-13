@@ -43,13 +43,6 @@ describe("Header", () => {
     expect(screen.getByRole("heading", { name: "Invitation" })).toBeInTheDocument();
   });
 
-  it("derives the title from NAV_ITEMS for the org detail route via prefix match", () => {
-    vi.mocked(usePathname).mockReturnValue("/organizations/org-1");
-    vi.mocked(useNotifications).mockReturnValue({ notifications: [], unreadCount: 0 });
-    render(<Header />);
-    expect(screen.getByRole("heading", { name: "Organizations" })).toBeInTheDocument();
-  });
-
   it("shows the unread count badge when there are unread notifications", () => {
     vi.mocked(usePathname).mockReturnValue("/projects");
     vi.mocked(useNotifications).mockReturnValue({ notifications: [], unreadCount: 3 });

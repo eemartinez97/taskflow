@@ -1,5 +1,5 @@
 import { expect, test } from "./support/fixtures";
-import { createIsolatedOrg, goToOrgDetail, uniqueOrgName } from "./helpers/org";
+import { createIsolatedOrg, goToTeam, uniqueOrgName } from "./helpers/org";
 import { dialogFieldByLabel } from "./helpers/field";
 import { registerUserViaApi } from "./helpers/auth";
 import { clickNavLink } from "./helpers/nav";
@@ -11,7 +11,7 @@ test.describe("Team management and settings", () => {
     // The invite target must be an existing account, otherwise the mutation
     // fails with an inline error and the success toast never renders.
     await registerUserViaApi(page, registeredUser);
-    await goToOrgDetail(page, org.name);
+    await goToTeam(page, org.name);
     await page.getByRole("button", { name: "Invite member" }).click();
 
     const dialog = page.getByRole("dialog");

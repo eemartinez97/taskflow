@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent, act } from "@testing-library/react";
-import { InvitationsSection } from "@/app/(dashboard)/organizations/[orgId]/_components/invitations-section";
+import { InvitationsSection } from "@/app/(dashboard)/team/_components/invitations-section";
 import { api } from "@/lib/trpc/client";
 import { toast } from "@/lib/toast/store";
 import { renderUI } from "../../helpers/render";

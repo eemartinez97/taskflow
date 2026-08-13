@@ -23,7 +23,7 @@ vi.mock("@/components/common/confirm-dialog", () => ({
 
 import { api } from "@/lib/trpc/client";
 import { toast } from "@/lib/toast/store";
-import { InvitationsSection } from "@/app/(dashboard)/organizations/[orgId]/_components/invitations-section";
+import { InvitationsSection } from "@/app/(dashboard)/team/_components/invitations-section";
 import { mockUseQuery, setupMutationMock } from "@/tests/support/trpc";
 import { makeOrgInvitation } from "@/tests/support/factories";
 import { VALID_ORG_ID } from "@/tests/support/fixtures";

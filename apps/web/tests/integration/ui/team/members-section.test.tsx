@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent, act } from "@testing-library/react";
 import type { MembershipWithUser } from "@taskflow/database";
 import type { Role } from "@taskflow/shared";
-import { MembersSection } from "@/app/(dashboard)/organizations/[orgId]/_components/members-section";
+import { MembersSection } from "@/app/(dashboard)/team/_components/members-section";
 import { api } from "@/lib/trpc/client";
 import { toast } from "@/lib/toast/store";
 import { renderUI } from "../../helpers/render";

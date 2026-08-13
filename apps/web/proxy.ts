@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { serverEnv } from "./lib/env.server";
 import { getToken } from "next-auth/jwt";
+import { ACTIVE_ORG_COOKIE } from "./lib/utils/active-org";
+import { ONE_YEAR_SECONDS } from "./lib/utils/cookie-store";
 
 /**
  * Public routes that redirect an ALREADY authenticated user to /projects.
@@ -63,7 +65,38 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     return NextResponse.redirect(new URL("/projects", request.url));
   }
 
-  // 2. If NOT authenticated and trying to access a protected route -> redirect to /login
+  // 2. /organizations and /organizations/<orgId> are gone as nav destinations
+  // (superseded by /team, scoped to whichever org the sidebar switcher has
+  // active) but /organizations/<orgId> stays alive as a deep link: it's what
+  // every notification with entityType "org" still points at - MEMBER_INVITED,
+  // INVITATION_ACCEPTED, INVITATION_DECLINED (notifications-panel.tsx's
+  // notificationHref) - so old, already-delivered notifications keep working
+  // with no data migration. Only meaningful once authenticated - an
+  // unauthenticated visitor falls through to rule 3 below and lands on
+  // /login with the original path as callbackUrl, same as any other
+  // protected route.
+  if (isAuthenticated) {
+    if (pathname === "/organizations") {
+      return NextResponse.redirect(new URL("/team", request.url));
+    }
+
+    const orgDetailMatch = /^\/organizations\/([^/]+)$/.exec(pathname);
+    if (orgDetailMatch) {
+      const [, orgId] = orgDetailMatch;
+      const response = NextResponse.redirect(new URL("/team", request.url));
+      // Not httpOnly: the org switcher reads this same cookie client-side
+      // (lib/utils/active-org.ts) via document.cookie.
+      /* v8 ignore next -- orgDetailMatch's [^/]+ group structurally always captures at least one char */
+      response.cookies.set(ACTIVE_ORG_COOKIE, orgId ?? "", {
+        path: "/",
+        maxAge: ONE_YEAR_SECONDS,
+        sameSite: "lax",
+      });
+      return response;
+    }
+  }
+
+  // 3. If NOT authenticated and trying to access a protected route -> redirect to /login
 
   if (!isAuthenticated && !isPublicAuthRoute) {
     const loginUrl = new URL("/login", request.url);
@@ -71,7 +104,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     return NextResponse.redirect(loginUrl);
   }
 
-  // 3. Otherwise, continue normally
+  // 4. Otherwise, continue normally
   return NextResponse.next();
 }
 

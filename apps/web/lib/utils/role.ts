@@ -1,4 +1,5 @@
 import type { Role } from "@taskflow/shared";
+import type { BadgeProps } from "@taskflow/ui";
 
 /**
  * Role-checking helpers - single source of truth for RBAC in the UI.
@@ -26,3 +27,11 @@ export function canMutateInOrg(role: Role): boolean {
 export function isOrgOwner(role: Role): boolean {
   return role === "OWNER";
 }
+
+/** Badge variant per role - single source of truth, shared by MembersSection and OrgSwitcher. */
+export const ROLE_BADGE_VARIANT: Record<Role, NonNullable<BadgeProps["variant"]>> = {
+  OWNER: "default",
+  ADMIN: "success",
+  MEMBER: "outline",
+  VIEWER: "outline",
+};

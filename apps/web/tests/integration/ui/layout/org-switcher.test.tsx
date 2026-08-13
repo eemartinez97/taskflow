@@ -9,7 +9,6 @@ import {
   subscribeActiveOrg,
 } from "@/lib/utils/active-org";
 import { hasUnsavedChanges } from "@/lib/utils/navigation-guard";
-import { CREATE_ORG_VALUE } from "@/lib/constants/org-switcher";
 import { renderUI } from "../../helpers/render";
 import { mockUseQuery } from "@/tests/support/trpc";
 import { setupRouterMock } from "@/tests/support/render";
@@ -82,18 +81,16 @@ const mockSetActiveOrgId = vi.mocked(setActiveOrgId);
 const mockHasUnsavedChanges = vi.mocked(hasUnsavedChanges);
 
 const MOCK_ORGS = [
-  { id: "org-1", name: "Acme Corp", slug: "acme-corp" },
-  { id: "org-2", name: "Globex", slug: "globex" },
-] as const;
+  { id: "org-1", name: "Acme Corp", slug: "acme-corp", memberships: [{ role: "OWNER" as const }] },
+  { id: "org-2", name: "Globex", slug: "globex", memberships: [{ role: "MEMBER" as const }] },
+];
 
-interface MockOrg {
-  id: string;
-  name: string;
-  slug: string;
+function mockOrgsList(orgs: typeof MOCK_ORGS): void {
+  mockUseQuery(api.orgs.list, orgs);
 }
 
-function mockOrgsList(orgs: MockOrg[]): void {
-  mockUseQuery(api.orgs.list, orgs);
+function trigger(): HTMLElement {
+  return screen.getByRole("button", { name: /switch organization/i });
 }
 
 // -- Tests --
@@ -106,7 +103,8 @@ describe("OrgSwitcher", () => {
     vi.mocked(getServerActiveOrgId).mockReturnValue(null);
     vi.mocked(subscribeActiveOrg).mockReturnValue(() => undefined);
     mockHasUnsavedChanges.mockReturnValue(false);
-    mockOrgsList([...MOCK_ORGS]);
+    mockOrgsList(MOCK_ORGS);
+    mockUseQuery(api.invitations.listMine, []);
   });
 
   // -- Null / empty states --
@@ -148,23 +146,26 @@ describe("OrgSwitcher", () => {
 
   // -- Rendering --
 
-  it("renders an 'Organization' label associated with the switcher select", () => {
+  it("shows the active org's name and role on the trigger", () => {
     renderUI(<OrgSwitcher />);
 
-    expect(screen.getByText("Organization")).toBeInTheDocument();
+    expect(trigger()).toHaveTextContent("Acme Corp");
+    expect(trigger()).toHaveTextContent("OWNER");
   });
 
-  it("renders an option for each org", () => {
+  it("renders a menuitem for each org once opened", () => {
     renderUI(<OrgSwitcher />);
+    fireEvent.click(trigger());
 
-    expect(screen.getByRole("option", { name: "Acme Corp" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Globex" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /acme corp/i })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /globex/i })).toBeInTheDocument();
   });
 
-  it("renders the '+ Create organization…' sentinel option", () => {
+  it("renders the Create organization menuitem", () => {
     renderUI(<OrgSwitcher />);
+    fireEvent.click(trigger());
 
-    expect(screen.getByRole("option", { name: /create organization/i })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /create organization/i })).toBeInTheDocument();
   });
 
   // -- Active org selection --
@@ -173,28 +174,29 @@ describe("OrgSwitcher", () => {
     mockReadActiveOrgId.mockReturnValue(null);
     renderUI(<OrgSwitcher />);
 
-    expect(screen.getByRole("combobox")).toHaveValue("org-1");
+    expect(trigger()).toHaveTextContent("Acme Corp");
   });
 
   it("selects the matched org when the cookie value corresponds to an existing org", () => {
     mockReadActiveOrgId.mockReturnValue("org-2");
     renderUI(<OrgSwitcher />);
 
-    expect(screen.getByRole("combobox")).toHaveValue("org-2");
+    expect(trigger()).toHaveTextContent("Globex");
   });
 
   it("falls back to the first org when the cookie value is stale (org no longer exists)", () => {
     mockReadActiveOrgId.mockReturnValue("deleted-org-id");
     renderUI(<OrgSwitcher />);
 
-    expect(screen.getByRole("combobox")).toHaveValue("org-1");
+    expect(trigger()).toHaveTextContent("Acme Corp");
   });
 
   // -- Switching orgs --
 
   it("calls setActiveOrgId and router.push('/projects') when a different org is selected", () => {
     renderUI(<OrgSwitcher />);
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "org-2" } });
+    fireEvent.click(trigger());
+    fireEvent.click(screen.getByRole("menuitem", { name: /globex/i }));
 
     expect(mockSetActiveOrgId).toHaveBeenCalledWith("org-2");
     expect(mockRouter.push).toHaveBeenCalledWith("/projects");
@@ -203,16 +205,18 @@ describe("OrgSwitcher", () => {
 
   // -- Create org --
 
-  it("opens CreateOrgDialog when the sentinel option is selected", () => {
+  it("opens CreateOrgDialog from the menu", () => {
     renderUI(<OrgSwitcher />);
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: CREATE_ORG_VALUE } });
+    fireEvent.click(trigger());
+    fireEvent.click(screen.getByRole("menuitem", { name: /create organization/i }));
 
     expect(screen.getByTestId("create-org-dialog")).toBeInTheDocument();
   });
 
-  it("does NOT switch org or navigate when the sentinel option is selected", () => {
+  it("does NOT switch org or navigate when the create-org menuitem is clicked", () => {
     renderUI(<OrgSwitcher />);
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: CREATE_ORG_VALUE } });
+    fireEvent.click(trigger());
+    fireEvent.click(screen.getByRole("menuitem", { name: /create organization/i }));
 
     expect(mockSetActiveOrgId).not.toHaveBeenCalled();
     expect(mockRouter.push).not.toHaveBeenCalled();
@@ -220,7 +224,8 @@ describe("OrgSwitcher", () => {
 
   it("switches to the new org and navigates when CreateOrgDialog calls onCreated", () => {
     renderUI(<OrgSwitcher />);
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: CREATE_ORG_VALUE } });
+    fireEvent.click(trigger());
+    fireEvent.click(screen.getByRole("menuitem", { name: /create organization/i }));
     fireEvent.click(screen.getByRole("button", { name: "Confirm create" }));
 
     expect(mockSetActiveOrgId).toHaveBeenCalledWith("new-org-id");
@@ -229,7 +234,8 @@ describe("OrgSwitcher", () => {
 
   it("closes CreateOrgDialog when its Cancel button is clicked", () => {
     renderUI(<OrgSwitcher />);
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: CREATE_ORG_VALUE } });
+    fireEvent.click(trigger());
+    fireEvent.click(screen.getByRole("menuitem", { name: /create organization/i }));
     fireEvent.click(screen.getByRole("button", { name: "Cancel create" }));
 
     expect(screen.queryByTestId("create-org-dialog")).not.toBeInTheDocument();
@@ -240,7 +246,8 @@ describe("OrgSwitcher", () => {
   it("shows ConfirmDialog and does NOT switch immediately when there are unsaved changes", () => {
     mockHasUnsavedChanges.mockReturnValue(true);
     renderUI(<OrgSwitcher />);
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "org-2" } });
+    fireEvent.click(trigger());
+    fireEvent.click(screen.getByRole("menuitem", { name: /globex/i }));
 
     expect(screen.getByTestId("confirm-dialog")).toBeInTheDocument();
     expect(mockSetActiveOrgId).not.toHaveBeenCalled();
@@ -251,7 +258,8 @@ describe("OrgSwitcher", () => {
     mockHasUnsavedChanges.mockReturnValue(true);
     renderUI(<OrgSwitcher />);
 
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "org-2" } });
+    fireEvent.click(trigger());
+    fireEvent.click(screen.getByRole("menuitem", { name: /globex/i }));
     fireEvent.click(screen.getByRole("button", { name: "Confirm switch" }));
 
     expect(mockSetActiveOrgId).toHaveBeenCalledWith("org-2");
@@ -262,11 +270,30 @@ describe("OrgSwitcher", () => {
     mockHasUnsavedChanges.mockReturnValue(true);
     renderUI(<OrgSwitcher />);
 
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "org-2" } });
+    fireEvent.click(trigger());
+    fireEvent.click(screen.getByRole("menuitem", { name: /globex/i }));
     fireEvent.click(screen.getByRole("button", { name: "Cancel switch" }));
 
     expect(mockSetActiveOrgId).not.toHaveBeenCalled();
     expect(mockRouter.push).not.toHaveBeenCalled();
     expect(screen.queryByTestId("confirm-dialog")).not.toBeInTheDocument();
+  });
+
+  // -- Pending invitations --
+
+  it("shows a count badge on the invitations row when there are pending invitations", () => {
+    mockUseQuery(api.invitations.listMine, [{ id: "inv-1" }, { id: "inv-2" }]);
+    renderUI(<OrgSwitcher />);
+    fireEvent.click(trigger());
+
+    expect(screen.getByRole("menuitem", { name: /pending invitations/i })).toHaveTextContent("2");
+  });
+
+  it("navigates to /invitations when the invitations row is clicked", () => {
+    renderUI(<OrgSwitcher />);
+    fireEvent.click(trigger());
+    fireEvent.click(screen.getByRole("menuitem", { name: /pending invitations/i }));
+
+    expect(mockRouter.push).toHaveBeenCalledWith("/invitations");
   });
 });

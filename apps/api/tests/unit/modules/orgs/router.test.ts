@@ -47,6 +47,14 @@ describe("orgs router", () => {
     expect(service.listMembers).toHaveBeenCalledWith(db, VALID_ORG_ID);
   });
 
+  it("members is readable by VIEWER", async () => {
+    grantRole("VIEWER");
+
+    await caller().members({ orgId: VALID_ORG_ID });
+
+    expect(service.listMembers).toHaveBeenCalledWith(db, VALID_ORG_ID);
+  });
+
   it("removeMember -> removeMemberFromOrg", async () => {
     await caller().removeMember({ orgId: VALID_ORG_ID, userId: ANOTHER_UUID });
 

@@ -32,6 +32,19 @@ describe("roleGuard against a real database", () => {
     else await expect(call).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
+  it.each(["OWNER", "ADMIN", "MEMBER", "VIEWER"] as const)(
+    "%s can read the member roster",
+    async (role) => {
+      const { org } = await seedWorkspace();
+      const user = await seedUser();
+      await seedMember(org.id, user.id, role);
+
+      await expect(callerAs(user).orgs.members({ orgId: org.id })).resolves.toEqual(
+        expect.arrayContaining([expect.objectContaining({ userId: user.id })]),
+      );
+    },
+  );
+
   it("rejects a user with no membership", async () => {
     const { org } = await seedWorkspace();
     const outsider = await seedUser();

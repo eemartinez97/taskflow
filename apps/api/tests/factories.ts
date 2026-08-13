@@ -112,6 +112,7 @@ export const buildMembership = (o: Partial<Membership> = {}): Membership => ({
   orgId: VALID_ORG_ID,
   userId: VALID_USER.id,
   role: "MEMBER",
+  cursorsHidden: false,
   ...stamps,
   ...o,
 });

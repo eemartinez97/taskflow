@@ -53,7 +53,7 @@ describe("ProjectList", () => {
   });
 
   it("renders projects and hides admin dropdown for non-admins", () => {
-    const org = makeOrg({ memberships: [{ role: "MEMBER" }] });
+    const org = makeOrg({ memberships: [makeMembership({ role: "MEMBER" })] });
     const proj = makeProject({ description: "Test desc" });
     mockUseQuery(api.projects.list, [proj]);
     render(<ProjectList orgId={VALID_ORG_ID} initialOrg={org} initialProjects={[proj]} />);

@@ -28,6 +28,7 @@ export const membershipSchema = z.object({
   orgId: idSchema,
   userId: idSchema,
   role: roleSchema,
+  cursorsHidden: z.boolean(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -38,3 +39,7 @@ export const inviteMemberSchema = z.object({
 });
 
 export const updateMemberRoleSchema = inviteMemberSchema.pick({ role: true });
+
+export const updateCursorPreferenceSchema = z.object({
+  cursorsHidden: z.boolean(),
+});

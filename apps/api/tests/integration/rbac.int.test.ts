@@ -45,6 +45,19 @@ describe("roleGuard against a real database", () => {
     },
   );
 
+  it.each(["OWNER", "ADMIN", "MEMBER", "VIEWER"] as const)(
+    "%s can update their own cursor preference",
+    async (role) => {
+      const { org } = await seedWorkspace();
+      const user = await seedUser();
+      await seedMember(org.id, user.id, role);
+
+      await expect(
+        callerAs(user).orgs.updateMyCursorPreference({ orgId: org.id, cursorsHidden: true }),
+      ).resolves.toMatchObject({ cursorsHidden: true });
+    },
+  );
+
   it("rejects a user with no membership", async () => {
     const { org } = await seedWorkspace();
     const outsider = await seedUser();
@@ -96,5 +109,14 @@ describe("cross-tenant isolation", () => {
     await expect(callerAs(outsider).orgs.members({ orgId: org.id })).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
+  });
+
+  it("cannot set a cursor preference in an organisation it does not belong to", async () => {
+    const { org } = await seedWorkspace();
+    const outsider = await seedUser();
+
+    await expect(
+      callerAs(outsider).orgs.updateMyCursorPreference({ orgId: org.id, cursorsHidden: true }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

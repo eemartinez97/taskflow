@@ -50,6 +50,7 @@ export const validMembershipPayload = {
   orgId: VALID_UUID,
   userId: ANOTHER_UUID,
   role: "ADMIN" as const,
+  cursorsHidden: false,
   createdAt: FIXED_DATE,
   updatedAt: FIXED_DATE,
 };

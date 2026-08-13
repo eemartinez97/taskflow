@@ -64,6 +64,7 @@ export const api = {
     invite: { useMutation: mutation() },
     removeMember: { useMutation: mutation() },
     updateMemberRole: { useMutation: mutation() },
+    updateMyCursorPreference: { useMutation: mutation() },
   },
   invitations: {
     listForOrg: { useQuery: query() },

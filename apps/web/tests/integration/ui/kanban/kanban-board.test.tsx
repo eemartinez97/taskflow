@@ -24,10 +24,7 @@ vi.mock("@/lib/socket/socket-context", () => ({
   SocketProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 vi.mock("@/lib/hooks/use-cursors-pref", () => ({
-  useCursorsHidden: vi.fn(() => false),
-}));
-vi.mock("@/lib/utils/cursor-pref", () => ({
-  setCursorsHidden: vi.fn(),
+  useCursorsHidden: vi.fn(() => ({ cursorsHidden: false, setCursorsHidden: vi.fn() })),
 }));
 vi.mock("@/lib/hooks/use-element-size", () => ({
   useElementSize: vi.fn(() => ({ width: 800, height: 600 })),
@@ -358,7 +355,10 @@ describe("KanbanBoard", () => {
 
   it("renders the cursors toggle button with 'Hide live cursors' label when cursors are visible", async () => {
     const { useCursorsHidden } = await import("@/lib/hooks/use-cursors-pref");
-    vi.mocked(useCursorsHidden).mockReturnValue(false);
+    vi.mocked(useCursorsHidden).mockReturnValue({
+      cursorsHidden: false,
+      setCursorsHidden: vi.fn(),
+    });
     renderUI(<KanbanBoard {...buildProps()} />);
 
     expect(screen.getByRole("button", { name: "Hide live cursors" })).toBeInTheDocument();
@@ -366,7 +366,7 @@ describe("KanbanBoard", () => {
 
   it("renders the cursors toggle button with 'Show live cursors' label when cursors are hidden", async () => {
     const { useCursorsHidden } = await import("@/lib/hooks/use-cursors-pref");
-    vi.mocked(useCursorsHidden).mockReturnValue(true);
+    vi.mocked(useCursorsHidden).mockReturnValue({ cursorsHidden: true, setCursorsHidden: vi.fn() });
     renderUI(<KanbanBoard {...buildProps()} />);
 
     expect(screen.getByRole("button", { name: "Show live cursors" })).toBeInTheDocument();
@@ -374,13 +374,13 @@ describe("KanbanBoard", () => {
 
   it("calls setCursorsHidden with the toggled value when the cursor button is clicked", async () => {
     const { useCursorsHidden } = await import("@/lib/hooks/use-cursors-pref");
-    const { setCursorsHidden } = await import("@/lib/utils/cursor-pref");
-    vi.mocked(useCursorsHidden).mockReturnValue(false);
+    const setCursorsHidden = vi.fn();
+    vi.mocked(useCursorsHidden).mockReturnValue({ cursorsHidden: false, setCursorsHidden });
 
     renderUI(<KanbanBoard {...buildProps()} />);
     fireEvent.click(screen.getByRole("button", { name: "Hide live cursors" }));
 
-    expect(vi.mocked(setCursorsHidden)).toHaveBeenCalledWith(true);
+    expect(setCursorsHidden).toHaveBeenCalledWith(true);
   });
 
   // -- Presence viewer stack --

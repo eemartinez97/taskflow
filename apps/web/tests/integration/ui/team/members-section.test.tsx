@@ -44,6 +44,7 @@ function makeMember(userId: string, name: string, email: string, role: Role): Me
     userId,
     orgId: "org-1",
     role,
+    cursorsHidden: false,
     createdAt: new Date("2024-01-01"),
     updatedAt: new Date("2024-01-01"),
     user: {

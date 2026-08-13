@@ -47,6 +47,7 @@ import type {
   notificationSchema,
   notificationTypeSchema,
   sessionUserSchema,
+  updateCursorPreferenceSchema,
   updateMemberRoleSchema,
 } from "../schemas";
 
@@ -64,6 +65,7 @@ export type Membership = z.infer<typeof membershipSchema>;
 export type InvitableRole = z.infer<typeof invitableRoleSchema>;
 export type InviteMember = z.infer<typeof inviteMemberSchema>;
 export type UpdateMemberRole = z.infer<typeof updateMemberRoleSchema>;
+export type UpdateCursorPreference = z.infer<typeof updateCursorPreferenceSchema>;
 
 // Invitations
 export type InvitationStatus = z.infer<typeof invitationStatusSchema>;

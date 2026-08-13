@@ -18,6 +18,7 @@ test.describe("Multi-organization flows", () => {
     const org = uniqueOrgName("Editable Org");
     await createIsolatedOrg(page, org.name);
     await clickNavLink(page, "Settings", /\/settings/);
+    await clickNavLink(page, "General", /\/settings\/organization/);
 
     // Scoped by id, not label text: Settings also has a Profile "Name"
     // field, so the accessible name "Name" alone is ambiguous.

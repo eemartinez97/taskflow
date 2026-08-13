@@ -24,6 +24,8 @@ import { api } from "@/lib/trpc/client";
 interface LabelManagerProps {
   orgId: string;
   initialLabels: Label[];
+  /** labels.create/delete are admin-only (labels.list is member-readable) - hides the mutation UI for a plain MEMBER instead of letting it fail server-side. */
+  canManage: boolean;
 }
 
 const PRESET_COLORS = [
@@ -36,7 +38,7 @@ const PRESET_COLORS = [
   "#EC4899",
 ] as const;
 
-export function LabelManager({ orgId, initialLabels }: LabelManagerProps): JSX.Element {
+export function LabelManager({ orgId, initialLabels, canManage }: LabelManagerProps): JSX.Element {
   const utils = api.useUtils();
   const deleteDialog = useDisclosure();
   const [name, setName] = useState("");
@@ -94,84 +96,88 @@ export function LabelManager({ orgId, initialLabels }: LabelManagerProps): JSX.E
                 style={{ backgroundColor: label.color }}
               >
                 {label.name}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Delete label ${label.name}`}
-                  onClick={() => {
-                    handleDeleteClick(label);
-                  }}
-                  className="h-4 w-4 p-0 text-white hover:bg-white/20 hover:text-white"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
+                {canManage && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Delete label ${label.name}`}
+                    onClick={() => {
+                      handleDeleteClick(label);
+                    }}
+                    className="h-4 w-4 p-0 text-white hover:bg-white/20 hover:text-white"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                )}
               </span>
             ))}
           </div>
 
           {/* Create new label */}
-          <div className="flex flex-col gap-3 border-t border-gray-100 pt-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-              Create label
-            </p>
+          {canManage && (
+            <div className="flex flex-col gap-3 border-t border-gray-100 pt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                Create label
+              </p>
 
-            <Alert message={createMutation.isError ? createMutation.error.message : null} />
+              <Alert message={createMutation.isError ? createMutation.error.message : null} />
 
-            <FormField label="Label name" htmlFor="label-name">
-              <Input
-                id="label-name"
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleCreate();
-                }}
-                placeholder="e.g. Bug"
-                maxLength={50}
-                className="max-w-[180px]"
-              />
-            </FormField>
+              <FormField label="Label name" htmlFor="label-name">
+                <Input
+                  id="label-name"
+                  value={name}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleCreate();
+                  }}
+                  placeholder="e.g. Bug"
+                  maxLength={50}
+                  className="max-w-[180px]"
+                />
+              </FormField>
 
-            {/* Color preset picker */}
-            <div className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium text-gray-700">Color</span>
-              <div className="flex gap-1.5">
-                {PRESET_COLORS.map((c) => (
-                  <Button
-                    key={c}
-                    variant="ghost"
-                    size="icon"
-                    type="button"
-                    aria-label={`Select color ${c}`}
-                    aria-pressed={color === c}
-                    onClick={() => {
-                      setColor(c);
-                    }}
-                    className="h-6 w-6 rounded-full p-0 transition-transform hover:scale-110 hover:bg-transparent"
-
-                    style={{
-                      backgroundColor: c,
-                      // Show ring when selected
-                      outline: color === c ? "2px solid rgb(59 130 246)" : "2px solid transparent",
-                      outlineOffset: "2px",
-                    }}
-                  />
-                ))}
+              {/* Color preset picker */}
+              <div className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium text-gray-700">Color</span>
+                <div className="flex gap-1.5">
+                  {PRESET_COLORS.map((c) => (
+                    <Button
+                      key={c}
+                      variant="ghost"
+                      size="icon"
+                      type="button"
+                      aria-label={`Select color ${c}`}
+                      aria-pressed={color === c}
+                      onClick={() => {
+                        setColor(c);
+                      }}
+                      className="h-6 w-6 rounded-full p-0 transition-transform hover:scale-110 hover:bg-transparent"
+                      style={{
+                        backgroundColor: c,
+                        // Show ring when selected
+                        outline:
+                          color === c ? "2px solid rgb(59 130 246)" : "2px solid transparent",
+                        outlineOffset: "2px",
+                      }}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
 
-            <Button
-              size="sm"
-              onClick={handleCreate}
-              loading={createMutation.isPending}
-              disabled={!name.trim()}
-              className="self-start"
-            >
-              <Plus className="mr-1 h-3.5 w-3.5" />
-              Add
-            </Button>
-          </div>
+              <Button
+                size="sm"
+                onClick={handleCreate}
+                loading={createMutation.isPending}
+                disabled={!name.trim()}
+                className="self-start"
+              >
+                <Plus className="mr-1 h-3.5 w-3.5" />
+                Add
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 

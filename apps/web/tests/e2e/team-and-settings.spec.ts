@@ -37,6 +37,7 @@ test.describe("Team management and settings", () => {
   test("toggles the cursor preference", async ({ page }) => {
     await page.goto("/projects");
     await clickNavLink(page, "Settings", /\/settings/);
+    await clickNavLink(page, "Preferences", /\/settings\/preferences/);
     const toggle = page.getByRole("button", { name: /hidden|visible/i });
     const before = await toggle.textContent();
     await toggle.click();
@@ -46,6 +47,7 @@ test.describe("Team management and settings", () => {
   test("creates a label and deletes it with confirmation", async ({ page }) => {
     await createIsolatedOrg(page, uniqueOrgName("Label Org").name);
     await clickNavLink(page, "Settings", /\/settings/);
+    await clickNavLink(page, "Labels", /\/settings\/labels/);
     await page.getByPlaceholder("e.g. Bug").fill("Urgent");
     await page.getByRole("button", { name: "Add", exact: true }).click();
     await expect(page.getByText("Urgent", { exact: true })).toBeVisible();

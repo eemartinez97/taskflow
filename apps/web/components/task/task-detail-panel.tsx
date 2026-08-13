@@ -61,6 +61,16 @@ export function TaskDetailPanel({
   const membersQuery = api.orgs.members.useQuery({ orgId });
   const members = membersQuery.data ?? [];
 
+  // A task can still be assigned to someone who has since left/been removed
+  // (attribution is preserved on purpose - see apps/api's
+  // removeMembershipAndNotify). Without this, the select has no <option> for
+  // that value and silently shows blank, contradicting what the DB says.
+  const { data: formerAssignees = [] } = api.orgs.formerAssignees.useQuery({ orgId });
+  const assignedFormerMember =
+    fullTask.assigneeId && !members.some((m) => m.user.id === fullTask.assigneeId)
+      ? formerAssignees.find((u) => u.id === fullTask.assigneeId)
+      : undefined;
+
   const { data: orgLabels = [] } = api.labels.list.useQuery({ orgId });
   const { data: taskLabels = [] } = api.tasks.labels.useQuery({ orgId, taskId: task.id });
 
@@ -264,6 +274,11 @@ export function TaskDetailPanel({
                     {...register("assigneeId", { setValueAs: selectValueToNull })}
                   >
                     <option value="">Unassigned</option>
+                    {assignedFormerMember && (
+                      <option value={assignedFormerMember.id} disabled>
+                        {displayName(assignedFormerMember)} · ex
+                      </option>
+                    )}
                     {members.map((m) => (
                       <option key={m.user.id} value={m.user.id}>
                         {displayName(m.user)}

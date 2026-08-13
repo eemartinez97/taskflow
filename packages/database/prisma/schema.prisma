@@ -52,6 +52,7 @@ enum NotificationType {
   MEMBER_INVITED
   INVITATION_ACCEPTED
   INVITATION_DECLINED
+  MEMBER_LEFT
 
   @@schema("taskflow")
 }

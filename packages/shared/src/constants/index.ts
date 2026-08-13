@@ -13,6 +13,7 @@ export const NOTIFICATION_TYPES = [
   "MEMBER_INVITED",
   "INVITATION_ACCEPTED",
   "INVITATION_DECLINED",
+  "MEMBER_LEFT",
 ] as const;
 
 // Invitation lifecycle states - no EXPIRED member, see the Invitation model's

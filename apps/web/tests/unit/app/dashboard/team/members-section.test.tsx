@@ -20,7 +20,7 @@ vi.mock("@/components/common/confirm-dialog", () => ({
 import { api } from "@/lib/trpc/client";
 import { useOnlineUsers } from "@/lib/hooks/use-online-users";
 import { MembersSection } from "@/app/(dashboard)/team/_components/members-section";
-import { mockUseQuery, setupMutationMock } from "@/tests/support/trpc";
+import { getLastMockUtils, mockUseQuery, setupMutationMock } from "@/tests/support/trpc";
 import { VALID_ORG_ID } from "@/tests/support/fixtures";
 
 /** A second, inert row so a test's focal member doesn't accidentally trigger the "alone" empty state. */
@@ -238,6 +238,9 @@ describe("MembersSection", () => {
     act(() => {
       triggerSuccess();
     });
+    expect(getLastMockUtils().orgs.members.invalidate).toHaveBeenCalledWith({
+      orgId: VALID_ORG_ID,
+    });
   });
 
   it("shows a success toast, invalidates, and clears the target when removeMutation succeeds", () => {
@@ -264,6 +267,9 @@ describe("MembersSection", () => {
     act(() => {
       triggerSuccess();
     });
+    const utils = getLastMockUtils();
+    expect(utils.orgs.members.invalidate).toHaveBeenCalledWith({ orgId: VALID_ORG_ID });
+    expect(utils.orgs.formerAssignees.invalidate).toHaveBeenCalledWith({ orgId: VALID_ORG_ID });
   });
 
   it("closes the remove-member confirmation without removing when cancelled", async () => {

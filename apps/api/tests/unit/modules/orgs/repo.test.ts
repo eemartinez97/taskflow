@@ -1,8 +1,11 @@
 import { describe } from "vitest";
 
 import {
+  countTasksAssignedInOrg,
   createOrg,
   deleteOrg,
+  findAdminUserIds,
+  findFormerAssignees,
   findMembers,
   findMembership,
   findOrgById,
@@ -14,7 +17,7 @@ import {
 } from "../../../../src/modules/orgs/repo";
 import { membershipWithUser, orgWithMembership } from "../../../mocks/database-mock";
 import { buildMembership, buildOrg } from "../../../factories";
-import { db, VALID_ORG_ID, VALID_USER } from "../../../helpers";
+import { ANOTHER_UUID, db, VALID_ORG_ID, VALID_USER } from "../../../helpers";
 import { mockDb } from "../../../mocks/database-mock";
 import { itDelegatesToPrisma } from "../../../support/repo-contract";
 
@@ -115,6 +118,42 @@ describe("orgs repo", () => {
       args: {
         where: { orgId_userId: { orgId: VALID_ORG_ID, userId: VALID_USER.id } },
         data: { cursorsHidden: true },
+      },
+    },
+    {
+      name: "findAdminUserIds maps rows to userIds",
+      delegate: mockDb.membership.findMany,
+      resolves: [{ userId: VALID_USER.id }, { userId: ANOTHER_UUID }],
+      call: () => findAdminUserIds(db, VALID_ORG_ID),
+      args: {
+        where: { orgId: VALID_ORG_ID, role: { in: ["OWNER", "ADMIN"] } },
+        select: { userId: true },
+      },
+      returns: [VALID_USER.id, ANOTHER_UUID],
+    },
+    {
+      name: "countTasksAssignedInOrg walks the task -> column -> board -> project chain",
+      delegate: mockDb.task.count,
+      resolves: 3,
+      call: () => countTasksAssignedInOrg(db, VALID_ORG_ID, VALID_USER.id),
+      args: {
+        where: {
+          assigneeId: VALID_USER.id,
+          column: { board: { project: { orgId: VALID_ORG_ID } } },
+        },
+      },
+    },
+    {
+      name: "findFormerAssignees selects only id and name",
+      delegate: mockDb.user.findMany,
+      resolves: [{ id: ANOTHER_UUID, name: "Bob" }],
+      call: () => findFormerAssignees(db, VALID_ORG_ID),
+      args: {
+        where: {
+          assignedTasks: { some: { column: { board: { project: { orgId: VALID_ORG_ID } } } } },
+          memberships: { none: { orgId: VALID_ORG_ID } },
+        },
+        select: { id: true, name: true },
       },
     },
   ]);

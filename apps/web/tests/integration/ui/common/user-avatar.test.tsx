@@ -100,4 +100,25 @@ describe("UserAvatar", () => {
 
     expect(screen.getByLabelText("Alice")).toHaveClass("ring-2");
   });
+
+  // -- isFormer prop --
+
+  it("appends '· ex' to both title and aria-label when isFormer is true", () => {
+    renderUI(<UserAvatar user={{ name: "Alice Smith" }} isFormer />);
+
+    expect(screen.getByLabelText("Alice Smith · ex")).toBeInTheDocument();
+    expect(screen.getByTitle("Alice Smith · ex")).toBeInTheDocument();
+  });
+
+  it("applies the dimmed opacity class when isFormer is true", () => {
+    renderUI(<UserAvatar user={{ name: "Alice" }} isFormer />);
+
+    expect(screen.getByLabelText("Alice · ex")).toHaveClass("opacity-50");
+  });
+
+  it("still renders correct initials for a former member", () => {
+    renderUI(<UserAvatar user={{ name: "Alice Smith" }} isFormer />);
+
+    expect(screen.getByText("AS")).toBeInTheDocument();
+  });
 });

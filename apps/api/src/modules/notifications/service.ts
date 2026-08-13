@@ -121,6 +121,8 @@ export function buildNotificationMessage(
       return entityTitle
         ? `${actor} declined your invitation to "${entityTitle}"`
         : `${actor} declined your invitation`;
+    case "MEMBER_LEFT":
+      return entityTitle ? `${actor} left "${entityTitle}"` : `${actor} left the organization`;
     /* v8 ignore next 4 -- defensive exhaustiveness guard, unreachable by type system */
     default: {
       const _exhaustive: never = type;
@@ -250,4 +252,46 @@ export async function notifyInvitationResolved(
     entityId: opts.orgId,
     entityType: "org",
   });
+}
+
+/**
+ * Notifies an org's OWNER/ADMIN members that someone stopped being a member
+ * (either by leaving or by being removed - same event either way, see
+ * modules/orgs/service.ts's removeMembershipAndNotify). Self-notification is
+ * a non-issue here: `notify()`'s own actor===recipient guard silently skips
+ * the departing user themselves if they happen to also be in `recipientIds`.
+ */
+export async function notifyMemberLeft(
+  db: PrismaClient,
+  io: AppServer,
+  opts: {
+    recipientIds: (string | null | undefined)[];
+    actorId: string;
+    orgId: string;
+    orgName: string;
+    taskCount: number;
+  },
+): Promise<void> {
+  const recipients = [...new Set(opts.recipientIds.filter(Boolean))] as string[];
+  if (recipients.length === 0) return;
+
+  const actorName = await getActorName(db, opts.actorId);
+  const base = buildNotificationMessage("MEMBER_LEFT", actorName, opts.orgName);
+  const message =
+    opts.taskCount > 0
+      ? `${base} · ${String(opts.taskCount)} ${opts.taskCount === 1 ? "task needs" : "tasks need"} reassignment`
+      : base;
+
+  await Promise.all(
+    recipients.map((userId) =>
+      notify(db, io, {
+        userId,
+        actorId: opts.actorId,
+        type: "MEMBER_LEFT",
+        message,
+        entityId: opts.orgId,
+        entityType: "org",
+      }),
+    ),
+  );
 }

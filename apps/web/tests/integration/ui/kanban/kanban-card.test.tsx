@@ -10,8 +10,11 @@ import { makeTask } from "@/tests/support/factories";
 vi.mock("@dnd-kit/sortable", async () => await import("@/tests/mocks/dnd-kit"));
 vi.mock("@dnd-kit/utilities", async () => await import("@/tests/mocks/dnd-kit-utilities"));
 vi.mock("@/components/common/user-avatar", () => ({
-  UserAvatar: ({ user }: { user: { name?: string | null } }) => (
-    <span data-testid="user-avatar">{user.name ?? "?"}</span>
+  UserAvatar: ({ user, isFormer }: { user: { name?: string | null }; isFormer?: boolean }) => (
+    <span data-testid="user-avatar">
+      {user.name ?? "?"}
+      {isFormer ? " · ex" : ""}
+    </span>
   ),
 }));
 
@@ -94,6 +97,21 @@ describe("KanbanCard", () => {
     renderUI(<KanbanCard task={makeTask()} assignee={null} />);
 
     expect(screen.queryByTestId("user-avatar")).not.toBeInTheDocument();
+  });
+
+  it("forwards isFormer to UserAvatar for a former-member assignee", () => {
+    const assignee = { name: "Bob", email: null, isFormer: true };
+    renderUI(<KanbanCard task={makeTask()} assignee={assignee} />);
+
+    expect(screen.getByTestId("user-avatar")).toHaveTextContent("Bob · ex");
+  });
+
+  it("does not forward isFormer for a current-member assignee", () => {
+    const assignee = { name: "Alice", email: "alice@test.com" };
+    renderUI(<KanbanCard task={makeTask()} assignee={assignee} />);
+
+    expect(screen.getByTestId("user-avatar")).toHaveTextContent("Alice");
+    expect(screen.getByTestId("user-avatar")).not.toHaveTextContent("· ex");
   });
 
   // -- Click / keyboard --

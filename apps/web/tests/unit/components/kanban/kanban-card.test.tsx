@@ -45,6 +45,13 @@ describe("KanbanCard", () => {
     expect(screen.getByLabelText("Alice")).toBeInTheDocument();
   });
 
+  it("dims the avatar and appends '· ex' for a former-member assignee", () => {
+    render(<KanbanCard task={task} assignee={{ name: "Bob", email: null, isFormer: true }} />);
+    const avatar = screen.getByLabelText("Bob · ex");
+    expect(avatar).toBeInTheDocument();
+    expect(avatar).toHaveClass("opacity-50");
+  });
+
   it("calls onClick when the card is clicked", async () => {
     const onClick = vi.fn();
     render(<KanbanCard task={task} onClick={onClick} />);

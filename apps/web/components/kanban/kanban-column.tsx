@@ -20,7 +20,7 @@ interface KanbanColumnProps {
   onTaskClick: (task: Task) => void;
   onRenameColumn: (columnId: string, name: string) => void;
   onDeleteColumn: (column: Column) => void;
-  assigneeById: Map<string, { name: string | null; email: string }>;
+  assigneeById: Map<string, { name: string | null; email: string | null; isFormer?: boolean }>;
   addingTaskId: string | null; // columnId being added to
   labelsByTask: Record<string, Label[]>;
 }

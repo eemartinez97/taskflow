@@ -10,6 +10,8 @@ interface UserAvatarProps {
   /** Optional background override (presence colors). Defaults to the brand tint. */
   color?: string;
   className?: string;
+  /** Dims the avatar and appends "· ex" to its tooltip/accessible name. */
+  isFormer?: boolean | undefined;
 }
 
 const SIZES = {
@@ -19,15 +21,25 @@ const SIZES = {
 } as const;
 
 /** Initials avatar - single source of truth for user chips across the app. */
-export function UserAvatar({ user, size = "sm", color, className }: UserAvatarProps): JSX.Element {
+export function UserAvatar({
+  user,
+  size = "sm",
+  color,
+  className,
+  isFormer = false,
+}: UserAvatarProps): JSX.Element {
+  const name = displayName(user);
+  const title = isFormer ? `${name} · ex` : name;
+
   return (
     <span
-      title={displayName(user)}
-      aria-label={displayName(user)}
+      title={title}
+      aria-label={title}
       className={cn(
         "inline-flex shrink-0 items-center justify-center rounded-full font-semibold",
         color ? "text-white" : "bg-brand-100 text-brand-700",
         SIZES[size],
+        isFormer && "opacity-50",
         className,
       )}
       {...(color ? { style: { backgroundColor: color } } : {})}

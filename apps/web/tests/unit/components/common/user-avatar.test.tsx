@@ -27,4 +27,19 @@ describe("UserAvatar", () => {
     render(<UserAvatar user={{ name: "Alice" }} size={size} />);
     expect(screen.getByLabelText("Alice")).toBeInTheDocument();
   });
+
+  it("appends '· ex' to the title/aria-label when isFormer is true", () => {
+    render(<UserAvatar user={{ name: "Alice" }} isFormer />);
+    expect(screen.getByLabelText("Alice · ex")).toBeInTheDocument();
+  });
+
+  it("dims the avatar when isFormer is true", () => {
+    render(<UserAvatar user={{ name: "Alice" }} isFormer />);
+    expect(screen.getByLabelText("Alice · ex")).toHaveClass("opacity-50");
+  });
+
+  it("does not dim or suffix the name by default", () => {
+    render(<UserAvatar user={{ name: "Alice" }} />);
+    expect(screen.getByLabelText("Alice")).not.toHaveClass("opacity-50");
+  });
 });

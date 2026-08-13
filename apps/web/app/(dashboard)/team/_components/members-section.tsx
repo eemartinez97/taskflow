@@ -59,6 +59,10 @@ export function MembersSection({
     onSuccess: () => {
       toast.success("Member removed.");
       void utils.orgs.members.invalidate({ orgId });
+      // A removed member's tasks stay assigned to them (see apps/api's
+      // removeMembershipAndNotify) - refresh so an already-open board/task
+      // panel picks up the new ex-member instead of showing stale data.
+      void utils.orgs.formerAssignees.invalidate({ orgId });
       setRemoveTarget(null);
     },
   });

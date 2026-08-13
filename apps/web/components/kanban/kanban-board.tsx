@@ -157,8 +157,28 @@ export function KanbanBoard({
 
   const { data: orgLabels = [] } = api.labels.list.useQuery({ orgId });
   const { data: members = [] } = api.orgs.members.useQuery({ orgId });
+  // Ex-members can still be assigned to tasks (attribution is preserved when
+  // someone leaves/is removed - see apps/api's removeMembershipAndNotify), so
+  // assigneeById merges both groups instead of only ever knowing about
+  // current members and silently rendering their tasks as unassigned.
+  const { data: formerAssignees = [] } = api.orgs.formerAssignees.useQuery({ orgId });
 
-  const assigneeById = useMemo(() => new Map(members.map((m) => [m.user.id, m.user])), [members]);
+  const assigneeById = useMemo(() => {
+    const map = new Map<
+      string,
+      { id: string; name: string | null; email: string | null; isFormer?: boolean }
+    >(members.map((m) => [m.user.id, m.user]));
+    for (const former of formerAssignees) {
+      // A current member always wins over a stale formerAssignees entry -
+      // the two queries can momentarily disagree across a refetch even
+      // though the backend guarantees they're mutually exclusive at fetch
+      // time (findFormerAssignees excludes anyone with a live membership).
+      if (!map.has(former.id)) {
+        map.set(former.id, { id: former.id, name: former.name, email: null, isFormer: true });
+      }
+    }
+    return map;
+  }, [members, formerAssignees]);
 
   function toggleLabelFilter(labelId: string): void {
     setLabelFilter((prev) =>

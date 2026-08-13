@@ -90,6 +90,7 @@ describe("TaskDetailPanel", () => {
     setupFullTaskQuery();
 
     mockUseQuery(api.orgs.members, []);
+    mockUseQuery(api.orgs.formerAssignees, []);
     mockUseQuery(api.labels.list, []);
     mockUseQuery(api.tasks.labels, []);
 

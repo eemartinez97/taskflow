@@ -8,6 +8,7 @@ import { getOrgOrNull } from "@/lib/utils/org-utils";
 import { getServerTRPC } from "@/lib/trpc/server";
 import { canAdminOrg } from "@/lib/utils/role";
 import { OrganizationSection } from "../_components/organization-section";
+import { LeaveOrgSection } from "../_components/leave-org-section";
 
 export const metadata: Metadata = { title: "Organization" };
 
@@ -27,20 +28,19 @@ export default async function OrganizationSettingsPage(): Promise<JSX.Element> {
 
   const role = org.memberships[0]?.role ?? "VIEWER";
 
-  if (!canAdminOrg(role)) {
-    return (
-      <EmptyState
-        icon={Lock}
-        title="You don't have access to this page"
-        description="Only organization owners and admins can manage these settings."
-      />
-    );
-  }
-
   return (
     <>
       <h2 className="text-lg font-semibold text-gray-900">Organization</h2>
-      <OrganizationSection org={org} role={role} />
+      {canAdminOrg(role) ? (
+        <OrganizationSection org={org} role={role} />
+      ) : (
+        <EmptyState
+          icon={Lock}
+          title="You don't have access to this page"
+          description="Only organization owners and admins can manage these settings."
+        />
+      )}
+      <LeaveOrgSection orgId={org.id} orgName={org.name} role={role} />
     </>
   );
 }

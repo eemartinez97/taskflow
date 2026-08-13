@@ -183,6 +183,7 @@ describe("KanbanBoard", () => {
 
     mockUseQuery(api.labels.list, []);
     mockUseQuery(api.orgs.members, []);
+    mockUseQuery(api.orgs.formerAssignees, []);
     mockUseQuery(api.tasks.labelsByProject, []);
     setBoardsGetData = vi.fn();
     setTasksListData = vi.fn();

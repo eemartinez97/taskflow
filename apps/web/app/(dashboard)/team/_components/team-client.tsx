@@ -59,6 +59,7 @@ export function TeamClient({
         currentUserId={currentUserId}
         currentUserRole={currentUserRole}
         initialMembers={initialMembers}
+        onInviteClick={inviteDialog.open}
       />
 
       {canAdmin && <InvitationsSection orgId={orgId} initialInvitations={initialInvitations} />}

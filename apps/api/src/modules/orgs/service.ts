@@ -16,6 +16,7 @@ import {
   findOrgById,
   findOrgsByUser,
   removeMember,
+  updateMembershipCursorPref,
   updateMembershipRole,
   updateOrg,
 } from "./repo";
@@ -93,4 +94,13 @@ export async function updateMemberRoleInOrg(
   }
 
   return updateMembershipRole(db, orgId, userId, role);
+}
+
+export async function updateCursorPreference(
+  db: PrismaClient,
+  orgId: string,
+  userId: string,
+  cursorsHidden: boolean,
+): Promise<Membership> {
+  return updateMembershipCursorPref(db, orgId, userId, cursorsHidden);
 }

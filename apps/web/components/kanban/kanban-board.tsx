@@ -41,7 +41,6 @@ import { useSocketRef } from "@/lib/socket/socket-context";
 import { useCursorBroadcast } from "@/lib/hooks/use-cursor-broadcast";
 import { Eye, EyeOff } from "lucide-react";
 import { useCursorsHidden } from "@/lib/hooks/use-cursors-pref";
-import { setCursorsHidden } from "@/lib/utils/cursor-pref";
 import { CursorPointer, shouldFlipCursorLabel, type LiveCursor } from "./kanban-cursors";
 import { useElementSize } from "@/lib/hooks/use-element-size";
 
@@ -153,8 +152,8 @@ export function KanbanBoard({
   const socketRef = useSocketRef();
   const { onPointerMove, onPointerLeave } = useCursorBroadcast(socketRef, currentUserId);
 
-  // User preference (cookie) to hide peers' live cursors if they distract.
-  const cursorsHidden = useCursorsHidden();
+  // User preference (per-org, DB-backed) to hide peers' live cursors if they distract.
+  const { cursorsHidden, setCursorsHidden } = useCursorsHidden(orgId);
 
   const { data: orgLabels = [] } = api.labels.list.useQuery({ orgId });
   const { data: members = [] } = api.orgs.members.useQuery({ orgId });

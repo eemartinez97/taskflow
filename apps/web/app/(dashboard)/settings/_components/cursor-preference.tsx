@@ -6,18 +6,21 @@ import { Eye, EyeOff } from "lucide-react";
 import { Button, Card, CardContent, CardHeader, CardTitle } from "@taskflow/ui";
 
 import { useCursorsHidden } from "@/lib/hooks/use-cursors-pref";
-import { setCursorsHidden } from "@/lib/utils/cursor-pref";
 import { toast } from "@/lib/toast/store";
 
+interface CursorPreferenceProps {
+  orgId: string;
+}
+
 /**
- * Board preference: show or hide other people's live cursors.
+ * Board preference: show or hide other people's live cursors, for one org.
  *
- * Shares the exact same cookie-backed store as the in-board toggle
- * (useCursorsHidden / setCursorsHidden), so changing it here or on the board
+ * Shares the exact same DB-backed preference as the in-board toggle
+ * (both call useCursorsHidden(orgId)), so changing it here or on the board
  * stays in sync without any duplicated state.
  */
-export function CursorPreference(): JSX.Element {
-  const hidden = useCursorsHidden();
+export function CursorPreference({ orgId }: CursorPreferenceProps): JSX.Element {
+  const { cursorsHidden: hidden, setCursorsHidden } = useCursorsHidden(orgId);
 
   return (
     <Card>

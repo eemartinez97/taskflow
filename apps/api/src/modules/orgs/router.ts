@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   createOrgSchema,
   idSchema,
+  updateCursorPreferenceSchema,
   updateMemberRoleSchema,
   updateOrgSchema,
 } from "@taskflow/shared";
@@ -13,6 +14,7 @@ import {
   listMembers,
   listOrgs,
   removeMemberFromOrg,
+  updateCursorPreference,
   updateMemberRoleInOrg,
   updateOrgById,
 } from "./service";
@@ -52,6 +54,18 @@ export const orgsRouter = createTRPCRouter({
   members: readerProcedure.input(z.object({ orgId: idSchema })).query(async ({ ctx, input }) => {
     return listMembers(ctx.db, input.orgId);
   }),
+
+  /**
+   * Self-scoped: writes only the caller's own membership row for `orgId`.
+   * readerProcedure's roleGuard already proves the caller has SOME
+   * membership in that org (any role) - there is no `userId` in the input,
+   * so there is nothing else to authorize.
+   */
+  updateMyCursorPreference: readerProcedure
+    .input(z.object({ orgId: idSchema }).extend(updateCursorPreferenceSchema.shape))
+    .mutation(async ({ ctx, input }) => {
+      return updateCursorPreference(ctx.db, input.orgId, ctx.user.id, input.cursorsHidden);
+    }),
 
   /** Removes a member from the org. OWNER cannot be removed. */
   removeMember: ownerProcedure

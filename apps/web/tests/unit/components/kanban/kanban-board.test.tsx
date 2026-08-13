@@ -9,6 +9,9 @@ vi.mock("@/lib/socket/socket-context", () => ({ useSocketRef: vi.fn(() => null) 
 vi.mock("@/lib/hooks/use-cursor-broadcast", () => ({
   useCursorBroadcast: vi.fn(() => ({ onPointerMove: vi.fn(), onPointerLeave: vi.fn() })),
 }));
+vi.mock("@/lib/hooks/use-cursors-pref", () => ({
+  useCursorsHidden: vi.fn(() => ({ cursorsHidden: false, setCursorsHidden: vi.fn() })),
+}));
 vi.mock("@/lib/hooks/use-element-size", () => ({
   useElementSize: vi.fn(() => ({ width: 800, height: 600 })),
 }));
@@ -58,6 +61,7 @@ import { capturedDndProps } from "@/tests/mocks/dnd-kit";
 import { closestCenter } from "@dnd-kit/core";
 import { useBoardDnD } from "@/lib/hooks/use-board-dnd";
 import { useColumnDnD } from "@/lib/hooks/use-column-dnd";
+import { useCursorsHidden } from "@/lib/hooks/use-cursors-pref";
 import { useSession, mockSession } from "@/tests/mocks/next-auth";
 import { makeColumn, makeTask } from "@/tests/support/factories";
 import {
@@ -228,6 +232,15 @@ describe("KanbanBoard", () => {
     setupQueries();
     renderBoard();
     expect(screen.getByRole("button", { name: /hide live cursors/i })).toBeInTheDocument();
+  });
+
+  it("calls setCursorsHidden with the flipped value when the toggle button is clicked", () => {
+    setupQueries();
+    const setCursorsHidden = vi.fn();
+    vi.mocked(useCursorsHidden).mockReturnValue({ cursorsHidden: false, setCursorsHidden });
+    renderBoard();
+    fireEvent.click(screen.getByRole("button", { name: /hide live cursors/i }));
+    expect(setCursorsHidden).toHaveBeenCalledWith(true);
   });
 
   it("opens the task detail panel when a card is clicked", async () => {
@@ -476,10 +489,27 @@ describe("KanbanBoard - mutations and drag handlers", () => {
     expect(screen.queryByRole("dialog", { name: "Task details" })).not.toBeInTheDocument();
   });
 
-  it("renders peer cursors when cursorsHidden is false and hides them when toggled", async () => {
+  it("renders peer cursors when cursorsHidden is false", () => {
     setupQueries();
-    renderBoard({ cursors: [{ userId: "peer-1", x: 10, y: 10 }] });
-    await userEvent.setup().click(screen.getByRole("button", { name: /hide live cursors/i }));
+    vi.mocked(useCursorsHidden).mockReturnValue({
+      cursorsHidden: false,
+      setCursorsHidden: vi.fn(),
+    });
+    renderBoard({
+      cursors: [{ userId: "peer-1", x: 10, y: 10 }],
+      presence: [{ userId: "peer-1", name: "Peer One", color: "#000" }],
+    });
+    expect(screen.getByText("Peer One")).toBeInTheDocument();
+  });
+
+  it("hides peer cursors when cursorsHidden is true", () => {
+    setupQueries();
+    vi.mocked(useCursorsHidden).mockReturnValue({ cursorsHidden: true, setCursorsHidden: vi.fn() });
+    renderBoard({
+      cursors: [{ userId: "peer-1", x: 10, y: 10 }],
+      presence: [{ userId: "peer-1", name: "Peer One", color: "#000" }],
+    });
+    expect(screen.queryByText("Peer One")).not.toBeInTheDocument();
   });
 
   it("routes onDragStart/onDragOver/onDragEnd for a task drag through taskHandlers", () => {

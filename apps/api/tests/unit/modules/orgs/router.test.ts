@@ -75,6 +75,30 @@ describe("orgs router", () => {
       "ADMIN",
     );
   });
+
+  it("updateMyCursorPreference -> updateCursorPreference, scoped to the caller", async () => {
+    await caller().updateMyCursorPreference({ orgId: VALID_ORG_ID, cursorsHidden: true });
+
+    expect(service.updateCursorPreference).toHaveBeenCalledWith(
+      db,
+      VALID_ORG_ID,
+      VALID_USER.id,
+      true,
+    );
+  });
+
+  it("updateMyCursorPreference is callable by VIEWER", async () => {
+    grantRole("VIEWER");
+
+    await caller().updateMyCursorPreference({ orgId: VALID_ORG_ID, cursorsHidden: false });
+
+    expect(service.updateCursorPreference).toHaveBeenCalledWith(
+      db,
+      VALID_ORG_ID,
+      VALID_USER.id,
+      false,
+    );
+  });
 });
 
 describe("orgs router RBAC", () => {

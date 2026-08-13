@@ -116,6 +116,7 @@ export function makeMembership(overrides: Partial<Membership> = {}): Membership 
     orgId: VALID_ORG_ID,
     userId: mockAuthorizedUser.id,
     role: "OWNER" as const,
+    cursorsHidden: false,
     createdAt: new Date("2026-01-01"),
     updatedAt: new Date("2026-01-01"),
     ...overrides,

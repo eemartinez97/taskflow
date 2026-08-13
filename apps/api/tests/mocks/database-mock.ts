@@ -26,7 +26,7 @@ export const membershipWithUser = {
 } as const;
 
 export const orgWithMembership = {
-  memberships: { select: { role: true } },
+  memberships: { select: { role: true, cursorsHidden: true } },
 } as const;
 
 export const boardWithColumns = {

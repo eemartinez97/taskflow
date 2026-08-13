@@ -6,6 +6,7 @@ import {
   listMembers,
   listOrgs,
   removeMemberFromOrg,
+  updateCursorPreference,
   updateMemberRoleInOrg,
   updateOrgById,
 } from "../../../../src/modules/orgs/service";
@@ -115,5 +116,19 @@ describe("updateMemberRoleInOrg", () => {
     await expect(
       updateMemberRoleInOrg(db, VALID_ORG_ID, ANOTHER_UUID, "ADMIN"),
     ).resolves.toMatchObject({ role: "ADMIN" });
+  });
+});
+
+describe("updateCursorPreference", () => {
+  it("delegates to the repo with the caller's own userId", async () => {
+    mockDb.membership.update.mockResolvedValueOnce(buildMembership({ cursorsHidden: true }));
+
+    await expect(
+      updateCursorPreference(db, VALID_ORG_ID, VALID_USER.id, true),
+    ).resolves.toMatchObject({ cursorsHidden: true });
+    expect(mockDb.membership.update).toHaveBeenCalledWith({
+      where: { orgId_userId: { orgId: VALID_ORG_ID, userId: VALID_USER.id } },
+      data: { cursorsHidden: true },
+    });
   });
 });

@@ -22,6 +22,18 @@ async function sendInvite(page: Page, email: string): Promise<void> {
   await expect(page.getByText("Invitation sent.", { exact: true })).toBeVisible();
 }
 
+/**
+ * Confirms `orgName` shows up among the switcher's own org list - proof
+ * that accepting an invitation actually updated `orgs.list`, not just that
+ * SOME realtime event fired. Opens the menu (its org rows only exist in the
+ * DOM while open - see org-switcher.tsx) rather than leaving it open across
+ * a `.poll()`, since Playwright's own `toBeVisible` already retries.
+ */
+async function expectOrgInSwitcher(page: Page, orgName: string): Promise<void> {
+  await page.getByRole("button", { name: /switch organization/i }).click();
+  await expect(page.getByRole("menu").getByText(orgName)).toBeVisible({ timeout: 15_000 });
+}
+
 test.describe("Invitation lifecycle", () => {
   test("admin invites an existing user without growing membership; invitee accepts from notifications; inviter is notified", async ({
     page,
@@ -56,11 +68,7 @@ test.describe("Invitation lifecycle", () => {
       await acceptButton.click();
 
       // The org appears in the invitee's switcher.
-      await expect
-        .poll(() => inviteePage.locator("#org-switcher option").allTextContents(), {
-          timeout: 15_000,
-        })
-        .toContain(org.name);
+      await expectOrgInSwitcher(inviteePage, org.name);
 
       // The inviter gets an INVITATION_ACCEPTED notification.
       // .first(): under real concurrency a just-completed client-side
@@ -192,11 +200,7 @@ test.describe("Invitation lifecycle", () => {
       await expect(inviteePage.getByText(/you've been invited to join/i).first()).toBeVisible();
       await inviteePage.getByRole("button", { name: "Accept" }).click();
 
-      await expect
-        .poll(() => inviteePage.locator("#org-switcher option").allTextContents(), {
-          timeout: 15_000,
-        })
-        .toContain(org.name);
+      await expectOrgInSwitcher(inviteePage, org.name);
     } finally {
       await inviteeContext.close();
       await wrongContext.close();
@@ -251,11 +255,7 @@ test.describe("Invitation lifecycle", () => {
       await expect(acceptButton).toBeVisible({ timeout: 15_000 });
       await acceptButton.click();
 
-      await expect
-        .poll(() => inviteePage.locator("#org-switcher option").allTextContents(), {
-          timeout: 15_000,
-        })
-        .toContain(org.name);
+      await expectOrgInSwitcher(inviteePage, org.name);
     } finally {
       await inviteeContext.close();
     }

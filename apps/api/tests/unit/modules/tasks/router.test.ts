@@ -139,6 +139,13 @@ describe("tasks router", () => {
     );
   });
 
+  it("allows a VIEWER to list tasks (read-only)", async () => {
+    grantRole("VIEWER");
+
+    await caller().list({ orgId: VALID_ORG_ID, columnId: VALID_COLUMN_ID });
+    expect(service.listTasks).toHaveBeenCalledWith(db, VALID_COLUMN_ID);
+  });
+
   it("rejects a non-uuid taskId", async () => {
     await expect(caller().get({ orgId: VALID_ORG_ID, taskId: "not-a-uuid" })).rejects.toThrow();
   });

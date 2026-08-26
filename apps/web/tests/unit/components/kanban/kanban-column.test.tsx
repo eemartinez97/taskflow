@@ -22,6 +22,7 @@ const defaultProps = {
   assigneeById: new Map(),
   addingTaskId: null,
   labelsByTask: {},
+  canEdit: true,
 };
 
 describe("KanbanColumn", () => {
@@ -118,5 +119,17 @@ describe("KanbanColumn", () => {
       />,
     );
     expect(screen.getByTestId(`task-card-${task.id}`)).toBeInTheDocument();
+  });
+
+  it("hides every write control (drag handle, rename, delete, add task) when canEdit is false", () => {
+    render(<KanbanColumn {...defaultProps} canEdit={false} />);
+    expect(
+      screen.queryByRole("button", { name: /drag to reorder column/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/column name/i)).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: /options for column to do/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add task/i })).not.toBeInTheDocument();
   });
 });

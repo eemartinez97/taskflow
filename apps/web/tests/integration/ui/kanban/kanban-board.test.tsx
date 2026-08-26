@@ -168,6 +168,7 @@ function buildProps(
     labelsByTask: {},
     presence: [],
     cursors: [],
+    canEdit: true,
     ...overrides,
   };
 }
@@ -182,8 +183,7 @@ describe("KanbanBoard", () => {
     });
 
     mockUseQuery(api.labels.list, []);
-    mockUseQuery(api.orgs.members, []);
-    mockUseQuery(api.orgs.formerAssignees, []);
+    mockUseQuery(api.orgs.assigneeLookup, { members: [], formerAssignees: [] });
     mockUseQuery(api.tasks.labelsByProject, []);
     setBoardsGetData = vi.fn();
     setTasksListData = vi.fn();

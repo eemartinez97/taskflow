@@ -21,15 +21,17 @@ import {
   updateMemberRoleInOrg,
   updateOrgById,
 } from "./service";
-import { createTRPCRouter, protectedProcedure, roleGuard } from "../../trpc/procedures";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  readerProcedure,
+  roleGuard,
+} from "../../trpc/procedures";
 import type { AppServer } from "../../socket/events";
 
 // Role guards - composed once, reused across procedures
 const ownerProcedure = protectedProcedure.use(roleGuard(["OWNER"]));
 const adminProcedure = protectedProcedure.use(roleGuard(["OWNER", "ADMIN"]));
-// All 4 roles - VIEWER included. Read-only: the Team page (formerly /organizations/[orgId])
-// is reachable from the main nav now, so a VIEWER opening it must not hit FORBIDDEN.
-const readerProcedure = protectedProcedure.use(roleGuard(["OWNER", "ADMIN", "MEMBER", "VIEWER"]));
 
 /**
  * Factory (not a static router object) because `leave` and `removeMember`

@@ -49,6 +49,7 @@ describe("BoardPageClient", () => {
         boardId={VALID_BOARD_ID}
         initialBoard={boardWithColumns}
         initialTasks={{ [VALID_COL_A_ID]: [task] }}
+        canEdit={true}
       />,
     );
     expect(screen.getByText(/KanbanBoard: Main Board/)).toBeInTheDocument();
@@ -63,6 +64,7 @@ describe("BoardPageClient", () => {
         boardId={VALID_BOARD_ID}
         initialBoard={boardWithColumns}
         initialTasks={{ [VALID_COL_A_ID]: [task] }}
+        canEdit={true}
       />,
     );
     expect(screen.getByText("KanbanBoard: Main Board (1 columns)")).toBeInTheDocument();
@@ -79,6 +81,7 @@ describe("BoardPageClient", () => {
         boardId={VALID_BOARD_ID}
         initialBoard={boardWithColumns}
         initialTasks={{ [VALID_COL_A_ID]: [task] }}
+        canEdit={true}
       />,
     );
     // Rendered via mocked KanbanBoard which doesn't display labels, but the
@@ -99,6 +102,7 @@ describe("BoardPageClient", () => {
         boardId={VALID_BOARD_ID}
         initialBoard={boardWithColumns}
         initialTasks={{ [VALID_COL_A_ID]: [task] }}
+        canEdit={true}
       />,
     );
     expect(screen.getByText(/KanbanBoard: Main Board/)).toBeInTheDocument();
@@ -118,6 +122,7 @@ describe("BoardPageClient", () => {
         boardId={VALID_BOARD_ID}
         initialBoard={boardX}
         initialTasks={{}}
+        canEdit={true}
       />,
     );
     expect(screen.getByText(/KanbanBoard/)).toBeInTheDocument();
@@ -135,6 +140,7 @@ describe("BoardPageClient", () => {
         boardId={VALID_BOARD_ID}
         initialBoard={boardWithColumns}
         initialTasks={{}}
+        canEdit={true}
       />,
     );
     expect(screen.getByText(/KanbanBoard/)).toBeInTheDocument();

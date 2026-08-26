@@ -9,7 +9,7 @@ import { createTRPCRouter } from "./init";
 import { type MiddlewareBuilder } from "@trpc/server/unstable-core-do-not-import";
 
 import { type Role } from "@taskflow/database";
-import { roleSchema } from "@taskflow/shared";
+import { ROLES, roleSchema } from "@taskflow/shared";
 import { env } from "../config/env";
 import { timingSafeEqualStrings } from "../utils/e2e";
 import {
@@ -243,6 +243,17 @@ export function roleGuard(
     });
   });
 }
+
+/**
+ * Read-only procedure - every role (including VIEWER) can call it. Shared
+ * across every resource module's `list`/`get`-style queries (projects,
+ * boards, tasks, comments, labels, org members) instead of each module
+ * hand-declaring its own identical `roleGuard(ROLES)` - a role added or
+ * removed from `ROLES` (packages/shared/src/constants) stays in sync
+ * everywhere for free. Mutations stay on each module's own, narrower
+ * `memberProcedure`/`adminProcedure` - VIEWER still can't write anything.
+ */
+export const readerProcedure = protectedProcedure.use(roleGuard(ROLES));
 
 // Re-export router factory so resource modules only need one import
 export { createTRPCRouter };

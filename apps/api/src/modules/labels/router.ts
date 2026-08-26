@@ -1,13 +1,17 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure, roleGuard } from "../../trpc/procedures";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  readerProcedure,
+  roleGuard,
+} from "../../trpc/procedures";
 import { createLabelSchema, idSchema } from "@taskflow/shared";
 import { createLabelInOrg, deleteLabelById, listLabels } from "./service";
 
-const memberProcedure = protectedProcedure.use(roleGuard(["OWNER", "ADMIN", "MEMBER"]));
 const adminProcedure = protectedProcedure.use(roleGuard(["OWNER", "ADMIN"]));
 
 export const labelsRouter = createTRPCRouter({
-  list: memberProcedure
+  list: readerProcedure
     .input(z.object({ orgId: idSchema }))
     .query(async ({ ctx, input }) => listLabels(ctx.db, input.orgId)),
 

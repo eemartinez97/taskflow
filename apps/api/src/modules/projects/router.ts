@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure, roleGuard } from "../../trpc/procedures";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  readerProcedure,
+  roleGuard,
+} from "../../trpc/procedures";
 import { createProjectSchema, idSchema, updateProjectSchema } from "@taskflow/shared";
 import {
   createProjectInOrg,
@@ -13,11 +18,11 @@ const memberProcedure = protectedProcedure.use(roleGuard(["OWNER", "ADMIN", "MEM
 const adminProcedure = protectedProcedure.use(roleGuard(["OWNER", "ADMIN"]));
 
 export const projectsRouter = createTRPCRouter({
-  list: memberProcedure
+  list: readerProcedure
     .input(z.object({ orgId: idSchema }))
     .query(async ({ ctx, input }) => listProjects(ctx.db, input.orgId)),
 
-  get: memberProcedure
+  get: readerProcedure
     .input(z.object({ orgId: idSchema, projectId: idSchema }))
     .query(async ({ ctx, input }) => getProject(ctx.db, input.projectId)),
 

@@ -51,4 +51,10 @@ describe("labels router", () => {
 
     await expect(caller().list({ orgId: VALID_ORG_ID })).resolves.toBeUndefined();
   });
+
+  it("list is open to VIEWER (read-only)", async () => {
+    grantRole("VIEWER");
+
+    await expect(caller().list({ orgId: VALID_ORG_ID })).resolves.toBeUndefined();
+  });
 });

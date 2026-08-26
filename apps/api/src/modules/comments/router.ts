@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { idSchema } from "@taskflow/shared";
-import { createTRPCRouter, protectedProcedure, roleGuard } from "../../trpc/procedures";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  readerProcedure,
+  roleGuard,
+} from "../../trpc/procedures";
 import { createCommentOnTask, deleteCommentById, listComments } from "./service";
 import type { AppServer } from "../../socket/events";
 
@@ -8,7 +13,7 @@ const memberProcedure = protectedProcedure.use(roleGuard(["OWNER", "ADMIN", "MEM
 
 const _buildCommentsRouter = (io: AppServer) =>
   createTRPCRouter({
-    list: memberProcedure
+    list: readerProcedure
       .input(z.object({ orgId: idSchema, taskId: idSchema }))
       .query(async ({ ctx, input }) => listComments(ctx.db, input.taskId)),
 

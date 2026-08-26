@@ -7,7 +7,7 @@ import { getServerTRPC } from "@/lib/trpc/server";
 import { getOrgOrNull } from "@/lib/utils/org-utils";
 import { BoardPageClient } from "./board";
 import { BoardSwitcher } from "./_components/board-switcher";
-import { canAdminOrg } from "@/lib/utils/role";
+import { canAdminOrg, canMutateInOrg } from "@/lib/utils/role";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -26,8 +26,15 @@ const getProjectContext = cache(async (projectId: string) => {
   const org = await getOrgOrNull(trpc);
   if (!org) return null;
   const project = await trpc.projects.get({ projectId, orgId: org.id });
-  const canManage = canAdminOrg(org.memberships[0]?.role ?? "VIEWER");
-  return { project, canManage };
+  const role = org.memberships[0]?.role ?? "VIEWER";
+  const canManage = canAdminOrg(role);
+  // VIEWER can now reach this page (projects.get/boards.*/tasks.* are all
+  // read-only for VIEWER too - see the routers' readerProcedure) but can't
+  // create/edit/delete anything - the Kanban board and task panel use this
+  // to hide/disable every write control instead of rendering enabled
+  // buttons that would just bounce off the server's own roleGuard.
+  const canEdit = canMutateInOrg(role);
+  return { project, canManage, canEdit };
 });
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -60,7 +67,7 @@ export default async function ProjectBoardPage({
   // Load project - notFound() if missing, unauthorized, or user has no org.
   const ctx = await getProjectContext(projectId).catch(() => null);
   if (!ctx) notFound();
-  const { project, canManage } = ctx;
+  const { project, canManage, canEdit } = ctx;
 
   // All boards for the switcher; pick the active one (?board= or the first).
   const boards = await trpc.boards.list({ orgId: project.orgId, projectId });
@@ -110,6 +117,7 @@ export default async function ProjectBoardPage({
         boardId={board.id}
         initialBoard={board}
         initialTasks={initialTasks}
+        canEdit={canEdit}
       />
     </div>
   );

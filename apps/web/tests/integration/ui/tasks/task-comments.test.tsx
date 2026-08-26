@@ -69,6 +69,7 @@ function buildProps(overrides: Partial<Parameters<typeof TaskComments>[0]> = {})
     projectId: "proj-1",
     taskId: "task-1",
     isExpanded: false,
+    canEdit: true,
     onToggleExpand: vi.fn(),
     ...overrides,
   };

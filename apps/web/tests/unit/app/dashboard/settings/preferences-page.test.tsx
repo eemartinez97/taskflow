@@ -6,6 +6,9 @@ vi.mock("@/lib/utils/org-utils", () => ({ getOrgOrNull: vi.fn() }));
 vi.mock("@/app/(dashboard)/settings/_components/cursor-preference", () => ({
   CursorPreference: ({ orgId }: { orgId: string }) => <p>CursorPreference: {orgId}</p>,
 }));
+vi.mock("@/components/common/no-org-state", () => ({
+  NoOrgState: ({ context }: { context: string }) => <p>NoOrgState: {context}</p>,
+}));
 
 import { getServerTRPC } from "@/lib/trpc/server";
 import { getOrgOrNull } from "@/lib/utils/org-utils";
@@ -25,13 +28,14 @@ describe("PreferencesSettingsPage", () => {
     expect(screen.getByText(`CursorPreference: ${VALID_ORG_ID}`)).toBeInTheDocument();
   });
 
-  it("hides the cursor preference card when there is no organization", async () => {
+  it("renders NoOrgState when there is no organization", async () => {
     mockGetServerTRPC(vi.mocked(getServerTRPC));
     vi.mocked(getOrgOrNull).mockResolvedValue(null);
 
     render(await PreferencesSettingsPage());
 
-    expect(screen.getByRole("heading", { name: "Preferences" })).toBeInTheDocument();
+    expect(screen.getByText(/NoOrgState/)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Preferences" })).not.toBeInTheDocument();
     expect(screen.queryByText(/CursorPreference/)).not.toBeInTheDocument();
   });
 });

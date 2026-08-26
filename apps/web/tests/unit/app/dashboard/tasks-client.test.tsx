@@ -3,9 +3,18 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/task/task-detail-panel", () => ({
-  TaskDetailPanel: ({ task, onClose }: { task: { title: string }; onClose: () => void }) => (
+  TaskDetailPanel: ({
+    task,
+    canEdit,
+    onClose,
+  }: {
+    task: { title: string };
+    canEdit: boolean;
+    onClose: () => void;
+  }) => (
     <div role="dialog" aria-label="Task details">
       {task.title}
+      <span data-testid="can-edit">{String(canEdit)}</span>
       <button onClick={onClose}>Close</button>
     </div>
   ),
@@ -13,7 +22,7 @@ vi.mock("@/components/task/task-detail-panel", () => ({
 
 import { api } from "@/lib/trpc/client";
 import { TasksClient } from "@/app/(dashboard)/tasks/_components/tasks-client";
-import { makeTask } from "@/tests/support/factories";
+import { makeOrg, makeTask } from "@/tests/support/factories";
 import { VALID_ORG_ID, VALID_PROJECT_ID } from "@/tests/support/fixtures";
 import { mockUseQuery } from "@/tests/support/trpc";
 
@@ -87,5 +96,35 @@ describe("TasksClient", () => {
     item.focus();
     await userEvent.setup().keyboard("a");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  describe("per-org canEdit for the selected task", () => {
+    it("passes canEdit=true when the caller is a MEMBER+ in the task's own org", () => {
+      mockUseQuery(api.tasks.myTasks, [task]);
+      mockUseQuery(api.orgs.list, [makeOrg({ id: VALID_ORG_ID, role: "MEMBER" })]);
+      render(<TasksClient initialTasks={[task]} initialOpenTaskId={task.id} />);
+      expect(screen.getByTestId("can-edit")).toHaveTextContent("true");
+    });
+
+    it("passes canEdit=false when the caller is a VIEWER in the task's own org", () => {
+      mockUseQuery(api.tasks.myTasks, [task]);
+      mockUseQuery(api.orgs.list, [makeOrg({ id: VALID_ORG_ID, role: "VIEWER" })]);
+      render(<TasksClient initialTasks={[task]} initialOpenTaskId={task.id} />);
+      expect(screen.getByTestId("can-edit")).toHaveTextContent("false");
+    });
+
+    it("defaults to canEdit=false (read-only) while orgs.list hasn't resolved yet", () => {
+      mockUseQuery(api.tasks.myTasks, [task]);
+      mockUseQuery(api.orgs.list, undefined);
+      render(<TasksClient initialTasks={[task]} initialOpenTaskId={task.id} />);
+      expect(screen.getByTestId("can-edit")).toHaveTextContent("false");
+    });
+
+    it("defaults to canEdit=false when the task's org isn't in the caller's org list", () => {
+      mockUseQuery(api.tasks.myTasks, [task]);
+      mockUseQuery(api.orgs.list, [makeOrg({ id: "some-other-org", role: "OWNER" })]);
+      render(<TasksClient initialTasks={[task]} initialOpenTaskId={task.id} />);
+      expect(screen.getByTestId("can-edit")).toHaveTextContent("false");
+    });
   });
 });

@@ -27,6 +27,7 @@ describe("TaskLabels", () => {
       <TaskLabels
         orgLabels={[labelA, labelB]}
         taskLabelIds={[labelA.id]}
+        canEdit={true}
         onAdd={vi.fn()}
         onRemove={vi.fn()}
       />,
@@ -41,6 +42,7 @@ describe("TaskLabels", () => {
       <TaskLabels
         orgLabels={[labelA]}
         taskLabelIds={[labelA.id]}
+        canEdit={true}
         onAdd={vi.fn()}
         onRemove={onRemove}
       />,
@@ -54,6 +56,7 @@ describe("TaskLabels", () => {
       <TaskLabels
         orgLabels={[labelA]}
         taskLabelIds={[labelA.id]}
+        canEdit={true}
         onAdd={vi.fn()}
         onRemove={vi.fn()}
       />,
@@ -67,6 +70,7 @@ describe("TaskLabels", () => {
       <TaskLabels
         orgLabels={[labelA, labelB]}
         taskLabelIds={[]}
+        canEdit={true}
         onAdd={onAdd}
         onRemove={vi.fn()}
       />,
@@ -82,7 +86,13 @@ describe("TaskLabels", () => {
     render(
       <div>
         <button>outside</button>
-        <TaskLabels orgLabels={[labelA]} taskLabelIds={[]} onAdd={vi.fn()} onRemove={vi.fn()} />
+        <TaskLabels
+          orgLabels={[labelA]}
+          taskLabelIds={[]}
+          canEdit={true}
+          onAdd={vi.fn()}
+          onRemove={vi.fn()}
+        />
       </div>,
     );
     const user = userEvent.setup();
@@ -94,7 +104,13 @@ describe("TaskLabels", () => {
 
   it("closes the picker on Escape", async () => {
     render(
-      <TaskLabels orgLabels={[labelA]} taskLabelIds={[]} onAdd={vi.fn()} onRemove={vi.fn()} />,
+      <TaskLabels
+        orgLabels={[labelA]}
+        taskLabelIds={[]}
+        canEdit={true}
+        onAdd={vi.fn()}
+        onRemove={vi.fn()}
+      />,
     );
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: /add label/i }));
@@ -104,12 +120,19 @@ describe("TaskLabels", () => {
 
   it("auto-closes the picker once the last available label is attached", () => {
     const { rerender } = render(
-      <TaskLabels orgLabels={[labelA]} taskLabelIds={[]} onAdd={vi.fn()} onRemove={vi.fn()} />,
+      <TaskLabels
+        orgLabels={[labelA]}
+        taskLabelIds={[]}
+        canEdit={true}
+        onAdd={vi.fn()}
+        onRemove={vi.fn()}
+      />,
     );
     rerender(
       <TaskLabels
         orgLabels={[labelA]}
         taskLabelIds={[labelA.id]}
+        canEdit={true}
         onAdd={vi.fn()}
         onRemove={vi.fn()}
       />,
@@ -122,6 +145,7 @@ describe("TaskLabels", () => {
       <TaskLabels
         orgLabels={[labelA, labelB]}
         taskLabelIds={[]}
+        canEdit={true}
         onAdd={vi.fn()}
         onRemove={vi.fn()}
       />,
@@ -130,6 +154,7 @@ describe("TaskLabels", () => {
       <TaskLabels
         orgLabels={[labelA, labelB]}
         taskLabelIds={[labelA.id]}
+        canEdit={true}
         onAdd={vi.fn()}
         onRemove={vi.fn()}
       />,
@@ -143,6 +168,7 @@ describe("TaskLabels", () => {
       <TaskLabels
         orgLabels={[labelA, labelB]}
         taskLabelIds={[labelA.id, labelB.id]}
+        canEdit={true}
         onAdd={vi.fn()}
         onRemove={onRemove}
       />,
@@ -153,11 +179,32 @@ describe("TaskLabels", () => {
 
   it("keeps the picker open on a non-Escape key press", async () => {
     render(
-      <TaskLabels orgLabels={[labelA]} taskLabelIds={[]} onAdd={vi.fn()} onRemove={vi.fn()} />,
+      <TaskLabels
+        orgLabels={[labelA]}
+        taskLabelIds={[]}
+        canEdit={true}
+        onAdd={vi.fn()}
+        onRemove={vi.fn()}
+      />,
     );
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: /add label/i }));
     await user.keyboard("{ArrowDown}");
     expect(screen.getByRole("menu")).toBeInTheDocument();
+  });
+
+  it("hides remove buttons and the add-label trigger when canEdit is false", () => {
+    render(
+      <TaskLabels
+        orgLabels={[labelA, labelB]}
+        taskLabelIds={[labelA.id]}
+        canEdit={false}
+        onAdd={vi.fn()}
+        onRemove={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Bug")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /remove label bug/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add label/i })).not.toBeInTheDocument();
   });
 });

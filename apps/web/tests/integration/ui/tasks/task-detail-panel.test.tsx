@@ -69,6 +69,7 @@ function buildProps(overrides: Partial<Parameters<typeof TaskDetailPanel>[0]> = 
     task: MOCK_TASK,
     orgId: "org-1",
     projectId: "proj-1",
+    canEdit: true,
     onClose: mockOnClose,
     ...overrides,
   };
@@ -89,8 +90,7 @@ describe("TaskDetailPanel", () => {
 
     setupFullTaskQuery();
 
-    mockUseQuery(api.orgs.members, []);
-    mockUseQuery(api.orgs.formerAssignees, []);
+    mockUseQuery(api.orgs.assigneeLookup, { members: [], formerAssignees: [] });
     mockUseQuery(api.labels.list, []);
     mockUseQuery(api.tasks.labels, []);
 

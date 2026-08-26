@@ -112,6 +112,7 @@ const defaultBoardProps = {
   labelsByTask: {},
   presence: [] as { userId: string; name: string; color: string }[],
   cursors: [] as { userId: string; x: number; y: number }[],
+  canEdit: true,
 };
 /** Renders KanbanBoard with the shared default fixture, overriding only what a given test needs. */
 function renderBoard(overrides: Partial<typeof defaultBoardProps> = {}) {
@@ -120,8 +121,7 @@ function renderBoard(overrides: Partial<typeof defaultBoardProps> = {}) {
 
 function setupQueries(): void {
   mockUseQuery(api.labels.list, []);
-  mockUseQuery(api.orgs.members, []);
-  mockUseQuery(api.orgs.formerAssignees, []);
+  mockUseQuery(api.orgs.assigneeLookup, { members: [], formerAssignees: [] });
   mockUseQuery(api.tasks.get, makeTask());
   mockUseQuery(api.tasks.labels, []);
 }
@@ -144,7 +144,7 @@ describe("KanbanBoard", () => {
       updatedAt: new Date("2026-01-01"),
     };
     mockUseQuery(api.labels.list, [label]);
-    mockUseQuery(api.orgs.members, []);
+    mockUseQuery(api.orgs.assigneeLookup, { members: [], formerAssignees: [] });
     renderBoard({ labelsByTask: { [task.id]: [label] } });
     expect(screen.getByRole("button", { name: "Bug" })).toBeInTheDocument();
   });
@@ -164,7 +164,7 @@ describe("KanbanBoard", () => {
       title: "No labels task",
     });
     mockUseQuery(api.labels.list, [label]);
-    mockUseQuery(api.orgs.members, []);
+    mockUseQuery(api.orgs.assigneeLookup, { members: [], formerAssignees: [] });
     renderBoard({
       initialTasks: { [VALID_COL_A_ID]: [task, taskWithoutLabels] },
       labelsByTask: { [task.id]: [label] }, // taskWithoutLabels has NO entry here
@@ -187,7 +187,7 @@ describe("KanbanBoard", () => {
       updatedAt: new Date("2026-01-01"),
     };
     mockUseQuery(api.labels.list, [label]);
-    mockUseQuery(api.orgs.members, []);
+    mockUseQuery(api.orgs.assigneeLookup, { members: [], formerAssignees: [] });
     renderBoard({ labelsByTask: { [task.id]: [label] } });
     const user = userEvent.setup();
     const labelButton = screen.getByRole("button", { name: "Bug" });
@@ -271,14 +271,17 @@ describe("KanbanBoard", () => {
 
   it("computes assigneeById from a non-empty org members list", () => {
     setupQueries();
-    mockUseQuery(api.orgs.members, [
-      {
-        id: "m1",
-        userId: "u1",
-        role: "MEMBER",
-        user: { id: "u1", name: "Alice", email: "a@x.com" },
-      },
-    ]);
+    mockUseQuery(api.orgs.assigneeLookup, {
+      members: [
+        {
+          id: "m1",
+          userId: "u1",
+          role: "MEMBER",
+          user: { id: "u1", name: "Alice", email: "a@x.com" },
+        },
+      ],
+      formerAssignees: [],
+    });
     renderBoard();
     // Forces `members.map((m) => [m.user.id, m.user])` to actually run its
     // lambda body at least once; every other test uses an empty members
@@ -299,6 +302,13 @@ describe("KanbanBoard", () => {
     const colX = makeColumn({ id: "col-x", name: "Empty Col" });
     renderBoard({ columns: [column, colX] });
     expect(screen.getByTestId("column-col-x")).toBeInTheDocument();
+  });
+
+  it("disables the board-name field and hides the add-column button when canEdit is false", () => {
+    setupQueries();
+    renderBoard({ canEdit: false });
+    expect(screen.getByLabelText(/board name/i)).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /add column/i })).not.toBeInTheDocument();
   });
 });
 
@@ -460,7 +470,7 @@ describe("KanbanBoard - mutations and drag handlers", () => {
       updatedAt: new Date(),
     };
     mockUseQuery(api.labels.list, [label]);
-    mockUseQuery(api.orgs.members, []);
+    mockUseQuery(api.orgs.assigneeLookup, { members: [], formerAssignees: [] });
     renderBoard({ labelsByTask: { [task.id]: [label] } });
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Bug" }));
@@ -515,8 +525,10 @@ describe("KanbanBoard - mutations and drag handlers", () => {
 
   it("resolves a task's assignee from formerAssignees when they are no longer a member", () => {
     mockUseQuery(api.labels.list, []);
-    mockUseQuery(api.orgs.members, []);
-    mockUseQuery(api.orgs.formerAssignees, [{ id: "ex-user", name: "Bob" }]);
+    mockUseQuery(api.orgs.assigneeLookup, {
+      members: [],
+      formerAssignees: [{ id: "ex-user", name: "Bob" }],
+    });
     mockUseQuery(api.tasks.get, makeTask());
     mockUseQuery(api.tasks.labels, []);
     const assignedTask = makeTask({ assigneeId: "ex-user" });
@@ -528,15 +540,17 @@ describe("KanbanBoard - mutations and drag handlers", () => {
 
   it("prefers a current member over formerAssignees for the same userId", () => {
     mockUseQuery(api.labels.list, []);
-    mockUseQuery(api.orgs.members, [
-      {
-        id: "m1",
-        userId: "u1",
-        role: "MEMBER",
-        user: { id: "u1", name: "Priya", email: "p@x.com" },
-      },
-    ]);
-    mockUseQuery(api.orgs.formerAssignees, [{ id: "u1", name: "Stale Name" }]);
+    mockUseQuery(api.orgs.assigneeLookup, {
+      members: [
+        {
+          id: "m1",
+          userId: "u1",
+          role: "MEMBER",
+          user: { id: "u1", name: "Priya", email: "p@x.com" },
+        },
+      ],
+      formerAssignees: [{ id: "u1", name: "Stale Name" }],
+    });
     mockUseQuery(api.tasks.get, makeTask());
     mockUseQuery(api.tasks.labels, []);
     const assignedTask = makeTask({ assigneeId: "u1" });

@@ -16,6 +16,8 @@ interface KanbanCardProps {
   labels?: Label[];
   assignee?: { name: string | null; email: string | null; isFormer?: boolean } | null;
   isOverlay?: boolean;
+  /** False for VIEWER - hides the drag handle. Defaults to true so the overlay ghost (which never passes it) still renders one. */
+  canEdit?: boolean;
   onClick?: () => void;
 }
 
@@ -31,11 +33,12 @@ export function KanbanCard({
   labels = [],
   assignee,
   isOverlay = false,
+  canEdit = true,
   onClick,
 }: KanbanCardProps): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
-    disabled: isOverlay,
+    disabled: isOverlay || !canEdit,
   });
 
   const style: React.CSSProperties = {
@@ -68,22 +71,24 @@ export function KanbanCard({
       )}
     >
       <div className="flex items-start gap-1.5">
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          onClick={(e) => {
-            e.stopPropagation();
-          }}
-          aria-label={`Move task: ${task.title}`}
-          className={cn(
-            "cursor-grab touch-none rounded p-0.5 text-gray-300 hover:text-gray-500 active:cursor-grabbing",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500",
-            isDragging && "cursor-grabbing",
-          )}
-        >
-          <GripVertical className="h-3.5 w-3.5" />
-        </button>
+        {canEdit && (
+          <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+            aria-label={`Move task: ${task.title}`}
+            className={cn(
+              "cursor-grab touch-none rounded p-0.5 text-gray-300 hover:text-gray-500 active:cursor-grabbing",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500",
+              isDragging && "cursor-grabbing",
+            )}
+          >
+            <GripVertical className="h-3.5 w-3.5" />
+          </button>
+        )}
 
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium leading-snug text-gray-900">{task.title}</p>

@@ -9,6 +9,7 @@ import { Badge } from "@taskflow/ui";
 import { TaskDetailPanel } from "@/components/task/task-detail-panel";
 import { PRIORITY_COLORS } from "@/lib/constants/task";
 import { api } from "@/lib/trpc/client";
+import { canMutateInOrg } from "@/lib/utils/role";
 import { formatTaskStatus } from "@/lib/utils/task";
 
 /**
@@ -32,6 +33,16 @@ export function TasksClient({ initialTasks, initialOpenTaskId }: TasksClientProp
   });
 
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
+
+  // "My Tasks" spans every org the caller belongs to, each with its own
+  // role - unlike the single-org board page, there's no one `canEdit` to
+  // compute up front. A task can still be assigned to someone who's since
+  // been demoted to VIEWER in that specific org (same "stale attribution"
+  // idea as an ex-member assignee elsewhere in the app), so this looks up
+  // the role for the SELECTED task's own org rather than assuming MEMBER+.
+  const { data: orgs } = api.orgs.list.useQuery();
+  const selectedTaskOrgRole = orgs?.find((o) => o.id === selectedTask?.orgId)?.memberships[0]?.role;
+  const canEditSelectedTask = canMutateInOrg(selectedTaskOrgRole ?? "VIEWER");
 
   return (
     <>
@@ -84,6 +95,7 @@ export function TasksClient({ initialTasks, initialOpenTaskId }: TasksClientProp
           task={selectedTask}
           orgId={selectedTask.orgId}
           projectId={selectedTask.projectId}
+          canEdit={canEditSelectedTask}
           onClose={() => {
             setSelectedTaskId(null);
           }}

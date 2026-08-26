@@ -15,6 +15,7 @@ import { Button, cn, FormField, Input, Select } from "@taskflow/ui";
 import type { Label, Task } from "@taskflow/database";
 
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
+import { useAssigneeLookup } from "@/lib/hooks/use-assignee-lookup";
 import { useDisclosure } from "@/lib/hooks/use-disclosure";
 import { TaskComments } from "./task-comments";
 import { displayName } from "@/lib/utils/user";
@@ -29,6 +30,8 @@ interface TaskDetailPanelProps {
   task: Task;
   orgId: string;
   projectId: string;
+  /** False for VIEWER - every field/action here becomes read-only. */
+  canEdit: boolean;
   onClose: () => void;
 }
 
@@ -45,6 +48,7 @@ export function TaskDetailPanel({
   task,
   orgId,
   projectId,
+  canEdit,
   onClose,
 }: TaskDetailPanelProps): JSX.Element {
   const utils = api.useUtils();
@@ -57,19 +61,16 @@ export function TaskDetailPanel({
     { initialData: task },
   );
 
-  // Fetch org members for the assignee picker
-  const membersQuery = api.orgs.members.useQuery({ orgId });
-  const members = membersQuery.data ?? [];
-
-  // A task can still be assigned to someone who has since left/been removed
-  // (attribution is preserved on purpose - see apps/api's
-  // removeMembershipAndNotify). Without this, the select has no <option> for
-  // that value and silently shows blank, contradicting what the DB says.
-  const { data: formerAssignees = [] } = api.orgs.formerAssignees.useQuery({ orgId });
-  const assignedFormerMember =
-    fullTask.assigneeId && !members.some((m) => m.user.id === fullTask.assigneeId)
-      ? formerAssignees.find((u) => u.id === fullTask.assigneeId)
-      : undefined;
+  // Fetch org members + ex-members for the assignee picker. A task can still
+  // be assigned to someone who has since left/been removed (attribution is
+  // preserved on purpose - see apps/api's removeMembershipAndNotify);
+  // without assigneeById covering both groups, the select would have no
+  // <option> for that value while its own query is still pending, and the
+  // browser's default-to-first-option behavior plus this form's
+  // autosave-on-change could silently persist that as "Unassigned".
+  const { members, assigneeById, isPending: assigneesPending } = useAssigneeLookup(orgId);
+  const assignee = fullTask.assigneeId ? assigneeById.get(fullTask.assigneeId) : undefined;
+  const assignedFormerMember = assignee?.isFormer ? assignee : undefined;
 
   const { data: orgLabels = [] } = api.labels.list.useQuery({ orgId });
   const { data: taskLabels = [] } = api.tasks.labels.useQuery({ orgId, taskId: task.id });
@@ -181,15 +182,17 @@ export function TaskDetailPanel({
             </span>
           </div>
           <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Delete task"
-              onClick={deleteDialog.open}
-              className="text-gray-400 hover:bg-red-50 hover:text-red-600"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            {canEdit && (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Delete task"
+                onClick={deleteDialog.open}
+                className="text-gray-400 hover:bg-red-50 hover:text-red-600"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
@@ -227,25 +230,26 @@ export function TaskDetailPanel({
               className="flex flex-col gap-4"
             >
               <FormField label="Title" htmlFor="task-title">
-                <Input id="task-title" {...register("title")} />
+                <Input id="task-title" disabled={!canEdit} {...register("title")} />
               </FormField>
 
               <FormField label="Description" htmlFor="task-description">
                 <textarea
                   id="task-description"
                   rows={4}
+                  disabled={!canEdit}
                   {...register("description", { setValueAs: emptyStringToNull })}
 
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm
                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500
-                resize-none"
+                resize-none disabled:cursor-not-allowed disabled:opacity-50"
                   placeholder="Add a description…"
                 />
               </FormField>
 
               <div className="grid grid-cols-2 gap-3">
                 <FormField label="Priority" htmlFor="task-priority">
-                  <Select id="task-priority" {...register("priority")}>
+                  <Select id="task-priority" disabled={!canEdit} {...register("priority")}>
                     {TASK_PRIORITIES.map((p) => (
                       <option key={p} value={p}>
                         {p}
@@ -255,7 +259,7 @@ export function TaskDetailPanel({
                 </FormField>
 
                 <FormField label="Status" htmlFor="task-status">
-                  <Select id="task-status" {...register("status")}>
+                  <Select id="task-status" disabled={!canEdit} {...register("status")}>
                     {TASK_STATUSES.map((s) => (
                       <option key={s} value={s}>
                         {formatTaskStatus(s)}
@@ -266,11 +270,12 @@ export function TaskDetailPanel({
               </div>
 
               <FormField label="Assignee" htmlFor="task-assignee">
-                {membersQuery.isPending ? (
+                {assigneesPending ? (
                   <p className="text-xs text-gray-400">Loading members…</p>
                 ) : (
                   <Select
                     id="task-assignee"
+                    disabled={!canEdit}
                     {...register("assigneeId", { setValueAs: selectValueToNull })}
                   >
                     <option value="">Unassigned</option>
@@ -292,6 +297,7 @@ export function TaskDetailPanel({
             <TaskLabels
               orgLabels={orgLabels}
               taskLabelIds={taskLabels.map((l) => l.id)}
+              canEdit={canEdit}
               onAdd={(labelId) => {
                 addLabelMutation.mutate({ orgId, projectId, taskId: task.id, labelId });
               }}
@@ -312,6 +318,7 @@ export function TaskDetailPanel({
               projectId={projectId}
               taskId={task.id}
               isExpanded={commentsExpanded}
+              canEdit={canEdit}
               onToggleExpand={() => {
                 setCommentsExpanded((prev) => !prev);
               }}

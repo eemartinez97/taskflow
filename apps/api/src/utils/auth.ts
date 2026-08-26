@@ -12,6 +12,15 @@ export interface AuthSession {
 }
 
 /**
+ * `null` means the user no longer exists at all - distinct from
+ * `{ passwordChangedAtMs: null }`, which means the user exists but has never
+ * reset their password. getSessionUser must reject the former outright
+ * (nothing to check a timestamp against), not treat it as "nothing to
+ * revoke" the way it correctly does for the latter.
+ */
+type PasswordChangedAtLookup = { passwordChangedAtMs: number | null } | null;
+
+/**
  * Caches each user's `passwordChangedAt` (TTL from env.PASSWORD_CHANGED_AT_
  * CACHE_TTL_MS, 60s by default) so getSessionUser's revocation check below
  * doesn't pay a DB round-trip on every request - see
@@ -22,15 +31,18 @@ export interface AuthSession {
  * own, independent cache instance - keep both configured the same way when
  * changing the TTL, or the two apps' revocation windows will diverge.
  */
-const passwordChangedAtCache = createPasswordChangedAtCache(env.PASSWORD_CHANGED_AT_CACHE_TTL_MS);
+const passwordChangedAtCache = createPasswordChangedAtCache<PasswordChangedAtLookup>(
+  env.PASSWORD_CHANGED_AT_CACHE_TTL_MS,
+);
 
-async function getPasswordChangedAtMs(userId: string): Promise<number | null> {
+async function getPasswordChangedAt(userId: string): Promise<PasswordChangedAtLookup> {
   return passwordChangedAtCache.get(userId, async (id) => {
     const user = await prisma.user.findUnique({
       where: { id },
       select: { passwordChangedAt: true },
     });
-    return user?.passwordChangedAt?.getTime() ?? null;
+    if (!user) return null;
+    return { passwordChangedAtMs: user.passwordChangedAt?.getTime() ?? null };
   });
 }
 
@@ -72,10 +84,13 @@ export async function getSessionUser(cookieHeader?: string | null): Promise<Auth
     if (typeof payload.iat !== "number") return null;
 
     // Reject a session issued before the user's most recent password reset -
-    // see getPasswordChangedAtMs's docblock for why this is the one
-    // exception to this function otherwise never touching the database.
-    const passwordChangedAtMs = await getPasswordChangedAtMs(payload.sub);
-    if (passwordChangedAtMs !== null && passwordChangedAtMs > payload.iat * 1000) {
+    // see getPasswordChangedAt's docblock for why this is the one exception
+    // to this function otherwise never touching the database. Also rejects
+    // outright when the user no longer exists (e.g. deleted) - a still-live
+    // session cookie for a nonexistent user must not keep authenticating.
+    const lookup = await getPasswordChangedAt(payload.sub);
+    if (lookup === null) return null;
+    if (lookup.passwordChangedAtMs !== null && lookup.passwordChangedAtMs > payload.iat * 1000) {
       return null;
     }
 

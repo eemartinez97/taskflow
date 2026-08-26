@@ -4,23 +4,33 @@ import { createPasswordChangedAtCache } from "@taskflow/shared";
 import { serverEnv } from "@/lib/env.server";
 
 /**
+ * `null` means the user no longer exists at all - distinct from
+ * `{ passwordChangedAtMs: null }`, which means the user exists but has never
+ * reset their password. isSessionRevoked must treat the former as revoked
+ * outright (nothing to check a timestamp against), not as "nothing to
+ * revoke" the way it correctly does for the latter.
+ */
+type PasswordChangedAtLookup = { passwordChangedAtMs: number | null } | null;
+
+/**
  * Caches each user's `passwordChangedAt` for PASSWORD_CHANGED_AT_CACHE_TTL_MS
  * (60s by default) - see createPasswordChangedAtCache's docblock in
  * packages/shared for the full rationale. Same mechanism as apps/api's
  * identical need in utils/auth.ts, each app owning its own `fetch` callback
  * and its own in-process cache instance.
  */
-const passwordChangedAtCache = createPasswordChangedAtCache(
+const passwordChangedAtCache = createPasswordChangedAtCache<PasswordChangedAtLookup>(
   serverEnv.PASSWORD_CHANGED_AT_CACHE_TTL_MS,
 );
 
-async function getPasswordChangedAtMs(userId: string): Promise<number | null> {
+async function getPasswordChangedAt(userId: string): Promise<PasswordChangedAtLookup> {
   return passwordChangedAtCache.get(userId, async (id) => {
     const user = await prisma.user.findUnique({
       where: { id },
       select: { passwordChangedAt: true },
     });
-    return user?.passwordChangedAt?.getTime() ?? null;
+    if (!user) return null;
+    return { passwordChangedAtMs: user.passwordChangedAt?.getTime() ?? null };
   });
 }
 
@@ -50,8 +60,14 @@ export async function isSessionRevoked(
   if (typeof issuedAtSeconds !== "number") return true;
 
   try {
-    const passwordChangedAtMs = await getPasswordChangedAtMs(userId);
-    return passwordChangedAtMs !== null && passwordChangedAtMs > issuedAtSeconds * 1000;
+    const lookup = await getPasswordChangedAt(userId);
+    // A deleted user (lookup === null) must be treated as revoked - a
+    // still-live session cookie for a nonexistent user must not keep
+    // authenticating.
+    if (lookup === null) return true;
+    return (
+      lookup.passwordChangedAtMs !== null && lookup.passwordChangedAtMs > issuedAtSeconds * 1000
+    );
   } catch {
     // DB unavailable - fail closed, same stance as apps/api's getSessionUser.
     return true;

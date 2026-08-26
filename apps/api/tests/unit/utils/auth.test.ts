@@ -180,5 +180,15 @@ describe("getSessionUser", () => {
       const token = await makeSessionToken();
       await expect(getSessionUser(makeCookieHeader(token))).resolves.toBeNull();
     });
+
+    it("rejects a still-live session for a user that no longer exists", async () => {
+      // e.g. deleted after the session cookie was issued - user?.passwordChangedAt
+      // ?? null would otherwise collapse this into the same "nothing to
+      // revoke" case as a user who simply never reset their password.
+      mockDb.user.findUnique.mockResolvedValue(null);
+
+      const token = await makeSessionToken();
+      await expect(getSessionUser(makeCookieHeader(token))).resolves.toBeNull();
+    });
   });
 });

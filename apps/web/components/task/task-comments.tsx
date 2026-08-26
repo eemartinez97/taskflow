@@ -16,6 +16,8 @@ interface TaskCommentsProps {
   projectId: string;
   taskId: string;
   isExpanded: boolean;
+  /** False for VIEWER - shows the thread read-only, hides the composer and delete controls. */
+  canEdit: boolean;
   onToggleExpand: () => void;
 }
 
@@ -24,6 +26,7 @@ export function TaskComments({
   projectId,
   taskId,
   isExpanded,
+  canEdit,
   onToggleExpand,
 }: TaskCommentsProps): JSX.Element {
   const [body, setBody] = useState("");
@@ -159,8 +162,9 @@ export function TaskComments({
                 <p className="whitespace-pre-wrap text-sm text-gray-700">{comment.body}</p>
               </div>
 
-              {/* Only the author can delete - the server enforces it too */}
-              {session?.user.id === comment.authorId && (
+              {/* Only the author can delete - the server enforces it too, and
+                  also rejects VIEWER outright regardless of authorship */}
+              {canEdit && session?.user.id === comment.authorId && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -180,39 +184,42 @@ export function TaskComments({
       </div>
 
       {/* Pinned composer - always reachable, never pushed off-screen by a
-          long comment thread. */}
-      <div className="mt-2 flex shrink-0 flex-col gap-1 border-t border-gray-100 pt-2">
-        {/* Reserve a fixed-height line so the input never shifts when the
-            indicator appears/disappears. */}
-        <p aria-live="polite" className="h-4 text-xs italic text-gray-400">
-          {typingUserIds.length === 0
-            ? ""
-            : typingUserIds.length === 1
-              ? "Someone is typing…"
-              : "Several people are typing…"}
-        </p>
+          long comment thread. VIEWER can't post (server rejects it too), so
+          there's nothing to pin for them. */}
+      {canEdit && (
+        <div className="mt-2 flex shrink-0 flex-col gap-1 border-t border-gray-100 pt-2">
+          {/* Reserve a fixed-height line so the input never shifts when the
+              indicator appears/disappears. */}
+          <p aria-live="polite" className="h-4 text-xs italic text-gray-400">
+            {typingUserIds.length === 0
+              ? ""
+              : typingUserIds.length === 1
+                ? "Someone is typing…"
+                : "Several people are typing…"}
+          </p>
 
-        <div className="flex gap-2">
-          <Input
-            value={body}
-            onChange={(e) => {
-              setBody(e.target.value);
-              notifyTyping();
-            }}
-            placeholder="Add a comment..."
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                submit();
-              }
-            }}
-            className="text-sm"
-          />
-          <Button onClick={submit} loading={createMutation.isPending} disabled={!body.trim()}>
-            Post
-          </Button>
+          <div className="flex gap-2">
+            <Input
+              value={body}
+              onChange={(e) => {
+                setBody(e.target.value);
+                notifyTyping();
+              }}
+              placeholder="Add a comment..."
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  submit();
+                }
+              }}
+              className="text-sm"
+            />
+            <Button onClick={submit} loading={createMutation.isPending} disabled={!body.trim()}>
+              Post
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

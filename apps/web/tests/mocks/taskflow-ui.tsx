@@ -240,14 +240,21 @@ interface MockInlineEditTextProps {
   maxLength?: number;
   className?: string;
   inputClassName?: string;
+  disabled?: boolean;
   onSave: (value: string) => void;
 }
 
-export function InlineEditText({ label, value, onSave }: MockInlineEditTextProps): JSX.Element {
+export function InlineEditText({
+  label,
+  value,
+  disabled,
+  onSave,
+}: MockInlineEditTextProps): JSX.Element {
   return (
     <input
       aria-label={label}
       defaultValue={value}
+      disabled={disabled}
       onBlur={(e) => {
         onSave(e.target.value);
       }}

@@ -17,6 +17,7 @@ function buildProps(
   return {
     orgLabels: [LABEL_BUG, LABEL_URGENT, LABEL_FEATURE],
     taskLabelIds: [],
+    canEdit: true,
     onAdd: vi.fn(),
     onRemove: vi.fn(),
     ...overrides,
@@ -180,6 +181,7 @@ describe("TaskLabels", () => {
       <TaskLabels
         orgLabels={[LABEL_BUG]}
         taskLabelIds={[LABEL_BUG.id]}
+        canEdit={true}
         onAdd={vi.fn()}
         onRemove={vi.fn()}
       />,

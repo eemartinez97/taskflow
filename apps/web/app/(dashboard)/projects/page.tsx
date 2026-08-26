@@ -13,6 +13,10 @@ export const metadata: Metadata = { title: "Projects" };
  *
  * Prefetches org + project data on the server so the client gets
  * a populated page immediately without a loading flash.
+ *
+ * projects.list is read-only for every role including VIEWER - ProjectList
+ * itself hides the "New Project" button and the per-project edit/delete menu
+ * (canMutateInOrg/canAdminOrg) for roles that can't act on them.
  */
 export default async function ProjectsPage(): Promise<JSX.Element> {
   const trpc = await getServerTRPC();

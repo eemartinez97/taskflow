@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { createTaskSchema, idSchema, moveTaskSchema, updateTaskSchema } from "@taskflow/shared";
-import { createTRPCRouter, protectedProcedure, roleGuard } from "../../trpc/procedures";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  readerProcedure,
+  roleGuard,
+} from "../../trpc/procedures";
 import {
   addLabelToTaskById,
   createTaskInColumn,
@@ -33,11 +38,11 @@ const memberProcedure = protectedProcedure.use(roleGuard(["OWNER", "ADMIN", "MEM
  */
 const _buildTasksRouter = (io: AppServer) =>
   createTRPCRouter({
-    list: memberProcedure
+    list: readerProcedure
       .input(z.object({ orgId: idSchema, columnId: idSchema }))
       .query(async ({ ctx, input }) => listTasks(ctx.db, input.columnId)),
 
-    get: memberProcedure
+    get: readerProcedure
       .input(z.object({ orgId: idSchema, taskId: idSchema }))
       .query(async ({ ctx, input }) => getTask(ctx.db, input.taskId)),
 
@@ -75,11 +80,11 @@ const _buildTasksRouter = (io: AppServer) =>
       ),
 
     // -- labels --
-    labels: memberProcedure
+    labels: readerProcedure
       .input(z.object({ orgId: idSchema, taskId: idSchema }))
       .query(async ({ ctx, input }) => listTaskLabels(ctx.db, input.taskId)),
 
-    labelsByProject: memberProcedure
+    labelsByProject: readerProcedure
       .input(z.object({ orgId: idSchema, projectId: idSchema }))
       .query(async ({ ctx, input }) => listProjectTaskLabels(ctx.db, input.projectId)),
 

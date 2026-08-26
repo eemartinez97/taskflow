@@ -26,6 +26,7 @@ import type { SocketPresenceUser } from "@taskflow/shared";
 import { findColumnIdForTask, findTaskInMap, type TasksMap } from "@/lib/board/tasks-map";
 import { upsertTask } from "@/lib/socket/task-cache";
 import { TaskDetailPanel } from "@/components/task/task-detail-panel";
+import { useAssigneeLookup } from "@/lib/hooks/use-assignee-lookup";
 import { useColumnDnD } from "@/lib/hooks/use-column-dnd";
 import { AddColumnButton } from "./add-column-button";
 import { useBoardDnD } from "@/lib/hooks/use-board-dnd";
@@ -82,6 +83,8 @@ interface KanbanBoardProps {
   labelsByTask: Record<string, Label[]>;
   presence: SocketPresenceUser[];
   cursors: LiveCursor[];
+  /** False for VIEWER - hides/disables every write control (rename, add/delete column, add task, drag-and-drop). */
+  canEdit: boolean;
 }
 
 /**
@@ -103,6 +106,7 @@ export function KanbanBoard({
   labelsByTask,
   presence,
   cursors,
+  canEdit,
 }: KanbanBoardProps): JSX.Element {
   const [overId, setOverId] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -156,29 +160,7 @@ export function KanbanBoard({
   const { cursorsHidden, setCursorsHidden } = useCursorsHidden(orgId);
 
   const { data: orgLabels = [] } = api.labels.list.useQuery({ orgId });
-  const { data: members = [] } = api.orgs.members.useQuery({ orgId });
-  // Ex-members can still be assigned to tasks (attribution is preserved when
-  // someone leaves/is removed - see apps/api's removeMembershipAndNotify), so
-  // assigneeById merges both groups instead of only ever knowing about
-  // current members and silently rendering their tasks as unassigned.
-  const { data: formerAssignees = [] } = api.orgs.formerAssignees.useQuery({ orgId });
-
-  const assigneeById = useMemo(() => {
-    const map = new Map<
-      string,
-      { id: string; name: string | null; email: string | null; isFormer?: boolean }
-    >(members.map((m) => [m.user.id, m.user]));
-    for (const former of formerAssignees) {
-      // A current member always wins over a stale formerAssignees entry -
-      // the two queries can momentarily disagree across a refetch even
-      // though the backend guarantees they're mutually exclusive at fetch
-      // time (findFormerAssignees excludes anyone with a live membership).
-      if (!map.has(former.id)) {
-        map.set(former.id, { id: former.id, name: former.name, email: null, isFormer: true });
-      }
-    }
-    return map;
-  }, [members, formerAssignees]);
+  const { assigneeById } = useAssigneeLookup(orgId);
 
   function toggleLabelFilter(labelId: string): void {
     setLabelFilter((prev) =>
@@ -386,6 +368,7 @@ export function KanbanBoard({
           label="board name"
           value={boardName}
           maxLength={100}
+          disabled={!canEdit}
           className="text-sm font-medium text-gray-500"
           onSave={(name) => {
             renameMutation.mutate({ orgId, boardId, data: { name } });
@@ -508,6 +491,7 @@ export function KanbanBoard({
                   assigneeById={assigneeById}
                   isOver={overColumnId === column.id}
                   isColumnDragging={isDraggingColumn}
+                  canEdit={canEdit}
                   onAddTask={(columnId, title) => {
                     setAddingTaskColId(columnId);
                     createTaskMutation.mutate({ orgId, projectId, data: { columnId, title } });
@@ -525,13 +509,15 @@ export function KanbanBoard({
                 />
               ))}
 
-              <AddColumnButton
-                onAdd={(name) => {
-                  addColumnMutation.mutate({ orgId, boardId, name });
-                }}
-                loading={addColumnMutation.isPending}
-                columnCount={columns.length}
-              />
+              {canEdit && (
+                <AddColumnButton
+                  onAdd={(name) => {
+                    addColumnMutation.mutate({ orgId, boardId, name });
+                  }}
+                  loading={addColumnMutation.isPending}
+                  columnCount={columns.length}
+                />
+              )}
             </div>
 
             <div
@@ -607,6 +593,7 @@ export function KanbanBoard({
           task={selectedTask}
           orgId={orgId}
           projectId={projectId}
+          canEdit={canEdit}
           onClose={() => {
             setSelectedTask(null);
           }}

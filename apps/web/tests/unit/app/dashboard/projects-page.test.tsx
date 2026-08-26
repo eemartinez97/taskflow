@@ -32,4 +32,13 @@ describe("ProjectsPage (Server Component)", () => {
     render(await ProjectsPage());
     expect(screen.getByText(`ProjectList: ${VALID_ORG_ID}`)).toBeInTheDocument();
   });
+
+  it("fetches and renders ProjectList for a VIEWER too (read-only)", async () => {
+    mockGetServerTRPC(vi.mocked(getServerTRPC));
+    vi.mocked(getOrgOrNull).mockResolvedValue(makeOrg({ role: "VIEWER" }));
+
+    render(await ProjectsPage());
+
+    expect(screen.getByText(`ProjectList: ${VALID_ORG_ID}`)).toBeInTheDocument();
+  });
 });

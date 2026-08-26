@@ -29,6 +29,7 @@ describe("TaskComments", () => {
         projectId={VALID_PROJECT_ID}
         taskId="t1"
         isExpanded={false}
+        canEdit={true}
         onToggleExpand={vi.fn()}
       />,
     );
@@ -40,6 +41,7 @@ describe("TaskComments", () => {
         projectId={VALID_PROJECT_ID}
         taskId="t1"
         isExpanded={false}
+        canEdit={true}
         onToggleExpand={vi.fn()}
       />,
     );
@@ -68,6 +70,7 @@ describe("TaskComments", () => {
         projectId={VALID_PROJECT_ID}
         taskId="t1"
         isExpanded={false}
+        canEdit={true}
         onToggleExpand={vi.fn()}
       />,
     );
@@ -84,6 +87,7 @@ describe("TaskComments", () => {
         projectId={VALID_PROJECT_ID}
         taskId="t1"
         isExpanded={false}
+        canEdit={true}
         onToggleExpand={vi.fn()}
       />,
     );
@@ -102,6 +106,7 @@ describe("TaskComments", () => {
         projectId={VALID_PROJECT_ID}
         taskId="t1"
         isExpanded={false}
+        canEdit={true}
         onToggleExpand={onToggleExpand}
       />,
     );
@@ -118,6 +123,7 @@ describe("TaskComments", () => {
         projectId={VALID_PROJECT_ID}
         taskId="t1"
         isExpanded={false}
+        canEdit={true}
         onToggleExpand={vi.fn()}
       />,
     );
@@ -135,6 +141,7 @@ describe("TaskComments", () => {
         projectId={VALID_PROJECT_ID}
         taskId="t1"
         isExpanded
+        canEdit={true}
         onToggleExpand={vi.fn()}
       />,
     );
@@ -161,6 +168,7 @@ describe("TaskComments - typing indicator", () => {
         projectId={VALID_PROJECT_ID}
         taskId="t1"
         isExpanded={false}
+        canEdit={true}
         onToggleExpand={vi.fn()}
       />,
     );
@@ -182,6 +190,7 @@ describe("TaskComments - typing indicator", () => {
         projectId={VALID_PROJECT_ID}
         taskId="t1"
         isExpanded={false}
+        canEdit={true}
         onToggleExpand={vi.fn()}
       />,
     );
@@ -199,6 +208,7 @@ describe("TaskComments - typing indicator", () => {
         projectId={VALID_PROJECT_ID}
         taskId="t1"
         isExpanded={false}
+        canEdit={true}
         onToggleExpand={vi.fn()}
       />,
     );
@@ -217,6 +227,7 @@ describe("TaskComments - typing indicator", () => {
         projectId={VALID_PROJECT_ID}
         taskId="t1"
         isExpanded={false}
+        canEdit={true}
         onToggleExpand={vi.fn()}
       />,
     );
@@ -235,6 +246,7 @@ describe("TaskComments - typing indicator", () => {
         projectId={VALID_PROJECT_ID}
         taskId="t1"
         isExpanded={false}
+        canEdit={true}
         onToggleExpand={vi.fn()}
       />,
     );
@@ -262,6 +274,7 @@ describe("TaskComments - typing broadcast throttle", () => {
         projectId={VALID_PROJECT_ID}
         taskId="t1"
         isExpanded={false}
+        canEdit={true}
         onToggleExpand={vi.fn()}
       />,
     );
@@ -287,6 +300,7 @@ describe("TaskComments - submit via Enter / Shift+Enter", () => {
         projectId={VALID_PROJECT_ID}
         taskId="t1"
         isExpanded={false}
+        canEdit={true}
         onToggleExpand={vi.fn()}
       />,
     );
@@ -305,6 +319,7 @@ describe("TaskComments - submit via Enter / Shift+Enter", () => {
         projectId={VALID_PROJECT_ID}
         taskId="t1"
         isExpanded={false}
+        canEdit={true}
         onToggleExpand={vi.fn()}
       />,
     );
@@ -325,6 +340,7 @@ describe("TaskComments - cache updaters and delete-own-comment", () => {
         projectId={VALID_PROJECT_ID}
         taskId="t1"
         isExpanded={false}
+        canEdit={true}
         onToggleExpand={vi.fn()}
       />,
     );
@@ -351,6 +367,7 @@ describe("TaskComments - cache updaters and delete-own-comment", () => {
         projectId={VALID_PROJECT_ID}
         taskId="t1"
         isExpanded={false}
+        canEdit={true}
         onToggleExpand={vi.fn()}
       />,
     );
@@ -382,6 +399,7 @@ describe("TaskComments - cache updaters and delete-own-comment", () => {
         projectId={VALID_PROJECT_ID}
         taskId="t1"
         isExpanded={false}
+        canEdit={true}
         onToggleExpand={vi.fn()}
       />,
     );
@@ -393,5 +411,31 @@ describe("TaskComments - cache updaters and delete-own-comment", () => {
         commentId: "c1",
       }),
     );
+  });
+});
+
+describe("TaskComments - read-only (canEdit=false)", () => {
+  it("hides the composer and the delete button even for the caller's own comment", () => {
+    const myComment = {
+      id: "c1",
+      body: "Mine",
+      authorId: mockAuthorizedUser.id,
+      author: mockAuthorizedUser,
+      createdAt: new Date(),
+    };
+    mockUseQuery(api.comments.list, [myComment]);
+    render(
+      <TaskComments
+        orgId={VALID_ORG_ID}
+        projectId={VALID_PROJECT_ID}
+        taskId="t1"
+        isExpanded={false}
+        canEdit={false}
+        onToggleExpand={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Mine")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/add a comment/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /delete comment/i })).not.toBeInTheDocument();
   });
 });

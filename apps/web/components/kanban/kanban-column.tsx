@@ -23,6 +23,8 @@ interface KanbanColumnProps {
   assigneeById: Map<string, { name: string | null; email: string | null; isFormer?: boolean }>;
   addingTaskId: string | null; // columnId being added to
   labelsByTask: Record<string, Label[]>;
+  /** False for VIEWER - hides rename/delete/add-task/drag, on this column and its cards. */
+  canEdit: boolean;
 }
 
 /**
@@ -42,6 +44,7 @@ export function KanbanColumn({
   onRenameColumn,
   onDeleteColumn,
   assigneeById,
+  canEdit,
 }: KanbanColumnProps): JSX.Element {
   // Column-level sortable (for horizontal reorder)
   const {
@@ -51,7 +54,7 @@ export function KanbanColumn({
     transform,
     transition,
     isDragging: isThisColumnDragging,
-  } = useSortable({ id: column.id, data: { type: "column" } });
+  } = useSortable({ id: column.id, data: { type: "column" }, disabled: !canEdit });
 
   const taskIds = tasks.map((t) => t.id);
 
@@ -74,23 +77,26 @@ export function KanbanColumn({
       <div className="flex shrink-0 items-center justify-between rounded-md bg-gray-50 px-3 py-2 select-none">
         <div className="flex items-center gap-1.5 min-w-0">
           {/* Drag handle for column reorder */}
-          <button
-            type="button"
-            aria-label={`Drag to reorder column: ${column.name}`}
-            {...attributes}
-            {...listeners}
-            className={cn(
-              "cursor-grab rounded p-0.5 text-gray-300 hover:text-gray-500 active:cursor-grabbing",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500",
-              isColumnDragging && "cursor-grabbing",
-            )}
-          >
-            <GripVertical className="h-3.5 w-3.5" />
-          </button>
+          {canEdit && (
+            <button
+              type="button"
+              aria-label={`Drag to reorder column: ${column.name}`}
+              {...attributes}
+              {...listeners}
+              className={cn(
+                "cursor-grab rounded p-0.5 text-gray-300 hover:text-gray-500 active:cursor-grabbing",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500",
+                isColumnDragging && "cursor-grabbing",
+              )}
+            >
+              <GripVertical className="h-3.5 w-3.5" />
+            </button>
+          )}
           <InlineEditText
             label={`column name (${column.name})`}
             value={column.name}
             maxLength={100}
+            disabled={!canEdit}
             className="text-xs font-semibold uppercase tracking-wide text-gray-500"
             inputClassName="normal-case"
             onSave={(name) => {
@@ -103,19 +109,21 @@ export function KanbanColumn({
           <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">
             {tasks.length}
           </span>
-          <DropdownMenu
-            triggerLabel={`Options for column ${column.name}`}
-            items={[
-              {
-                label: "Delete column",
-                icon: Trash2,
-                danger: true,
-                onClick: () => {
-                  onDeleteColumn(column);
+          {canEdit && (
+            <DropdownMenu
+              triggerLabel={`Options for column ${column.name}`}
+              items={[
+                {
+                  label: "Delete column",
+                  icon: Trash2,
+                  danger: true,
+                  onClick: () => {
+                    onDeleteColumn(column);
+                  },
                 },
-              },
-            ]}
-          />
+              ]}
+            />
+          )}
         </div>
       </div>
 
@@ -134,6 +142,7 @@ export function KanbanColumn({
               task={task}
               labels={labelsByTask[task.id] ?? []}
               assignee={task.assigneeId ? (assigneeById.get(task.assigneeId) ?? null) : null}
+              canEdit={canEdit}
               onClick={() => {
                 onTaskClick(task);
               }}
@@ -141,13 +150,15 @@ export function KanbanColumn({
           ))}
         </SortableContext>
 
-        <AddTaskButton
-          onAdd={(title) => {
-            onAddTask(column.id, title);
-          }}
-          loading={addingTaskId === column.id}
-          taskCount={tasks.length}
-        />
+        {canEdit && (
+          <AddTaskButton
+            onAdd={(title) => {
+              onAddTask(column.id, title);
+            }}
+            loading={addingTaskId === column.id}
+            taskCount={tasks.length}
+          />
+        )}
       </div>
     </div>
   );

@@ -67,9 +67,17 @@ describe("projects router", () => {
     await expectTRPCError(call(), "FORBIDDEN");
   });
 
-  it("rejects a VIEWER on list", async () => {
+  it("allows a VIEWER to list projects (read-only)", async () => {
     grantRole("VIEWER");
 
-    await expectTRPCError(caller().list({ orgId: VALID_ORG_ID }), "FORBIDDEN");
+    await caller().list({ orgId: VALID_ORG_ID });
+    expect(service.listProjects).toHaveBeenCalledWith(db, VALID_ORG_ID);
+  });
+
+  it("rejects a VIEWER from creating a project (write)", async () => {
+    grantRole("VIEWER");
+    const data = { name: "Web", key: "WEB", slug: "web" };
+
+    await expectTRPCError(caller().create({ orgId: VALID_ORG_ID, data }), "FORBIDDEN");
   });
 });

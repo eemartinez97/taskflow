@@ -41,15 +41,17 @@ describe("LabelsSettingsPage", () => {
     expect(list).not.toHaveBeenCalled();
   });
 
-  it("shows an access-denied state for a VIEWER without fetching labels", async () => {
-    const list = vi.fn();
+  it("renders LabelManager with canManage=false for a VIEWER (read-only)", async () => {
+    const list = vi.fn().mockResolvedValue([{ id: "l1" }]);
     mockGetServerTRPC(vi.mocked(getServerTRPC), { labels: { list } });
-    vi.mocked(getOrgOrNull).mockResolvedValue(makeOrg({ role: "VIEWER" }));
+    vi.mocked(getOrgOrNull).mockResolvedValue(makeOrg({ id: VALID_ORG_ID, role: "VIEWER" }));
 
     render(await LabelsSettingsPage());
 
-    expect(screen.getByText(/don't have access/i)).toBeInTheDocument();
-    expect(list).not.toHaveBeenCalled();
+    expect(list).toHaveBeenCalledWith({ orgId: VALID_ORG_ID });
+    expect(
+      screen.getByText(`LabelManager: ${VALID_ORG_ID} / 1 labels / canManage=false`),
+    ).toBeInTheDocument();
   });
 
   it("renders LabelManager with canManage=false for a MEMBER", async () => {
@@ -90,14 +92,15 @@ describe("LabelsSettingsPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("falls back to VIEWER (access-denied) when the org has no memberships", async () => {
-    const list = vi.fn();
+  it("falls back to VIEWER (canManage=false) when the org has no memberships", async () => {
+    const list = vi.fn().mockResolvedValue([]);
     mockGetServerTRPC(vi.mocked(getServerTRPC), { labels: { list } });
-    vi.mocked(getOrgOrNull).mockResolvedValue(makeOrg({ memberships: [] }));
+    vi.mocked(getOrgOrNull).mockResolvedValue(makeOrg({ id: VALID_ORG_ID, memberships: [] }));
 
     render(await LabelsSettingsPage());
 
-    expect(screen.getByText(/don't have access/i)).toBeInTheDocument();
-    expect(list).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(`LabelManager: ${VALID_ORG_ID} / 0 labels / canManage=false`),
+    ).toBeInTheDocument();
   });
 });

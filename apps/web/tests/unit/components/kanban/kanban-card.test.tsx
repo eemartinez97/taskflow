@@ -131,4 +131,9 @@ describe("KanbanCard", () => {
     await userEvent.setup().keyboard("a");
     expect(onClick).not.toHaveBeenCalled();
   });
+
+  it("hides the drag handle when canEdit is false", () => {
+    render(<KanbanCard task={task} canEdit={false} />);
+    expect(screen.queryByRole("button", { name: /move task: fix bug/i })).not.toBeInTheDocument();
+  });
 });

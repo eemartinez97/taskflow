@@ -81,6 +81,13 @@ describe("comments router", () => {
     ).rejects.toThrow();
   });
 
+  it("allows a VIEWER to list comments (read-only)", async () => {
+    grantRole("VIEWER");
+
+    await caller().list({ orgId: VALID_ORG_ID, taskId: VALID_TASK_ID });
+    expect(service.listComments).toHaveBeenCalledWith(db, VALID_TASK_ID);
+  });
+
   it("create requires at least MEMBER", async () => {
     grantRole("VIEWER");
 

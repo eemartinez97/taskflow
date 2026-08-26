@@ -17,7 +17,12 @@ import {
   reorderColumnsSchema,
   updateBoardSchema,
 } from "@taskflow/shared";
-import { createTRPCRouter, protectedProcedure, roleGuard } from "../../trpc/procedures";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  readerProcedure,
+  roleGuard,
+} from "../../trpc/procedures";
 import type { AppServer } from "../../socket/events";
 import { nameField } from "@taskflow/shared";
 
@@ -26,11 +31,11 @@ const adminProcedure = protectedProcedure.use(roleGuard(["OWNER", "ADMIN"]));
 
 const _buildBoardsRouter = (io: AppServer) =>
   createTRPCRouter({
-    list: memberProcedure
+    list: readerProcedure
       .input(z.object({ orgId: idSchema, projectId: idSchema }))
       .query(async ({ ctx, input }) => listBoards(ctx.db, input.projectId)),
 
-    get: memberProcedure
+    get: readerProcedure
       .input(z.object({ orgId: idSchema, boardId: idSchema }))
       .query(async ({ ctx, input }) => getBoardWithColumns(ctx.db, input.boardId)),
 

@@ -18,6 +18,8 @@ interface BoardPageClientProps {
   boardId: string;
   initialBoard: BoardWithColumns;
   initialTasks: TasksMap;
+  /** False for VIEWER - KanbanBoard hides/disables every write control. */
+  canEdit: boolean;
 }
 
 /**
@@ -37,6 +39,7 @@ export function BoardPageClient({
   boardId,
   initialBoard,
   initialTasks,
+  canEdit,
 }: BoardPageClientProps): JSX.Element {
   // 1. Real-time: connect Socket.IO and wire cache-update handlers
   const { data } = api.boards.get.useQuery({ orgId, boardId }, { initialData: initialBoard });
@@ -88,6 +91,7 @@ export function BoardPageClient({
         labelsByTask={labelsByTask}
         presence={presence}
         cursors={cursors}
+        canEdit={canEdit}
       />
     </SocketProvider>
   );

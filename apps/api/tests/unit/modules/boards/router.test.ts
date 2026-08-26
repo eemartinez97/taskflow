@@ -132,10 +132,20 @@ describe("boards router", () => {
     ).rejects.toThrow();
   });
 
-  it("requires at least MEMBER", async () => {
+  it("allows a VIEWER to list boards (read-only)", async () => {
     grantRole("VIEWER");
 
-    await expectTRPCError(caller().list({ ...org, projectId: VALID_PROJECT_ID }), "FORBIDDEN");
+    await caller().list({ ...org, projectId: VALID_PROJECT_ID });
+    expect(service.listBoards).toHaveBeenCalledWith(db, VALID_PROJECT_ID);
+  });
+
+  it("rejects a VIEWER from creating a board (write)", async () => {
+    grantRole("VIEWER");
+
+    await expectTRPCError(
+      caller().create({ ...org, data: { projectId: VALID_PROJECT_ID, name: "S" } }),
+      "FORBIDDEN",
+    );
   });
 
   it("delete forwards to the service (requires ADMIN)", async () => {

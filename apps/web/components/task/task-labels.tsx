@@ -9,6 +9,8 @@ import { Button } from "@taskflow/ui";
 interface TaskLabelsProps {
   orgLabels: Label[];
   taskLabelIds: string[];
+  /** False for VIEWER - shows attached labels but hides add/remove controls. */
+  canEdit: boolean;
   onAdd: (labelId: string) => void;
   onRemove: (labelId: string) => void;
 }
@@ -21,6 +23,7 @@ interface TaskLabelsProps {
 export function TaskLabels({
   orgLabels,
   taskLabelIds,
+  canEdit,
   onAdd,
   onRemove,
 }: TaskLabelsProps): JSX.Element {
@@ -78,21 +81,23 @@ export function TaskLabels({
             style={{ backgroundColor: label.color }}
           >
             {label.name}
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={`Remove label ${label.name}`}
-              onClick={() => {
-                onRemove(label.id);
-              }}
-              className="h-4 w-4 p-0 text-white hover:bg-white/20 hover:text-white"
-            >
-              <X className="h-3 w-3" />
-            </Button>
+            {canEdit && (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={`Remove label ${label.name}`}
+                onClick={() => {
+                  onRemove(label.id);
+                }}
+                className="h-4 w-4 p-0 text-white hover:bg-white/20 hover:text-white"
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            )}
           </span>
         ))}
 
-        {available.length > 0 && (
+        {canEdit && available.length > 0 && (
           <div ref={pickerRef} className="relative">
             <Button
               variant="ghost"

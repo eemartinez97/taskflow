@@ -65,8 +65,7 @@ import {
 
 function setupBaseQueries(): void {
   mockUseQuery(api.tasks.get, makeTask());
-  mockUseQuery(api.orgs.members, []);
-  mockUseQuery(api.orgs.formerAssignees, []);
+  mockUseQuery(api.orgs.assigneeLookup, { members: [], formerAssignees: [] });
   mockUseQuery(api.labels.list, []);
   mockUseQuery(api.tasks.labels, []);
 }
@@ -74,7 +73,7 @@ function setupBaseQueries(): void {
 describe("TaskDetailPanel", () => {
   it("renders loading state for members and then the form", () => {
     mockUseQuery(api.tasks.get, makeTask());
-    mockUseQuery(api.orgs.members, undefined, { isPending: true });
+    mockUseQuery(api.orgs.assigneeLookup, undefined, { isPending: true });
     mockUseQuery(api.labels.list, []);
     mockUseQuery(api.tasks.labels, []);
     render(
@@ -82,6 +81,7 @@ describe("TaskDetailPanel", () => {
         task={makeTask()}
         orgId={VALID_ORG_ID}
         projectId={VALID_PROJECT_ID}
+        canEdit={true}
         onClose={vi.fn()}
       />,
     );
@@ -95,6 +95,7 @@ describe("TaskDetailPanel", () => {
         task={makeTask()}
         orgId={VALID_ORG_ID}
         projectId={VALID_PROJECT_ID}
+        canEdit={true}
         onClose={vi.fn()}
       />,
     );
@@ -122,6 +123,7 @@ describe("TaskDetailPanel", () => {
         task={makeTask()}
         orgId={VALID_ORG_ID}
         projectId={VALID_PROJECT_ID}
+        canEdit={true}
         onClose={vi.fn()}
       />,
     );
@@ -142,6 +144,7 @@ describe("TaskDetailPanel", () => {
         task={makeTask()}
         orgId={VALID_ORG_ID}
         projectId={VALID_PROJECT_ID}
+        canEdit={true}
         onClose={vi.fn()}
       />,
     );
@@ -159,6 +162,7 @@ describe("TaskDetailPanel", () => {
         task={makeTask()}
         orgId={VALID_ORG_ID}
         projectId={VALID_PROJECT_ID}
+        canEdit={true}
         onClose={onClose}
       />,
     );
@@ -177,6 +181,7 @@ describe("TaskDetailPanel", () => {
         task={makeTask()}
         orgId={VALID_ORG_ID}
         projectId={VALID_PROJECT_ID}
+        canEdit={true}
         onClose={vi.fn()}
       />,
     );
@@ -191,6 +196,7 @@ describe("TaskDetailPanel", () => {
         task={makeTask()}
         orgId={VALID_ORG_ID}
         projectId={VALID_PROJECT_ID}
+        canEdit={true}
         onClose={vi.fn()}
       />,
     );
@@ -220,6 +226,7 @@ describe("TaskDetailPanel", () => {
         task={makeTask()}
         orgId={VALID_ORG_ID}
         projectId={VALID_PROJECT_ID}
+        canEdit={true}
         onClose={vi.fn()}
       />,
     );
@@ -254,6 +261,7 @@ describe("TaskDetailPanel", () => {
         task={makeTask()}
         orgId={VALID_ORG_ID}
         projectId={VALID_PROJECT_ID}
+        canEdit={true}
         onClose={vi.fn()}
       />,
     );
@@ -272,6 +280,7 @@ describe("TaskDetailPanel", () => {
         task={makeTask()}
         orgId={VALID_ORG_ID}
         projectId={VALID_PROJECT_ID}
+        canEdit={true}
         onClose={vi.fn()}
       />,
     );
@@ -287,6 +296,7 @@ describe("TaskDetailPanel", () => {
         task={makeTask()}
         orgId={VALID_ORG_ID}
         projectId={VALID_PROJECT_ID}
+        canEdit={true}
         onClose={vi.fn()}
       />,
     );
@@ -307,6 +317,7 @@ describe("TaskDetailPanel", () => {
         task={makeTask()}
         orgId={VALID_ORG_ID}
         projectId={VALID_PROJECT_ID}
+        canEdit={true}
         onClose={vi.fn()}
       />,
     );
@@ -323,14 +334,17 @@ describe("TaskDetailPanel", () => {
 
   it("renders assignee options when org members are present", () => {
     mockUseQuery(api.tasks.get, makeTask());
-    mockUseQuery(api.orgs.members, [
-      {
-        id: "m1",
-        userId: "u1",
-        role: "MEMBER",
-        user: { id: "u1", name: "Alice", email: "a@x.com" },
-      },
-    ]);
+    mockUseQuery(api.orgs.assigneeLookup, {
+      members: [
+        {
+          id: "m1",
+          userId: "u1",
+          role: "MEMBER",
+          user: { id: "u1", name: "Alice", email: "a@x.com" },
+        },
+      ],
+      formerAssignees: [],
+    });
     mockUseQuery(api.labels.list, []);
     mockUseQuery(api.tasks.labels, [{ id: "l1", name: "Bug", color: "#EF4444" }]);
     render(
@@ -338,6 +352,7 @@ describe("TaskDetailPanel", () => {
         task={makeTask()}
         orgId={VALID_ORG_ID}
         projectId={VALID_PROJECT_ID}
+        canEdit={true}
         onClose={vi.fn()}
       />,
     );
@@ -347,8 +362,10 @@ describe("TaskDetailPanel", () => {
   it("shows a disabled, selected option for a task assigned to a former member", () => {
     const assignedTask = makeTask({ assigneeId: "ex-user" });
     mockUseQuery(api.tasks.get, assignedTask);
-    mockUseQuery(api.orgs.members, []);
-    mockUseQuery(api.orgs.formerAssignees, [{ id: "ex-user", name: "Bob" }]);
+    mockUseQuery(api.orgs.assigneeLookup, {
+      members: [],
+      formerAssignees: [{ id: "ex-user", name: "Bob" }],
+    });
     mockUseQuery(api.labels.list, []);
     mockUseQuery(api.tasks.labels, []);
     render(
@@ -356,6 +373,7 @@ describe("TaskDetailPanel", () => {
         task={assignedTask}
         orgId={VALID_ORG_ID}
         projectId={VALID_PROJECT_ID}
+        canEdit={true}
         onClose={vi.fn()}
       />,
     );
@@ -367,15 +385,17 @@ describe("TaskDetailPanel", () => {
   it("does not show a former-member option when the assignee is a current member", () => {
     const assignedTask = makeTask({ assigneeId: "u1" });
     mockUseQuery(api.tasks.get, assignedTask);
-    mockUseQuery(api.orgs.members, [
-      {
-        id: "m1",
-        userId: "u1",
-        role: "MEMBER",
-        user: { id: "u1", name: "Alice", email: "a@x.com" },
-      },
-    ]);
-    mockUseQuery(api.orgs.formerAssignees, [{ id: "ex-user", name: "Bob" }]);
+    mockUseQuery(api.orgs.assigneeLookup, {
+      members: [
+        {
+          id: "m1",
+          userId: "u1",
+          role: "MEMBER",
+          user: { id: "u1", name: "Alice", email: "a@x.com" },
+        },
+      ],
+      formerAssignees: [{ id: "ex-user", name: "Bob" }],
+    });
     mockUseQuery(api.labels.list, []);
     mockUseQuery(api.tasks.labels, []);
     render(
@@ -383,6 +403,7 @@ describe("TaskDetailPanel", () => {
         task={assignedTask}
         orgId={VALID_ORG_ID}
         projectId={VALID_PROJECT_ID}
+        canEdit={true}
         onClose={vi.fn()}
       />,
     );
@@ -392,8 +413,10 @@ describe("TaskDetailPanel", () => {
   it("does not show a former-member option when the task is unassigned", () => {
     const unassignedTask = makeTask({ assigneeId: null });
     mockUseQuery(api.tasks.get, unassignedTask);
-    mockUseQuery(api.orgs.members, []);
-    mockUseQuery(api.orgs.formerAssignees, [{ id: "ex-user", name: "Bob" }]);
+    mockUseQuery(api.orgs.assigneeLookup, {
+      members: [],
+      formerAssignees: [{ id: "ex-user", name: "Bob" }],
+    });
     mockUseQuery(api.labels.list, []);
     mockUseQuery(api.tasks.labels, []);
     render(
@@ -401,6 +424,7 @@ describe("TaskDetailPanel", () => {
         task={unassignedTask}
         orgId={VALID_ORG_ID}
         projectId={VALID_PROJECT_ID}
+        canEdit={true}
         onClose={vi.fn()}
       />,
     );
@@ -415,6 +439,7 @@ describe("TaskDetailPanel", () => {
         task={makeTask()}
         orgId={VALID_ORG_ID}
         projectId={VALID_PROJECT_ID}
+        canEdit={true}
         onClose={vi.fn()}
       />,
     );
@@ -442,6 +467,7 @@ describe("TaskDetailPanel", () => {
         task={makeTask()}
         orgId={VALID_ORG_ID}
         projectId={VALID_PROJECT_ID}
+        canEdit={true}
         onClose={vi.fn()}
       />,
     );
@@ -465,6 +491,7 @@ describe("TaskDetailPanel", () => {
         task={makeTask()}
         orgId={VALID_ORG_ID}
         projectId={VALID_PROJECT_ID}
+        canEdit={true}
         onClose={vi.fn()}
       />,
     );
@@ -479,6 +506,7 @@ describe("TaskDetailPanel", () => {
         task={makeTask()}
         orgId={VALID_ORG_ID}
         projectId={VALID_PROJECT_ID}
+        canEdit={true}
         onClose={vi.fn()}
       />,
     );
@@ -493,6 +521,7 @@ describe("TaskDetailPanel", () => {
         task={makeTask()}
         orgId={VALID_ORG_ID}
         projectId={VALID_PROJECT_ID}
+        canEdit={true}
         onClose={vi.fn()}
       />,
     );
@@ -514,11 +543,30 @@ describe("TaskDetailPanel", () => {
         task={makeTask()}
         orgId={VALID_ORG_ID}
         projectId={VALID_PROJECT_ID}
+        canEdit={true}
         onClose={vi.fn()}
       />,
     );
     const select = screen.getByLabelText(/priority/i);
     fireEvent.blur(select);
     expect(mutateMock).not.toHaveBeenCalled();
+  });
+
+  it("hides the delete button and disables every field when canEdit is false", () => {
+    setupBaseQueries();
+    render(
+      <TaskDetailPanel
+        task={makeTask()}
+        orgId={VALID_ORG_ID}
+        projectId={VALID_PROJECT_ID}
+        canEdit={false}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Delete task" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/title/i)).toBeDisabled();
+    expect(screen.getByLabelText(/description/i)).toBeDisabled();
+    expect(screen.getByLabelText(/priority/i)).toBeDisabled();
+    expect(screen.getByLabelText(/status/i)).toBeDisabled();
   });
 });

@@ -81,6 +81,7 @@ function buildProps(
     assigneeById: new Map(),
     addingTaskId: null,
     labelsByTask: {},
+    canEdit: true,
     ...overrides,
   };
 }

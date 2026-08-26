@@ -53,8 +53,16 @@ const taskNotification = makeNotification({
 
 const orgNotification = makeNotification({
   id: "n2",
-  message: "You joined an org",
+  message: "They accepted your invitation",
   read: true,
+  type: "INVITATION_ACCEPTED",
+  entityType: "org",
+  entityId: VALID_ORG_ID,
+});
+
+const pendingInviteNotification = makeNotification({
+  id: "n5",
+  message: "Someone invited you to an org",
   type: "MEMBER_INVITED",
   entityType: "org",
   entityId: VALID_ORG_ID,
@@ -138,9 +146,22 @@ describe("NotificationsPanel", () => {
     });
     const { mutateMock } = setupMutationMock(vi.mocked(api.notifications.markRead));
     render(<NotificationsPanel onClose={vi.fn()} />);
-    await userEvent.setup().click(screen.getByText("You joined an org"));
+    await userEvent.setup().click(screen.getByText("They accepted your invitation"));
     expect(mutateMock).not.toHaveBeenCalled();
     expect(pushMock).toHaveBeenCalledWith(`/organizations/${VALID_ORG_ID}`);
+  });
+
+  it("navigates to /invitations for a MEMBER_INVITED notification (not a member of that org yet)", async () => {
+    const { pushMock } = setupRouterMock();
+    vi.mocked(useNotifications).mockReturnValue({
+      notifications: [pendingInviteNotification],
+      unreadCount: 1,
+    });
+    const { mutateMock } = setupMutationMock(vi.mocked(api.notifications.markRead));
+    render(<NotificationsPanel onClose={vi.fn()} />);
+    await userEvent.setup().click(screen.getByText("Someone invited you to an org"));
+    expect(mutateMock).toHaveBeenCalledWith({ ids: ["n5"] });
+    expect(pushMock).toHaveBeenCalledWith("/invitations");
   });
 
   it("does not navigate for an org notification with no entityId", async () => {
@@ -204,7 +225,7 @@ describe("NotificationsPanel", () => {
   describe("inline invitation actions", () => {
     it("shows Accept/Decline on a MEMBER_INVITED row with a matching pending invitation", () => {
       vi.mocked(useNotifications).mockReturnValue({
-        notifications: [orgNotification],
+        notifications: [pendingInviteNotification],
         unreadCount: 0,
       });
       mockUseQuery(api.invitations.listMine, [
@@ -217,7 +238,7 @@ describe("NotificationsPanel", () => {
 
     it("hides Accept/Decline when no listMine row matches the notification's org", () => {
       vi.mocked(useNotifications).mockReturnValue({
-        notifications: [orgNotification],
+        notifications: [pendingInviteNotification],
         unreadCount: 0,
       });
       mockUseQuery(api.invitations.listMine, [
@@ -251,7 +272,7 @@ describe("NotificationsPanel", () => {
         isDeclining: false,
       });
       vi.mocked(useNotifications).mockReturnValue({
-        notifications: [orgNotification],
+        notifications: [pendingInviteNotification],
         unreadCount: 0,
       });
       mockUseQuery(api.invitations.listMine, [
@@ -277,7 +298,7 @@ describe("NotificationsPanel", () => {
         isDeclining: false,
       });
       vi.mocked(useNotifications).mockReturnValue({
-        notifications: [orgNotification],
+        notifications: [pendingInviteNotification],
         unreadCount: 0,
       });
       mockUseQuery(api.invitations.listMine, [

@@ -73,6 +73,32 @@ describe("OrgSwitcher", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("shows a pending-invitations row with a count badge when there are no orgs yet", async () => {
+    mockUseQuery(api.orgs.list, []);
+    mockUseQuery(api.invitations.listMine, [makeMyInvitation(), makeMyInvitation({ id: "inv-2" })]);
+    const { pushMock } = setupRouterMock();
+    render(<OrgSwitcher />);
+
+    const invitationsRow = screen.getByRole("button", { name: /pending invitations/i });
+    expect(invitationsRow).toHaveTextContent("2");
+
+    await userEvent.setup().click(invitationsRow);
+    expect(pushMock).toHaveBeenCalledWith("/invitations");
+  });
+
+  it("still shows a pending-invitations row (without a badge) when there are no orgs and no pending invitations", async () => {
+    mockUseQuery(api.orgs.list, []);
+    mockUseQuery(api.invitations.listMine, []);
+    const { pushMock } = setupRouterMock();
+    render(<OrgSwitcher />);
+
+    const invitationsRow = screen.getByRole("button", { name: /pending invitations/i });
+    expect(invitationsRow).not.toHaveTextContent(/\d/);
+
+    await userEvent.setup().click(invitationsRow);
+    expect(pushMock).toHaveBeenCalledWith("/invitations");
+  });
+
   // -- Trigger --
 
   it("shows the active org's name and role on the trigger", () => {
@@ -196,6 +222,23 @@ describe("OrgSwitcher", () => {
     await userEvent.setup().click(trigger());
     const invitationsItem = screen.getByRole("menuitem", { name: /pending invitations/i });
     expect(invitationsItem).not.toHaveTextContent(/\d/);
+  });
+
+  it("shows a count badge on the closed trigger itself when there are pending invitations", () => {
+    mockUseQuery(api.orgs.list, [orgA]);
+    mockUseQuery(api.invitations.listMine, [makeMyInvitation(), makeMyInvitation({ id: "inv-2" })]);
+    setupRouterMock();
+    render(<OrgSwitcher />);
+    expect(trigger()).toHaveTextContent("2");
+    expect(trigger()).toHaveAccessibleName(/2 pending invitations/i);
+  });
+
+  it("shows no badge on the closed trigger and no mention in its name when there are none", () => {
+    mockUseQuery(api.orgs.list, [orgA]);
+    mockUseQuery(api.invitations.listMine, []);
+    setupRouterMock();
+    render(<OrgSwitcher />);
+    expect(trigger()).not.toHaveAccessibleName(/pending invitation/i);
   });
 
   it("navigates to /invitations and closes the menu when the invitations row is clicked", async () => {

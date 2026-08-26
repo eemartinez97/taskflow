@@ -54,6 +54,28 @@ export async function deleteNotification(
   await db.notification.delete({ where: { id: notificationId, userId } });
 }
 
+/**
+ * Deletes every MEMBER_INVITED notification a user has for one org.
+ *
+ * The `Invitation` row for a given (orgId, email) is reused across
+ * decline -> re-invite (its `@@unique([orgId, email])` constraint - see
+ * upsertInvitation), so its id never changes, but each invite/re-invite
+ * still creates a NEW notification row. Called on accept/decline so a
+ * resolved invite's notification doesn't sit around and start showing
+ * Accept/Decline again the moment a later invite to the same org adds a
+ * fresh `listMine` row - the notifications panel's `findInvitation` only
+ * matches on orgId, not on which notification triggered it.
+ */
+export async function deleteMemberInvitedNotifications(
+  db: PrismaClient,
+  userId: string,
+  orgId: string,
+): Promise<void> {
+  await db.notification.deleteMany({
+    where: { userId, type: "MEMBER_INVITED", entityType: "org", entityId: orgId },
+  });
+}
+
 export async function countUnread(db: PrismaClient, userId: string): Promise<number> {
   return db.notification.count({ where: { userId, read: false } });
 }

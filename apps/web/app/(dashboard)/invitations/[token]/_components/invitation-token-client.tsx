@@ -7,6 +7,7 @@ import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@taskfl
 
 import { useInvitationActions } from "@/components/invitations/use-invitation-actions";
 import { useAppRouter } from "@/lib/hooks/use-app-router";
+import { formatDate } from "@/lib/utils/date";
 
 interface InvitationTokenClientProps {
   token: string;
@@ -66,9 +67,7 @@ export function InvitationTokenClient({ token, preview }: InvitationTokenClientP
             {preview.inviterName ?? "Someone"} invited you to join as{" "}
             <Badge variant="outline">{preview.role}</Badge>
           </p>
-          <p className="text-xs text-gray-400">
-            Expires {new Date(preview.expiresAt).toLocaleDateString()}
-          </p>
+          <p className="text-xs text-gray-400">Expires {formatDate(preview.expiresAt)}</p>
 
           <div className="mt-2 flex gap-2">
             <Button

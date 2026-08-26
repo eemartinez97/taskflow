@@ -26,7 +26,8 @@ const MAX_CACHED_NOTIFICATIONS = 50;
  * - NOTIFICATION_CREATED  -> prepend to notifications.list cache + info toast
  *   (a MEMBER_LEFT notification additionally invalidates that org's
  *   members/formerAssignees/assigneeLookup/orgs.list caches, and refreshes
- *   the page if the affected org is the one currently in view - see below)
+ *   the page if the affected org is the one currently in view - see below;
+ *   a MEMBER_INVITED one invalidates invitations.listMine - see below)
  * - PRESENCE_ONLINE_SYNC  -> seed the org online roster
  * - PRESENCE_ONLINE       -> add a teammate to the roster
  * - PRESENCE_OFFLINE      -> remove a teammate from the roster
@@ -60,6 +61,16 @@ export function useGlobalRealtime(): void {
         );
 
         toast.info(notification.message);
+
+        // The notifications list cache above updates instantly, but the
+        // panel's Accept/Decline buttons come from a SEPARATE query
+        // (invitations.listMine) that this socket doesn't otherwise touch -
+        // without this, a panel already open when the invite arrives shows
+        // the message with no way to act on it until something else happens
+        // to refetch listMine (a remount, a window refocus).
+        if (notification.type === "MEMBER_INVITED") {
+          void utils.invitations.listMine.invalidate();
+        }
 
         // MEMBER_LEFT carries the org as entityId (see notifyMemberLeft) but
         // rides the generic NOTIFICATION_CREATED event rather than its own -

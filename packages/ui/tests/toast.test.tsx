@@ -1,4 +1,4 @@
-import { render, screen, act } from "@testing-library/react";
+import { render, screen, act, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { Toast, ToastContainer } from "../src";
@@ -55,6 +55,53 @@ describe("Toast - timer behavior", () => {
       vi.advanceTimersByTime(4000);
     });
     // onDismiss must NOT be called after unmount
+    expect(onDismiss).not.toHaveBeenCalled();
+  });
+
+  it("pauses auto-dismiss while the pointer is hovering the toast", () => {
+    const onDismiss = vi.fn();
+    render(<Toast message="Hover pause" duration={1500} onDismiss={onDismiss} />);
+    fireEvent.mouseEnter(screen.getByRole("alert"));
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+    expect(onDismiss).not.toHaveBeenCalled();
+  });
+
+  it("dismisses 3s after the pointer leaves a hovered toast, not the original duration", () => {
+    const onDismiss = vi.fn();
+    render(<Toast message="Hover then leave" duration={1500} onDismiss={onDismiss} />);
+    const alert = screen.getByRole("alert");
+
+    fireEvent.mouseEnter(alert);
+    act(() => {
+      // Past the original 1500ms duration - proves it's not just resuming
+      // the original timer once un-hovered.
+      vi.advanceTimersByTime(1500);
+    });
+    expect(onDismiss).not.toHaveBeenCalled();
+
+    fireEvent.mouseLeave(alert);
+    act(() => {
+      vi.advanceTimersByTime(2999);
+    });
+    expect(onDismiss).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(onDismiss).toHaveBeenCalledOnce();
+  });
+
+  it("ignores hover on a sticky (duration=0) toast - it still never auto-dismisses", () => {
+    const onDismiss = vi.fn();
+    render(<Toast message="Sticky hover" duration={0} onDismiss={onDismiss} />);
+    const alert = screen.getByRole("alert");
+
+    fireEvent.mouseEnter(alert);
+    fireEvent.mouseLeave(alert);
+    act(() => {
+      vi.advanceTimersByTime(99_999);
+    });
     expect(onDismiss).not.toHaveBeenCalled();
   });
 });

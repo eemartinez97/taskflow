@@ -1,23 +1,39 @@
 "use client";
 
-import { Building2 } from "lucide-react";
+import { Building2, Mail } from "lucide-react";
 import type { JSX } from "react";
 
 import { Badge, Button } from "@taskflow/ui";
 
+import { EmptyState } from "@/components/common/empty-state";
 import { api } from "@/lib/trpc/client";
+import { formatDate } from "@/lib/utils/date";
 import { useInvitationActions } from "./use-invitation-actions";
 
 /**
- * The signed-in user's own pending org invitations. Renders `null` when
- * there are none, so it can be dropped in unconditionally wherever it's
- * mounted (the organizations list, the no-org empty state).
+ * The signed-in user's own pending org invitations. Renders `null` while
+ * loading (no flash of an empty state), the shared `EmptyState` once loaded
+ * with none, so it can be dropped in unconditionally wherever it's mounted
+ * (the standalone /invitations page, the no-org empty state - the latter
+ * only ever mounts this once it already knows there's at least one, via its
+ * own `hasPendingInvitations` check, so the EmptyState branch below is
+ * reachable only from /invitations in practice).
  */
 export function PendingInvitations(): JSX.Element | null {
   const { data: invitations } = api.invitations.listMine.useQuery();
   const { accept, decline, isAccepting, isDeclining } = useInvitationActions();
 
-  if (!invitations || invitations.length === 0) return null;
+  if (!invitations) return null;
+
+  if (invitations.length === 0) {
+    return (
+      <EmptyState
+        icon={Mail}
+        title="No pending invitations"
+        description="You'll see any invitations to join an organization here."
+      />
+    );
+  }
 
   return (
     <section aria-labelledby="pending-invitations-heading" className="flex flex-col gap-3">
@@ -37,9 +53,7 @@ export function PendingInvitations(): JSX.Element | null {
                 <p className="truncate text-sm font-medium text-gray-900">{inv.orgName}</p>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">{inv.role}</Badge>
-                  <span className="text-xs text-gray-500">
-                    Expires {new Date(inv.expiresAt).toLocaleDateString()}
-                  </span>
+                  <span className="text-xs text-gray-500">Expires {formatDate(inv.expiresAt)}</span>
                 </div>
               </div>
             </div>

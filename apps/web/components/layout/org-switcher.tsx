@@ -180,7 +180,7 @@ export function OrgSwitcher(): JSX.Element | null {
 
   if (orgs.length === 0) {
     return (
-      <>
+      <div className="flex flex-col">
         <button
           type="button"
           onClick={createDialog.open}
@@ -189,8 +189,27 @@ export function OrgSwitcher(): JSX.Element | null {
           <Plus className="h-4 w-4" />
           Create organization
         </button>
+
+        {/* No dropdown to tuck this into with zero orgs (nothing to switch
+            between) - surfaced as its own row instead, mirroring the same
+            always-visible "Pending invitations" row the populated branch
+            below puts inside its menu (only ITS Badge is conditional there -
+            this row must match, or a zero-org/zero-invitation user has no
+            way to even navigate to /invitations to check). */}
+        <button
+          type="button"
+          onClick={() => {
+            router.push("/invitations");
+          }}
+          className="flex w-full items-center gap-2 border-t border-gray-200 bg-white px-3 py-2.5 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
+        >
+          <Mail aria-hidden="true" className="h-4 w-4 shrink-0 text-gray-400" />
+          <span className="flex-1">Pending invitations</span>
+          {invitationCount > 0 && <Badge variant="warning">{invitationCount}</Badge>}
+        </button>
+
         {createOrgDialog}
-      </>
+      </div>
     );
   }
 
@@ -202,7 +221,11 @@ export function OrgSwitcher(): JSX.Element | null {
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         /* v8 ignore next -- activeOrg is always defined here: this JSX only renders past the orgs.length === 0 early return above, where firstOrg (its fallback) is guaranteed */
-        aria-label={`Switch organization, current: ${activeOrg?.name ?? ""}`}
+        aria-label={`Switch organization, current: ${activeOrg?.name ?? ""}${
+          invitationCount > 0
+            ? `, ${String(invitationCount)} pending invitation${invitationCount === 1 ? "" : "s"}`
+            : ""
+        }`}
         onClick={() => {
           setMenuOpen((prev) => !prev);
         }}
@@ -226,6 +249,11 @@ export function OrgSwitcher(): JSX.Element | null {
           <span className="truncate text-sm font-medium text-gray-900">{activeOrg?.name}</span>
           <span className="text-xs text-gray-500">{activeRole}</span>
         </span>
+        {invitationCount > 0 && (
+          <Badge aria-hidden="true" variant="warning">
+            {invitationCount}
+          </Badge>
+        )}
         <ChevronsUpDown aria-hidden="true" className="h-4 w-4 shrink-0 text-gray-400" />
       </button>
 

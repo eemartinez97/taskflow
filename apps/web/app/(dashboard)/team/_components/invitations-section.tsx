@@ -10,6 +10,7 @@ import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { EmptyState } from "@/components/common/empty-state";
 import { toast } from "@/lib/toast/store";
 import { api } from "@/lib/trpc/client";
+import { formatDate } from "@/lib/utils/date";
 
 interface InvitationsSectionProps {
   orgId: string;
@@ -89,8 +90,7 @@ export function InvitationsSection({
               <div className="flex min-w-0 flex-col">
                 <span className="truncate text-sm font-medium text-gray-900">{inv.email}</span>
                 <span className="text-xs text-gray-500">
-                  Invited by {inv.inviterName ?? "someone"} · Expires{" "}
-                  {new Date(inv.expiresAt).toLocaleDateString()}
+                  Invited by {inv.inviterName ?? "someone"} · Expires {formatDate(inv.expiresAt)}
                 </span>
               </div>
 

@@ -9,6 +9,7 @@ import { Prisma } from "@taskflow/database";
 import {
   countUnread,
   createNotification,
+  deleteMemberInvitedNotifications as deleteMemberInvitedNotificationsRepo,
   deleteNotification,
   findNotificationsForUser,
   markAllNotificationsAsRead,
@@ -73,6 +74,23 @@ export async function deleteNotificationById(
     }
     throw err;
   }
+}
+
+/**
+ * Clears a user's MEMBER_INVITED notifications for one org - called once an
+ * invitation to that org is resolved (accepted/declined) so a stale
+ * notification from an earlier invite/decline cycle can't resurface with
+ * Accept/Decline buttons when a later invite creates a new pending row for
+ * the same org. See deleteMemberInvitedNotifications in ./repo for why a
+ * fresh notification row exists per invite despite the Invitation row itself
+ * being reused.
+ */
+export async function deleteMemberInvitedNotifications(
+  db: PrismaClient,
+  userId: string,
+  orgId: string,
+): Promise<void> {
+  await deleteMemberInvitedNotificationsRepo(db, userId, orgId);
 }
 
 /**

@@ -123,6 +123,25 @@ describe("useGlobalRealtime", () => {
     expect(refreshMock).not.toHaveBeenCalled();
   });
 
+  it("invalidates invitations.listMine on a MEMBER_INVITED notification", () => {
+    vi.mocked(createSocket).mockReturnValue(mockSocket as never);
+    renderHook(() => {
+      useGlobalRealtime();
+    });
+    triggerSocketEvent(SOCKET_EVENTS.NOTIFICATION_CREATED, {
+      notification: {
+        id: "n1",
+        type: "MEMBER_INVITED",
+        entityId: "org-1",
+        message: "You were invited",
+        read: false,
+        createdAt: new Date(),
+      },
+    });
+    const utils = getLastMockUtils();
+    expect(utils.invitations.listMine.invalidate).toHaveBeenCalled();
+  });
+
   it("does not invalidate org caches for a non-MEMBER_LEFT notification", () => {
     vi.mocked(createSocket).mockReturnValue(mockSocket as never);
     renderHook(() => {
@@ -136,6 +155,7 @@ describe("useGlobalRealtime", () => {
     expect(utils.orgs.formerAssignees.invalidate).not.toHaveBeenCalled();
     expect(utils.orgs.assigneeLookup.invalidate).not.toHaveBeenCalled();
     expect(utils.orgs.list.invalidate).not.toHaveBeenCalled();
+    expect(utils.invitations.listMine.invalidate).not.toHaveBeenCalled();
   });
 
   it("disconnects and resets presence on unmount", () => {

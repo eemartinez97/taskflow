@@ -21,7 +21,9 @@ import { createTRPCRouter, protectedProcedure, roleGuard } from "../../trpc/proc
 // Role guards - composed once, reused across procedures
 const ownerProcedure = protectedProcedure.use(roleGuard(["OWNER"]));
 const adminProcedure = protectedProcedure.use(roleGuard(["OWNER", "ADMIN"]));
-const memberProcedure = protectedProcedure.use(roleGuard(["OWNER", "ADMIN", "MEMBER"]));
+// All 4 roles - VIEWER included. Read-only: the Team page (formerly /organizations/[orgId])
+// is reachable from the main nav now, so a VIEWER opening it must not hit FORBIDDEN.
+const readerProcedure = protectedProcedure.use(roleGuard(["OWNER", "ADMIN", "MEMBER", "VIEWER"]));
 
 export const orgsRouter = createTRPCRouter({
   /** Lists all orgs the current user is a member of. */
@@ -46,8 +48,8 @@ export const orgsRouter = createTRPCRouter({
     return deleteOrgById(ctx.db, input.orgId);
   }),
 
-  /** Lists all members of an org. */
-  members: memberProcedure.input(z.object({ orgId: idSchema })).query(async ({ ctx, input }) => {
+  /** Lists all members of an org. Read-only, so every role including VIEWER can call it. */
+  members: readerProcedure.input(z.object({ orgId: idSchema })).query(async ({ ctx, input }) => {
     return listMembers(ctx.db, input.orgId);
   }),
 

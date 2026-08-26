@@ -9,7 +9,9 @@ test.describe("Multi-organization flows", () => {
     const org = uniqueOrgName("Switcher Org");
     await createIsolatedOrg(page, org.name);
     await expect(page).toHaveURL(/\/projects/);
-    await expect(page.getByLabel("Select organization")).toHaveValue(/.+/);
+    await expect(page.getByRole("button", { name: /switch organization/i })).toContainText(
+      org.name,
+    );
   });
 
   test("owner can rename and delete an organization from Settings", async ({ page }) => {
@@ -32,8 +34,11 @@ test.describe("Multi-organization flows", () => {
     await expect(deleteDialog).toBeHidden();
     // Self-heals to a different active org (see organization-section.tsx) - the
     // deleted (globally-unique) org name shouldn't remain selectable. Scoped
-    // to the switcher specifically: the same text also transiently matches
-    // the (now-hidden) confirm dialog's own description/label elements.
-    await expect(page.getByLabel("Select organization")).not.toContainText(renamedName);
+    // to the switcher trigger specifically: the same text also transiently
+    // matches the (now-hidden) confirm dialog's own description/label
+    // elements.
+    await expect(page.getByRole("button", { name: /switch organization/i })).not.toContainText(
+      renamedName,
+    );
   });
 });

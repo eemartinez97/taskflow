@@ -1,10 +1,13 @@
 import { randomUUID } from "node:crypto";
 import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
-import { CREATE_ORG_VALUE } from "@/lib/constants/org-switcher";
+import { ACTIVE_ORG_COOKIE } from "@/lib/utils/active-org";
 import { dialogFieldByLabel } from "./field";
 import { trackOrgForCleanup } from "./org-cleanup";
 import { clickNavLink } from "./nav";
+
+/** Matches org-switcher.tsx's own trigger aria-label prefix. */
+const SWITCHER_TRIGGER_NAME = /switch organization/i;
 
 /** Generates a collision-resistant org name/slug pair for parallel test runs. */
 export function uniqueOrgName(prefix = "Test Org"): { name: string; slug: string } {
@@ -37,27 +40,31 @@ export function uniqueOrgName(prefix = "Test Org"): { name: string; slug: string
  */
 export async function createIsolatedOrg(page: Page, orgName: string): Promise<void> {
   await page.goto("/projects");
-  const orgSwitcher = page.getByLabel("Select organization");
-  await orgSwitcher.selectOption(CREATE_ORG_VALUE);
+  await page.getByRole("button", { name: SWITCHER_TRIGGER_NAME }).click();
+  await page.getByRole("menuitem", { name: /create organization/i }).click();
   await dialogFieldByLabel(page, "Name").fill(orgName);
   await page.getByRole("dialog").getByRole("button", { name: "Create", exact: true }).click();
   await expect(page).toHaveURL(/\/projects/);
   await expect(page.getByRole("dialog")).toBeHidden();
-  // Wait for the REAL condition instead of a fixed sleep: the switcher only
-  // reflects the new org once the client has refetched/re-rendered the org
+  // Wait for the REAL condition instead of a fixed sleep: the trigger only
+  // shows the new org once the client has refetched/re-rendered the org
   // list post-creation. That refetch gets slower as the seeded admin (shared
   // by every test in the whole run) accumulates more disposable orgs over
   // the life of the suite - a fixed sleep that passes early in a run starts
   // failing later, which is exactly the "fewer workers / more repeats"
   // symptom. Polling with a generous timeout self-adjusts to that.
-  await expect(orgSwitcher).not.toHaveValue(CREATE_ORG_VALUE, { timeout: 15_000 });
+  const switcherTrigger = page.getByRole("button", { name: SWITCHER_TRIGGER_NAME });
+  await expect(switcherTrigger).toContainText(orgName, { timeout: 15_000 });
+  // /projects itself titles its content with the active org's name
+  // (project-list.tsx's own "projects-heading") - a second, independent
+  // signal (beyond the trigger's own text) that the new org is fully active.
   const heading = page.getByRole("heading", { name: orgName });
   try {
     // Short first attempt: the common case is just a slower-than-usual
     // client refetch (see the switcher-vs-repeat-each rationale above).
     await expect(heading).toBeVisible({ timeout: 8_000 });
   } catch {
-    // Rare divergence between the org switcher's value (already updated)
+    // Rare divergence between the switcher's own text (already updated)
     // and whatever query paints this heading (still stale) - observed
     // under real concurrency, not reproducible on demand. A reload forces
     // a fresh server fetch, bypassing any stuck client-side cache entry.
@@ -70,8 +77,12 @@ export async function createIsolatedOrg(page: Page, orgName: string): Promise<vo
   }
   // Register for automatic cleanup (see support/fixtures.ts) so this
   // disposable org doesn't keep accumulating under the shared seed admin
-  // for the rest of THIS run.
-  const orgId = await orgSwitcher.inputValue();
+  // for the rest of THIS run. The trigger has no "value" the way a <select>
+  // did - the active-org cookie is the source of truth switchTo() itself
+  // writes to (org-switcher.tsx), so read it back the same way the app does.
+  const cookies = await page.context().cookies();
+  const orgId = cookies.find((c) => c.name === ACTIVE_ORG_COOKIE)?.value;
+  if (!orgId) throw new Error("createIsolatedOrg: active-org cookie was not set after creation.");
   trackOrgForCleanup(page, orgId);
 }
 

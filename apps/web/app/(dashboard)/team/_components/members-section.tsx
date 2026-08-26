@@ -4,11 +4,11 @@ import { Trash2 } from "lucide-react";
 import { useState, type JSX } from "react";
 
 import type { MembershipWithUser } from "@taskflow/database";
-import { Badge, Button, Select, type BadgeProps } from "@taskflow/ui";
+import { Badge, Button, Select } from "@taskflow/ui";
 import { ROLES, type Role } from "@taskflow/shared";
 
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
-import { canAdminOrg, isOrgOwner } from "@/lib/utils/role";
+import { canAdminOrg, isOrgOwner, ROLE_BADGE_VARIANT } from "@/lib/utils/role";
 import { displayName } from "@/lib/utils/user";
 import { toast } from "@/lib/toast/store";
 import { api } from "@/lib/trpc/client";
@@ -20,13 +20,6 @@ interface MembersSectionProps {
   currentUserRole: Role;
   initialMembers: MembershipWithUser[];
 }
-
-const ROLE_COLORS: Record<Role, NonNullable<BadgeProps["variant"]>> = {
-  OWNER: "default",
-  ADMIN: "success",
-  MEMBER: "outline",
-  VIEWER: "outline",
-};
 
 export function MembersSection({
   orgId,
@@ -110,7 +103,7 @@ export function MembersSection({
                   ))}
                 </Select>
               ) : (
-                <Badge variant={ROLE_COLORS[m.role]}>{m.role}</Badge>
+                <Badge variant={ROLE_BADGE_VARIANT[m.role]}>{m.role}</Badge>
               )}
 
               {canAdmin && m.userId !== currentUserId && m.role !== "OWNER" && (

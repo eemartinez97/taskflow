@@ -1,9 +1,9 @@
 "use client";
 
-import { type JSX, useState, useSyncExternalStore } from "react";
-import { Plus } from "lucide-react";
+import { type JSX, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Check, ChevronsUpDown, Mail, Plus } from "lucide-react";
 
-import { Select } from "@taskflow/ui";
+import { Badge, cn } from "@taskflow/ui";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { CreateOrgDialog } from "@/components/organizations/create-org-dialog";
 import { useAppRouter } from "@/lib/hooks/use-app-router";
@@ -16,10 +16,29 @@ import {
   subscribeActiveOrg,
 } from "@/lib/utils/active-org";
 import { hasUnsavedChanges } from "@/lib/utils/navigation-guard";
-import { CREATE_ORG_VALUE } from "@/lib/constants/org-switcher";
+import { ROLE_BADGE_VARIANT } from "@/lib/utils/role";
+
+/** First letter of up to the first two words, e.g. "Acme Inc" -> "AI", "Globex" -> "G". */
+function orgInitials(name: string): string {
+  const letters = name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((word) => word[0])
+    .join("");
+  /* v8 ignore next -- nameField() (packages/shared) trims then requires min(1), so a real org's name can never trim to empty */
+  return letters.toUpperCase() || "?";
+}
 
 /**
- * Organization switcher shown in the sidebar.
+ * Organization switcher shown in the sidebar - a menu button, not a form
+ * control, since it's the ONLY place in the app to see every org you belong
+ * to, your role in each, jump to pending invitations, or create a new one
+ * (Organizations was retired as a nav destination for exactly this reason -
+ * see navigation.ts). Follows the WAI-ARIA menu-button pattern: the trigger
+ * exposes aria-haspopup/aria-expanded, items are role="menuitem" with
+ * ArrowUp/ArrowDown/Home/End moving focus among them and Escape closing and
+ * returning focus to the trigger.
  *
  * Switching org always navigates to /projects of the new org - the current
  * URL's ids (project/board/task) almost certainly don't belong to it, so
@@ -30,12 +49,65 @@ import { CREATE_ORG_VALUE } from "@/lib/constants/org-switcher";
 export function OrgSwitcher(): JSX.Element | null {
   const router = useAppRouter();
   const { data: orgs } = api.orgs.list.useQuery();
+  const { data: myInvitations } = api.invitations.listMine.useQuery();
   const activeId = useSyncExternalStore(subscribeActiveOrg, readActiveOrgId, getServerActiveOrgId);
   const createDialog = useDisclosure();
   const confirmDialog = useDisclosure();
   const [pendingOrgId, setPendingOrgId] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const invitationCount = myInvitations?.length ?? 0;
+
+  // Close on outside click.
+  useEffect(() => {
+    function handleClick(e: MouseEvent): void {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    if (menuOpen) document.addEventListener("mousedown", handleClick);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+    };
+  }, [menuOpen]);
+
+  // Move focus onto the first menu item the moment the menu opens - the
+  // WAI-ARIA menu-button pattern's default behavior for an Enter/Space/click
+  // open (as opposed to ArrowUp, which would seed the LAST item instead; no
+  // caller here does that, so first-item is the only case to handle).
+  useEffect(() => {
+    if (menuOpen) itemRefs.current[0]?.focus();
+  }, [menuOpen]);
+
+  // Refs can't be written during render (React's own rule) - truncate here,
+  // post-commit, so a stale trailing ref can never survive the org list
+  // shrinking between renders (e.g. an org removed while the menu happens
+  // to be open) and get treated as a real focusable item by
+  // handleMenuKeyDown below.
+  useEffect(() => {
+    itemRefs.current.length = (orgs?.length ?? 0) + 2;
+  }, [orgs?.length]);
 
   if (!orgs) return null;
+
+  // Computed unconditionally (harmlessly undefined when orgs.length === 0,
+  // the branch below never reads it in that case) so selectOrg's no-op
+  // guard below can compare against the EFFECTIVE active org - activeId
+  // alone is null whenever no cookie is set yet, even though activeOrg has
+  // already fallen back to firstOrg and is what the trigger actually shows.
+  const [firstOrg] = orgs;
+  const matchedOrg = activeId ? orgs.find((org) => org.id === activeId) : undefined;
+  const activeOrg = matchedOrg ?? firstOrg;
+  const activeRole = activeOrg?.memberships[0]?.role ?? "VIEWER";
+
+  function closeMenuAndFocusTrigger(): void {
+    setMenuOpen(false);
+    triggerRef.current?.focus();
+  }
 
   function switchTo(orgId: string): void {
     // Only /projects of the NEW org has ids that make sense - always the nav
@@ -47,6 +119,66 @@ export function OrgSwitcher(): JSX.Element | null {
     setActiveOrgId(orgId);
     router.push("/projects");
     router.refresh();
+  }
+
+  function selectOrg(orgId: string): void {
+    if (orgId === activeOrg?.id) {
+      closeMenuAndFocusTrigger();
+      return;
+    }
+
+    if (hasUnsavedChanges()) {
+      setPendingOrgId(orgId);
+      setMenuOpen(false);
+      confirmDialog.open();
+      return;
+    }
+
+    closeMenuAndFocusTrigger();
+    switchTo(orgId);
+  }
+
+  function handleMenuKeyDown(e: React.KeyboardEvent<HTMLDivElement>): void {
+    // Always >= 2: the invitations and create rows below are unconditional
+    // whenever this menu renders at all (the zero-orgs case returns its own
+    // separate, menu-less JSX above) - no empty-items case to guard here.
+    const items = itemRefs.current.filter((el): el is HTMLButtonElement => el !== null);
+    const currentIndex = items.findIndex((el) => el === document.activeElement);
+
+    function focusAt(index: number): void {
+      const wrapped = ((index % items.length) + items.length) % items.length;
+      items[wrapped]?.focus();
+    }
+
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        focusAt(currentIndex + 1);
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        focusAt(currentIndex - 1);
+        break;
+      case "Home":
+        e.preventDefault();
+        focusAt(0);
+        break;
+      case "End":
+        e.preventDefault();
+        focusAt(items.length - 1);
+        break;
+      case "Escape":
+        e.preventDefault();
+        closeMenuAndFocusTrigger();
+        break;
+      case "Tab":
+        // Don't preventDefault - let focus move to the next tabbable element
+        // as normal, just stop rendering the popover so it doesn't linger.
+        setMenuOpen(false);
+        break;
+      default:
+        break;
+    }
   }
 
   const createOrgDialog = (
@@ -76,50 +208,129 @@ export function OrgSwitcher(): JSX.Element | null {
     );
   }
 
-  const [firstOrg] = orgs;
-  const matchedOrg = activeId ? orgs.find((org) => org.id === activeId) : undefined;
-  /* v8 ignore next -- orgs.length > 0 is guaranteed by the branch above, so this always resolves to an id */
-  const value = (matchedOrg ?? firstOrg)?.id ?? "";
-
-  function handleChange(next: string): void {
-    if (next === CREATE_ORG_VALUE) {
-      createDialog.open();
-      return;
-    }
-
-    if (hasUnsavedChanges()) {
-      setPendingOrgId(next);
-      confirmDialog.open();
-      return;
-    }
-
-    switchTo(next);
-  }
+  // Explicit indices (not a push-on-render counter), truncated to this exact
+  // count by the effect above so a stale trailing ref can never survive the
+  // org list shrinking between renders.
+  const INVITATIONS_ITEM_INDEX = orgs.length;
+  const CREATE_ITEM_INDEX = orgs.length + 1;
 
   return (
-    <div className="flex flex-col gap-1.5 px-3 py-4">
-      <label
-        htmlFor="org-switcher"
-        className="px-1 text-xs font-medium uppercase tracking-wide text-gray-400"
-      >
-        Organization
-      </label>
-      <Select
-        id="org-switcher"
-        aria-label="Select organization"
-        value={value}
-        onChange={(e) => {
-          handleChange(e.target.value);
+    <div ref={containerRef} className="relative px-3 py-4">
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        /* v8 ignore next -- activeOrg is always defined here: this JSX only renders past the orgs.length === 0 early return above, where firstOrg (its fallback) is guaranteed */
+        aria-label={`Switch organization, current: ${activeOrg?.name ?? ""}`}
+        onClick={() => {
+          setMenuOpen((prev) => !prev);
         }}
-        className="w-full"
+        onKeyDown={(e) => {
+          // Standard menu-button affordance: Arrow keys open straight into
+          // the list instead of requiring an extra Enter/Space first.
+          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            setMenuOpen(true);
+          }
+        }}
+        className="flex w-full items-center gap-2 rounded-md border border-gray-200 bg-white px-2.5 py-2 text-left transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
       >
-        {orgs.map((org) => (
-          <option key={org.id} value={org.id}>
-            {org.name}
-          </option>
-        ))}
-        <option value={CREATE_ORG_VALUE}>＋ Create organization…</option>
-      </Select>
+        <span
+          aria-hidden="true"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand-100 text-xs font-semibold text-brand-700"
+        >
+          {activeOrg && orgInitials(activeOrg.name)}
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-sm font-medium text-gray-900">{activeOrg?.name}</span>
+          <span className="text-xs text-gray-500">{activeRole}</span>
+        </span>
+        <ChevronsUpDown aria-hidden="true" className="h-4 w-4 shrink-0 text-gray-400" />
+      </button>
+
+      {menuOpen && (
+        <div
+          role="menu"
+          aria-label="Organizations"
+          onKeyDown={handleMenuKeyDown}
+          className="absolute left-0 right-0 top-full z-50 mt-1 rounded-md border border-gray-200 bg-white py-1 shadow-md"
+        >
+          <div className="px-3 pb-1 pt-2 text-xs font-medium uppercase tracking-wide text-gray-400">
+            Your organizations
+          </div>
+
+          {orgs.map((org, orgIndex) => {
+            const role = org.memberships[0]?.role ?? "VIEWER";
+            const isActive = org.id === activeOrg?.id;
+            return (
+              <button
+                key={org.id}
+                ref={(el) => {
+                  itemRefs.current[orgIndex] = el;
+                }}
+                type="button"
+                role="menuitem"
+                aria-current={isActive ? "true" : undefined}
+                onClick={() => {
+                  selectOrg(org.id);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-gray-50 focus-visible:outline-none focus-visible:bg-gray-50"
+              >
+                <span
+                  aria-hidden="true"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand-100 text-[10px] font-semibold text-brand-700"
+                >
+                  {orgInitials(org.name)}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-sm text-gray-900">{org.name}</span>
+                <Badge variant={ROLE_BADGE_VARIANT[role]}>{role}</Badge>
+                <Check
+                  aria-hidden="true"
+                  className={cn("h-4 w-4 shrink-0 text-brand-600", !isActive && "invisible")}
+                />
+              </button>
+            );
+          })}
+
+          <div className="my-1 border-t border-gray-100" />
+
+          <button
+            ref={(el) => {
+              itemRefs.current[INVITATIONS_ITEM_INDEX] = el;
+            }}
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setMenuOpen(false);
+              router.push("/invitations");
+            }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus-visible:outline-none focus-visible:bg-gray-50"
+          >
+            <Mail aria-hidden="true" className="h-4 w-4 shrink-0 text-gray-400" />
+            <span className="flex-1">Pending invitations</span>
+            {invitationCount > 0 && <Badge variant="warning">{invitationCount}</Badge>}
+          </button>
+
+          <div className="my-1 border-t border-gray-100" />
+
+          <button
+            ref={(el) => {
+              itemRefs.current[CREATE_ITEM_INDEX] = el;
+            }}
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setMenuOpen(false);
+              createDialog.open();
+            }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-brand-700 hover:bg-gray-50 focus-visible:outline-none focus-visible:bg-gray-50"
+          >
+            <Plus aria-hidden="true" className="h-4 w-4 shrink-0" />
+            Create organization
+          </button>
+        </div>
+      )}
 
       {createOrgDialog}
 

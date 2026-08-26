@@ -19,9 +19,11 @@ vi.mock("@/app/(dashboard)/team/_components/invitations-section", () => ({
 vi.mock("@/app/(dashboard)/team/_components/invite-dialog", () => ({
   InviteDialog: ({ open }: { open: boolean }) => (open ? <p>InviteDialog open</p> : null),
 }));
+vi.mock("@/lib/toast/store", () => ({ toast: { info: vi.fn() } }));
 
 import { useOrgInvitationsRealtime } from "@/lib/hooks/use-org-invitations-realtime";
 import { TeamClient } from "@/app/(dashboard)/team/_components/team-client";
+import { toast } from "@/lib/toast/store";
 
 function buildProps(overrides: Partial<Parameters<typeof TeamClient>[0]> = {}) {
   return {
@@ -31,6 +33,7 @@ function buildProps(overrides: Partial<Parameters<typeof TeamClient>[0]> = {}) {
     currentUserRole: "OWNER" as const,
     initialMembers: [],
     initialInvitations: [],
+    staleOrgLink: false,
     ...overrides,
   };
 }
@@ -69,6 +72,16 @@ describe("TeamClient", () => {
   it("always renders the members section", () => {
     render(<TeamClient {...buildProps()} />);
     expect(screen.getByText("MembersSection: org-1")).toBeInTheDocument();
+  });
+
+  it("does not toast when the org link is not stale", () => {
+    render(<TeamClient {...buildProps({ staleOrgLink: false })} />);
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
+  it("toasts once when mounted with a stale org deep link", () => {
+    render(<TeamClient {...buildProps({ staleOrgLink: true })} />);
+    expect(toast.info).toHaveBeenCalledOnce();
   });
 
   it("wires MembersSection's onInviteClick to the same invite dialog", async () => {

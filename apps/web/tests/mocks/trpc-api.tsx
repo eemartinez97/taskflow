@@ -58,6 +58,8 @@ export const api = {
   orgs: {
     list: { useQuery: query() },
     members: { useQuery: query() },
+    formerAssignees: { useQuery: query() },
+    assigneeLookup: { useQuery: query() },
     create: { useMutation: mutation() },
     update: { useMutation: mutation() },
     delete: { useMutation: mutation() },
@@ -65,6 +67,7 @@ export const api = {
     removeMember: { useMutation: mutation() },
     updateMemberRole: { useMutation: mutation() },
     updateMyCursorPreference: { useMutation: mutation() },
+    leave: { useMutation: mutation() },
   },
   invitations: {
     listForOrg: { useQuery: query() },
@@ -127,7 +130,12 @@ export const api = {
   useQueries: vi.fn(() => []),
   useUtils: vi.fn(() => ({
     invalidate: vi.fn(),
-    orgs: { list: utilsInvalidate(), members: utilsInvalidate() },
+    orgs: {
+      list: utilsInvalidate(),
+      members: utilsInvalidate(),
+      formerAssignees: utilsInvalidate(),
+      assigneeLookup: utilsInvalidate(),
+    },
     invitations: { listForOrg: utilsInvalidate(), listMine: utilsInvalidate() },
     projects: { list: utilsInvalidate() },
     boards: { list: utilsInvalidate(), get: utilsInvalidate() },

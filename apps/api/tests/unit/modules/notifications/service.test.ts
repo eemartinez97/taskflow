@@ -12,6 +12,7 @@ import {
   notifyCommentCreated,
   notifyInvitationResolved,
   notifyMemberInvited,
+  notifyMemberLeft,
   notifyTaskAssigned,
   notifyTaskEvent,
 } from "../../../../src/modules/notifications/service";
@@ -139,6 +140,8 @@ describe("buildNotificationMessage", () => {
     ["INVITATION_ACCEPTED", "Alice", undefined, "Alice accepted your invitation"],
     ["INVITATION_DECLINED", "Alice", "Acme", 'Alice declined your invitation to "Acme"'],
     ["INVITATION_DECLINED", "Alice", undefined, "Alice declined your invitation"],
+    ["MEMBER_LEFT", "Alice", "Acme", 'Alice left "Acme"'],
+    ["MEMBER_LEFT", "Alice", undefined, "Alice left the organization"],
     ["TASK_ASSIGNED", null, "Ship it", 'Someone assigned you to "Ship it"'],
     ["TASK_ASSIGNED", "Alice", "", "Alice assigned you to a task"],
   ] as [NotificationType, string | null, string | undefined, string][])(
@@ -281,6 +284,119 @@ describe("notifyInvitationResolved", () => {
     expect(mockDb.notification.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ type: "INVITATION_DECLINED" }) as unknown,
+      }),
+    );
+  });
+});
+
+describe("notifyMemberLeft", () => {
+  const opts = {
+    actorId: VALID_USER.id,
+    removedUserId: VALID_USER.id,
+    orgId: VALID_ORG_ID,
+    orgName: "Acme",
+  };
+
+  it("is a no-op when there are no OWNER/ADMIN recipients", async () => {
+    await notifyMemberLeft(db, mockIo, { ...opts, recipientIds: [], taskCount: 0 });
+
+    expect(mockDb.user.findUnique).not.toHaveBeenCalled();
+    expect(mockDb.notification.create).not.toHaveBeenCalled();
+  });
+
+  it("omits the reassignment clause when there are no stranded tasks", async () => {
+    mockDb.user.findUnique.mockResolvedValueOnce({ name: "Alice" });
+    mockDb.notification.create.mockResolvedValueOnce(notification);
+
+    await notifyMemberLeft(db, mockIo, { ...opts, recipientIds: [ANOTHER_UUID], taskCount: 0 });
+
+    expect(mockDb.notification.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ message: 'Alice left "Acme"' }) as unknown,
+      }),
+    );
+  });
+
+  it("uses singular phrasing for exactly one stranded task", async () => {
+    mockDb.user.findUnique.mockResolvedValueOnce({ name: "Alice" });
+    mockDb.notification.create.mockResolvedValueOnce(notification);
+
+    await notifyMemberLeft(db, mockIo, { ...opts, recipientIds: [ANOTHER_UUID], taskCount: 1 });
+
+    expect(mockDb.notification.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          message: 'Alice left "Acme" · 1 task needs reassignment',
+        }) as unknown,
+      }),
+    );
+  });
+
+  it("uses plural phrasing for more than one stranded task", async () => {
+    mockDb.user.findUnique.mockResolvedValueOnce({ name: "Alice" });
+    mockDb.notification.create.mockResolvedValueOnce(notification);
+
+    await notifyMemberLeft(db, mockIo, { ...opts, recipientIds: [ANOTHER_UUID], taskCount: 5 });
+
+    expect(mockDb.notification.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          message: 'Alice left "Acme" · 5 tasks need reassignment',
+        }) as unknown,
+      }),
+    );
+  });
+
+  it("dedupes and drops nullish ids before notifying", async () => {
+    mockDb.user.findUnique.mockResolvedValueOnce({ name: "Alice" });
+    mockDb.notification.create.mockResolvedValue(notification);
+
+    await notifyMemberLeft(db, mockIo, {
+      ...opts,
+      recipientIds: [ANOTHER_UUID, ANOTHER_UUID, null, undefined],
+      taskCount: 0,
+    });
+
+    expect(mockDb.notification.create).toHaveBeenCalledOnce();
+  });
+
+  it("uses a distinct 'removed' message, naming both people, when it's not a voluntary leave", async () => {
+    mockDb.user.findUnique
+      .mockResolvedValueOnce({ name: "Owner Alice" })
+      .mockResolvedValueOnce({ name: "Bob" });
+    mockDb.notification.create.mockResolvedValueOnce(notification);
+
+    await notifyMemberLeft(db, mockIo, {
+      ...opts,
+      removedUserId: ANOTHER_UUID,
+      recipientIds: [ANOTHER_UUID],
+      taskCount: 0,
+    });
+
+    expect(mockDb.notification.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          message: 'Owner Alice removed Bob from "Acme"',
+        }) as unknown,
+      }),
+    );
+  });
+
+  it("skips the actor if they are also a recipient, without dropping others", async () => {
+    const secondAdmin = "00000000-0000-4000-8000-0000000000ff";
+    mockDb.user.findUnique.mockResolvedValueOnce({ name: "Alice" });
+    mockDb.notification.create.mockResolvedValueOnce(notification);
+
+    await notifyMemberLeft(db, mockIo, {
+      ...opts,
+      recipientIds: [opts.actorId, secondAdmin],
+      taskCount: 0,
+    });
+
+    expect(mockDb.notification.create).toHaveBeenCalledOnce();
+    expect(mockDb.notification.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ userId: secondAdmin }) as unknown,
       }),
     );
   });

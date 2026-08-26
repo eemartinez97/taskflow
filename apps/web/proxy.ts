@@ -83,11 +83,21 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     const orgDetailMatch = /^\/organizations\/([^/]+)$/.exec(pathname);
     if (orgDetailMatch) {
       const [, orgId] = orgDetailMatch;
-      const response = NextResponse.redirect(new URL("/team", request.url));
+      // proxy is deliberately DB-free (see the auth flow docs: getToken is a
+      // stateless JWT decode, no DB round-trip), so it cannot verify the
+      // caller is still a member of `orgId` here - a stale notification link
+      // for an org the user has since left/been removed from would otherwise
+      // silently cookie an org they don't belong to. `from` lets /team do
+      // that membership check itself (it already fetches the caller's orgs)
+      // and surface a toast instead of a silent fallback when it doesn't match.
+      /* v8 ignore next -- orgDetailMatch's [^/]+ group structurally always captures at least one char */
+      const safeOrgId = orgId ?? "";
+      const target = new URL("/team", request.url);
+      target.searchParams.set("from", safeOrgId);
+      const response = NextResponse.redirect(target);
       // Not httpOnly: the org switcher reads this same cookie client-side
       // (lib/utils/active-org.ts) via document.cookie.
-      /* v8 ignore next -- orgDetailMatch's [^/]+ group structurally always captures at least one char */
-      response.cookies.set(ACTIVE_ORG_COOKIE, orgId ?? "", {
+      response.cookies.set(ACTIVE_ORG_COOKIE, safeOrgId, {
         path: "/",
         maxAge: ONE_YEAR_SECONDS,
         sameSite: "lax",

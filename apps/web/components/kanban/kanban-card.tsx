@@ -14,7 +14,7 @@ import { UserAvatar } from "../common/user-avatar";
 interface KanbanCardProps {
   task: Task;
   labels?: Label[];
-  assignee?: { name: string | null; email: string } | null;
+  assignee?: { name: string | null; email: string | null; isFormer?: boolean } | null;
   isOverlay?: boolean;
   onClick?: () => void;
 }
@@ -118,7 +118,7 @@ export function KanbanCard({
           ) : (
             <span />
           )}
-          {assignee && <UserAvatar user={assignee} size="xs" />}
+          {assignee && <UserAvatar user={assignee} size="xs" isFormer={assignee.isFormer} />}
         </div>
       )}
     </div>

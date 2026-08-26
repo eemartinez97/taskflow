@@ -121,6 +121,8 @@ export function buildNotificationMessage(
       return entityTitle
         ? `${actor} declined your invitation to "${entityTitle}"`
         : `${actor} declined your invitation`;
+    case "MEMBER_LEFT":
+      return entityTitle ? `${actor} left "${entityTitle}"` : `${actor} left the organization`;
     /* v8 ignore next 4 -- defensive exhaustiveness guard, unreachable by type system */
     default: {
       const _exhaustive: never = type;
@@ -250,4 +252,59 @@ export async function notifyInvitationResolved(
     entityId: opts.orgId,
     entityType: "org",
   });
+}
+
+/**
+ * Notifies an org's OWNER/ADMIN members - plus the removed member themselves,
+ * when this is an admin-initiated removal rather than a voluntary leave, so
+ * they get a realtime signal that they lost access instead of finding out
+ * from the next request that happens to 403 - that someone stopped being a
+ * member. `actorId` is the real actor (the departing user for a voluntary
+ * leave, the admin who removed them otherwise - see
+ * modules/orgs/service.ts's removeMembershipAndNotify), which is also what
+ * lets the message distinguish "X left" from "Y removed X". Self-notification
+ * is a non-issue: `notify()`'s own actor===recipient guard silently skips the
+ * actor themselves if they happen to also be in `recipientIds` (e.g. an
+ * OWNER removing a member is in their own adminIds recipient list).
+ */
+export async function notifyMemberLeft(
+  db: PrismaClient,
+  io: AppServer,
+  opts: {
+    recipientIds: (string | null | undefined)[];
+    actorId: string;
+    removedUserId: string;
+    orgId: string;
+    orgName: string;
+    taskCount: number;
+  },
+): Promise<void> {
+  const recipients = [...new Set(opts.recipientIds.filter(Boolean))] as string[];
+  if (recipients.length === 0) return;
+
+  const isVoluntary = opts.actorId === opts.removedUserId;
+  const [actorName, removedUserName] = await Promise.all([
+    getActorName(db, opts.actorId),
+    isVoluntary ? Promise.resolve(null) : getActorName(db, opts.removedUserId),
+  ]);
+  const base = isVoluntary
+    ? buildNotificationMessage("MEMBER_LEFT", actorName, opts.orgName)
+    : `${actorName ?? "An admin"} removed ${removedUserName ?? "a member"} from "${opts.orgName}"`;
+  const message =
+    opts.taskCount > 0
+      ? `${base} · ${String(opts.taskCount)} ${opts.taskCount === 1 ? "task needs" : "tasks need"} reassignment`
+      : base;
+
+  await Promise.all(
+    recipients.map((userId) =>
+      notify(db, io, {
+        userId,
+        actorId: opts.actorId,
+        type: "MEMBER_LEFT",
+        message,
+        entityId: opts.orgId,
+        entityType: "org",
+      }),
+    ),
+  );
 }

@@ -29,19 +29,19 @@ describe("SettingsNav", () => {
     expect(screen.getByRole("link", { name: "Labels" })).toBeInTheDocument();
   });
 
-  it("hides General for a MEMBER but keeps Labels", () => {
+  it("shows both General and Labels for a MEMBER", () => {
     vi.mocked(usePathname).mockReturnValue("/settings/profile");
     renderUI(<SettingsNav orgName="Acme Corp" role="MEMBER" />);
 
-    expect(screen.queryByRole("link", { name: "General" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "General" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Labels" })).toBeInTheDocument();
   });
 
-  it("hides both org links for a VIEWER", () => {
+  it("shows General but hides Labels for a VIEWER", () => {
     vi.mocked(usePathname).mockReturnValue("/settings/profile");
     renderUI(<SettingsNav orgName="Acme Corp" role="VIEWER" />);
 
-    expect(screen.queryByRole("link", { name: "General" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "General" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Labels" })).not.toBeInTheDocument();
   });
 

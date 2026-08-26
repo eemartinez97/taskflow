@@ -121,6 +121,7 @@ function renderBoard(overrides: Partial<typeof defaultBoardProps> = {}) {
 function setupQueries(): void {
   mockUseQuery(api.labels.list, []);
   mockUseQuery(api.orgs.members, []);
+  mockUseQuery(api.orgs.formerAssignees, []);
   mockUseQuery(api.tasks.get, makeTask());
   mockUseQuery(api.tasks.labels, []);
 }
@@ -510,6 +511,40 @@ describe("KanbanBoard - mutations and drag handlers", () => {
       presence: [{ userId: "peer-1", name: "Peer One", color: "#000" }],
     });
     expect(screen.queryByText("Peer One")).not.toBeInTheDocument();
+  });
+
+  it("resolves a task's assignee from formerAssignees when they are no longer a member", () => {
+    mockUseQuery(api.labels.list, []);
+    mockUseQuery(api.orgs.members, []);
+    mockUseQuery(api.orgs.formerAssignees, [{ id: "ex-user", name: "Bob" }]);
+    mockUseQuery(api.tasks.get, makeTask());
+    mockUseQuery(api.tasks.labels, []);
+    const assignedTask = makeTask({ assigneeId: "ex-user" });
+
+    renderBoard({ initialTasks: { [VALID_COL_A_ID]: [assignedTask] } });
+
+    expect(screen.getByLabelText("Bob · ex")).toBeInTheDocument();
+  });
+
+  it("prefers a current member over formerAssignees for the same userId", () => {
+    mockUseQuery(api.labels.list, []);
+    mockUseQuery(api.orgs.members, [
+      {
+        id: "m1",
+        userId: "u1",
+        role: "MEMBER",
+        user: { id: "u1", name: "Priya", email: "p@x.com" },
+      },
+    ]);
+    mockUseQuery(api.orgs.formerAssignees, [{ id: "u1", name: "Stale Name" }]);
+    mockUseQuery(api.tasks.get, makeTask());
+    mockUseQuery(api.tasks.labels, []);
+    const assignedTask = makeTask({ assigneeId: "u1" });
+
+    renderBoard({ initialTasks: { [VALID_COL_A_ID]: [assignedTask] } });
+
+    expect(screen.getByLabelText("Priya")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/stale name/i)).not.toBeInTheDocument();
   });
 
   it("routes onDragStart/onDragOver/onDragEnd for a task drag through taskHandlers", () => {

@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   createOrgForUser,
   deleteOrgById,
+  leaveOrg,
+  listAssigneeLookup,
+  listFormerAssignees,
   listMembers,
   listOrgs,
   removeMemberFromOrg,
@@ -10,11 +13,21 @@ import {
   updateMemberRoleInOrg,
   updateOrgById,
 } from "../../../../src/modules/orgs/service";
-import { buildMembership, buildOrg } from "../../../factories";
+import { SOCKET_EVENTS } from "@taskflow/shared";
+import { buildMembership, buildNotificationWithActor, buildOrg } from "../../../factories";
 import { ANOTHER_UUID, db, VALID_ORG_ID, VALID_USER } from "../../../helpers";
 import { mockDb } from "../../../mocks/database-mock";
+import { mockIo } from "../../../mocks/socket";
+import { expectEmittedToUser } from "../../../support/socket-assert";
 
 const org = buildOrg();
+
+/** Satisfies removeMembershipAndNotify's Promise.all - org/task-count/admin lookups. */
+function mockDepartureLookups(): void {
+  mockDb.org.findUnique.mockResolvedValueOnce(org);
+  mockDb.task.count.mockResolvedValueOnce(0);
+  mockDb.membership.findMany.mockResolvedValueOnce([]);
+}
 
 describe("read paths", () => {
   it("listOrgs returns the orgs the user belongs to", async () => {
@@ -69,7 +82,9 @@ describe("removeMemberFromOrg", () => {
   it("throws NOT_FOUND when there is no membership", async () => {
     mockDb.membership.findUnique.mockResolvedValueOnce(null);
 
-    await expect(removeMemberFromOrg(db, VALID_ORG_ID, ANOTHER_UUID)).rejects.toMatchObject({
+    await expect(
+      removeMemberFromOrg(db, mockIo, VALID_ORG_ID, ANOTHER_UUID, VALID_USER.id),
+    ).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
   });
@@ -77,17 +92,154 @@ describe("removeMemberFromOrg", () => {
   it("refuses to remove the OWNER", async () => {
     mockDb.membership.findUnique.mockResolvedValueOnce(buildMembership({ role: "OWNER" }));
 
-    await expect(removeMemberFromOrg(db, VALID_ORG_ID, ANOTHER_UUID)).rejects.toMatchObject({
+    await expect(
+      removeMemberFromOrg(db, mockIo, VALID_ORG_ID, ANOTHER_UUID, VALID_USER.id),
+    ).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
     expect(mockDb.membership.delete).not.toHaveBeenCalled();
   });
 
-  it("removes a non-owner member", async () => {
+  it("removes a non-owner member and notifies OWNER/ADMIN", async () => {
     mockDb.membership.findUnique.mockResolvedValueOnce(buildMembership({ role: "MEMBER" }));
+    mockDepartureLookups();
 
-    await expect(removeMemberFromOrg(db, VALID_ORG_ID, ANOTHER_UUID)).resolves.toEqual({
+    await expect(
+      removeMemberFromOrg(db, mockIo, VALID_ORG_ID, ANOTHER_UUID, VALID_USER.id),
+    ).resolves.toEqual({
       success: true,
+    });
+    expect(mockDb.membership.delete).toHaveBeenCalledWith({
+      where: { orgId_userId: { orgId: VALID_ORG_ID, userId: ANOTHER_UUID } },
+    });
+  });
+
+  it("also notifies the removed member themselves, with a distinct message from a voluntary leave", async () => {
+    const notification = buildNotificationWithActor();
+    mockDb.membership.findUnique.mockResolvedValueOnce(buildMembership({ role: "MEMBER" }));
+    mockDb.org.findUnique.mockResolvedValueOnce(org);
+    mockDb.task.count.mockResolvedValueOnce(0);
+    mockDb.membership.findMany.mockResolvedValueOnce([{ userId: VALID_USER.id }]);
+    // getActorName is called once for the actor (the OWNER doing the
+    // removing) and once for the removed member (ANOTHER_UUID) - the
+    // forced-removal message needs both names.
+    mockDb.user.findUnique
+      .mockResolvedValueOnce({ name: "Owner Alice" })
+      .mockResolvedValueOnce({ name: "Bob" });
+    mockDb.notification.create.mockResolvedValue(notification);
+
+    await removeMemberFromOrg(db, mockIo, VALID_ORG_ID, ANOTHER_UUID, VALID_USER.id);
+    // Fire-and-forget - let its microtasks settle before asserting.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockDb.notification.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: ANOTHER_UUID,
+          actorId: VALID_USER.id,
+          message: 'Owner Alice removed Bob from "Acme"',
+        }) as unknown,
+      }),
+    );
+  });
+});
+
+describe("leaveOrg", () => {
+  it("throws NOT_FOUND when there is no membership", async () => {
+    mockDb.membership.findUnique.mockResolvedValueOnce(null);
+
+    await expect(leaveOrg(db, mockIo, VALID_ORG_ID, VALID_USER.id)).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+  });
+
+  it("refuses to let the OWNER leave", async () => {
+    mockDb.membership.findUnique.mockResolvedValueOnce(buildMembership({ role: "OWNER" }));
+
+    await expect(leaveOrg(db, mockIo, VALID_ORG_ID, VALID_USER.id)).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+    expect(mockDb.membership.delete).not.toHaveBeenCalled();
+  });
+
+  it("lets a non-owner leave and notifies OWNER/ADMIN", async () => {
+    mockDb.membership.findUnique.mockResolvedValueOnce(buildMembership({ role: "MEMBER" }));
+    mockDepartureLookups();
+
+    await expect(leaveOrg(db, mockIo, VALID_ORG_ID, VALID_USER.id)).resolves.toEqual({
+      success: true,
+    });
+    expect(mockDb.membership.delete).toHaveBeenCalledWith({
+      where: { orgId_userId: { orgId: VALID_ORG_ID, userId: VALID_USER.id } },
+    });
+  });
+
+  it("notifies a remaining OWNER/ADMIN when there are stranded tasks", async () => {
+    const notification = buildNotificationWithActor();
+    mockDb.membership.findUnique.mockResolvedValueOnce(buildMembership({ role: "MEMBER" }));
+    mockDb.org.findUnique.mockResolvedValueOnce(org);
+    mockDb.task.count.mockResolvedValueOnce(3);
+    mockDb.membership.findMany.mockResolvedValueOnce([{ userId: ANOTHER_UUID }]);
+    mockDb.notification.create.mockResolvedValueOnce(notification);
+
+    await leaveOrg(db, mockIo, VALID_ORG_ID, VALID_USER.id);
+    // The notification is fire-and-forget (see removeMembershipAndNotify) -
+    // it starts after leaveOrg's own promise already resolved, so let its
+    // microtasks settle before asserting on it.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockDb.notification.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: ANOTHER_UUID,
+          actorId: VALID_USER.id,
+          type: "MEMBER_LEFT",
+          message: expect.stringContaining("3 tasks need reassignment") as string,
+        }) as unknown,
+      }),
+    );
+    expectEmittedToUser(ANOTHER_UUID, SOCKET_EVENTS.NOTIFICATION_CREATED, { notification });
+  });
+
+  it("falls back to an empty org name if the org lookup somehow returns null", async () => {
+    const notification = buildNotificationWithActor();
+    mockDb.membership.findUnique.mockResolvedValueOnce(buildMembership({ role: "MEMBER" }));
+    mockDb.org.findUnique.mockResolvedValueOnce(null);
+    mockDb.task.count.mockResolvedValueOnce(0);
+    mockDb.membership.findMany.mockResolvedValueOnce([{ userId: ANOTHER_UUID }]);
+    mockDb.user.findUnique.mockResolvedValueOnce({ name: "Alice" });
+    mockDb.notification.create.mockResolvedValueOnce(notification);
+
+    await leaveOrg(db, mockIo, VALID_ORG_ID, VALID_USER.id);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockDb.notification.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ message: "Alice left the organization" }) as unknown,
+      }),
+    );
+  });
+});
+
+describe("listFormerAssignees", () => {
+  it("delegates to the repo", async () => {
+    mockDb.user.findMany.mockResolvedValueOnce([{ id: ANOTHER_UUID, name: "Bob" }]);
+
+    await expect(listFormerAssignees(db, VALID_ORG_ID)).resolves.toEqual([
+      { id: ANOTHER_UUID, name: "Bob" },
+    ]);
+  });
+});
+
+describe("listAssigneeLookup", () => {
+  it("combines members and formerAssignees into one result", async () => {
+    const member = buildMembership();
+    mockDb.membership.findMany.mockResolvedValueOnce([member]);
+    mockDb.user.findMany.mockResolvedValueOnce([{ id: ANOTHER_UUID, name: "Bob" }]);
+
+    await expect(listAssigneeLookup(db, VALID_ORG_ID)).resolves.toEqual({
+      members: [member],
+      formerAssignees: [{ id: ANOTHER_UUID, name: "Bob" }],
     });
   });
 });

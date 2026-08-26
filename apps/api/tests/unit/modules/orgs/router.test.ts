@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { orgsRouter } from "../../../../src/modules/orgs/router";
+import { createOrgsRouter } from "../../../../src/modules/orgs/router";
 import * as service from "../../../../src/modules/orgs/service";
 import { ANOTHER_UUID, db, VALID_ORG_ID, VALID_USER } from "../../../helpers";
+import { mockIo } from "../../../mocks/socket";
 import { callerFor, expectTRPCError, grantRole } from "../../../support/trpc";
 
 vi.mock("../../../../src/modules/orgs/service");
 
+const orgsRouter = createOrgsRouter(mockIo);
 const caller = () => callerFor(orgsRouter);
 
 describe("orgs router", () => {
@@ -58,7 +60,13 @@ describe("orgs router", () => {
   it("removeMember -> removeMemberFromOrg", async () => {
     await caller().removeMember({ orgId: VALID_ORG_ID, userId: ANOTHER_UUID });
 
-    expect(service.removeMemberFromOrg).toHaveBeenCalledWith(db, VALID_ORG_ID, ANOTHER_UUID);
+    expect(service.removeMemberFromOrg).toHaveBeenCalledWith(
+      db,
+      mockIo,
+      VALID_ORG_ID,
+      ANOTHER_UUID,
+      VALID_USER.id,
+    );
   });
 
   it("updateMemberRole unwraps data.role", async () => {
@@ -98,6 +106,48 @@ describe("orgs router", () => {
       VALID_USER.id,
       false,
     );
+  });
+
+  it("formerAssignees -> listFormerAssignees", async () => {
+    await caller().formerAssignees({ orgId: VALID_ORG_ID });
+
+    expect(service.listFormerAssignees).toHaveBeenCalledWith(db, VALID_ORG_ID);
+  });
+
+  it("formerAssignees is readable by VIEWER", async () => {
+    grantRole("VIEWER");
+
+    await caller().formerAssignees({ orgId: VALID_ORG_ID });
+
+    expect(service.listFormerAssignees).toHaveBeenCalledWith(db, VALID_ORG_ID);
+  });
+
+  it("assigneeLookup -> listAssigneeLookup", async () => {
+    await caller().assigneeLookup({ orgId: VALID_ORG_ID });
+
+    expect(service.listAssigneeLookup).toHaveBeenCalledWith(db, VALID_ORG_ID);
+  });
+
+  it("assigneeLookup is readable by VIEWER", async () => {
+    grantRole("VIEWER");
+
+    await caller().assigneeLookup({ orgId: VALID_ORG_ID });
+
+    expect(service.listAssigneeLookup).toHaveBeenCalledWith(db, VALID_ORG_ID);
+  });
+
+  it("leave -> leaveOrg, scoped to the caller", async () => {
+    await caller().leave({ orgId: VALID_ORG_ID });
+
+    expect(service.leaveOrg).toHaveBeenCalledWith(db, mockIo, VALID_ORG_ID, VALID_USER.id);
+  });
+
+  it("leave is callable by VIEWER", async () => {
+    grantRole("VIEWER");
+
+    await caller().leave({ orgId: VALID_ORG_ID });
+
+    expect(service.leaveOrg).toHaveBeenCalledWith(db, mockIo, VALID_ORG_ID, VALID_USER.id);
   });
 });
 

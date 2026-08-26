@@ -66,6 +66,7 @@ import {
 function setupBaseQueries(): void {
   mockUseQuery(api.tasks.get, makeTask());
   mockUseQuery(api.orgs.members, []);
+  mockUseQuery(api.orgs.formerAssignees, []);
   mockUseQuery(api.labels.list, []);
   mockUseQuery(api.tasks.labels, []);
 }
@@ -341,6 +342,69 @@ describe("TaskDetailPanel", () => {
       />,
     );
     expect(screen.getByRole("option", { name: "Alice" })).toBeInTheDocument();
+  });
+
+  it("shows a disabled, selected option for a task assigned to a former member", () => {
+    const assignedTask = makeTask({ assigneeId: "ex-user" });
+    mockUseQuery(api.tasks.get, assignedTask);
+    mockUseQuery(api.orgs.members, []);
+    mockUseQuery(api.orgs.formerAssignees, [{ id: "ex-user", name: "Bob" }]);
+    mockUseQuery(api.labels.list, []);
+    mockUseQuery(api.tasks.labels, []);
+    render(
+      <TaskDetailPanel
+        task={assignedTask}
+        orgId={VALID_ORG_ID}
+        projectId={VALID_PROJECT_ID}
+        onClose={vi.fn()}
+      />,
+    );
+    const option = screen.getByRole("option", { name: "Bob · ex" });
+    expect(option).toBeDisabled();
+    expect(option).toHaveProperty("selected", true);
+  });
+
+  it("does not show a former-member option when the assignee is a current member", () => {
+    const assignedTask = makeTask({ assigneeId: "u1" });
+    mockUseQuery(api.tasks.get, assignedTask);
+    mockUseQuery(api.orgs.members, [
+      {
+        id: "m1",
+        userId: "u1",
+        role: "MEMBER",
+        user: { id: "u1", name: "Alice", email: "a@x.com" },
+      },
+    ]);
+    mockUseQuery(api.orgs.formerAssignees, [{ id: "ex-user", name: "Bob" }]);
+    mockUseQuery(api.labels.list, []);
+    mockUseQuery(api.tasks.labels, []);
+    render(
+      <TaskDetailPanel
+        task={assignedTask}
+        orgId={VALID_ORG_ID}
+        projectId={VALID_PROJECT_ID}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("option", { name: /· ex/ })).not.toBeInTheDocument();
+  });
+
+  it("does not show a former-member option when the task is unassigned", () => {
+    const unassignedTask = makeTask({ assigneeId: null });
+    mockUseQuery(api.tasks.get, unassignedTask);
+    mockUseQuery(api.orgs.members, []);
+    mockUseQuery(api.orgs.formerAssignees, [{ id: "ex-user", name: "Bob" }]);
+    mockUseQuery(api.labels.list, []);
+    mockUseQuery(api.tasks.labels, []);
+    render(
+      <TaskDetailPanel
+        task={unassignedTask}
+        orgId={VALID_ORG_ID}
+        projectId={VALID_PROJECT_ID}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("option", { name: /· ex/ })).not.toBeInTheDocument();
   });
 
   it("updates the tasks.list cache via the setData updater when update succeeds", () => {

@@ -8,6 +8,7 @@ import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { CreateOrgDialog } from "@/components/organizations/create-org-dialog";
 import { useAppRouter } from "@/lib/hooks/use-app-router";
 import { useDisclosure } from "@/lib/hooks/use-disclosure";
+import { useOutsideClick } from "@/lib/hooks/use-outside-click";
 import { api } from "@/lib/trpc/client";
 import {
   getServerActiveOrgId,
@@ -17,18 +18,7 @@ import {
 } from "@/lib/utils/active-org";
 import { hasUnsavedChanges } from "@/lib/utils/navigation-guard";
 import { ROLE_BADGE_VARIANT } from "@/lib/utils/role";
-
-/** First letter of up to the first two words, e.g. "Acme Inc" -> "AI", "Globex" -> "G". */
-function orgInitials(name: string): string {
-  const letters = name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((word) => word[0])
-    .join("");
-  /* v8 ignore next -- nameField() (packages/shared) trims then requires min(1), so a real org's name can never trim to empty */
-  return letters.toUpperCase() || "?";
-}
+import { userInitials } from "@/lib/utils/user";
 
 /**
  * Organization switcher shown in the sidebar - a menu button, not a form
@@ -58,39 +48,35 @@ export function OrgSwitcher(): JSX.Element | null {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const invitationCount = myInvitations?.length ?? 0;
 
-  // Close on outside click.
-  useEffect(() => {
-    function handleClick(e: MouseEvent): void {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
-    }
-    if (menuOpen) document.addEventListener("mousedown", handleClick);
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-    };
-  }, [menuOpen]);
+  useOutsideClick(containerRef, menuOpen, () => {
+    setMenuOpen(false);
+  });
+
+  /**
+   * Live DOM query rather than a manually-synced ref array: the org list can
+   * shrink while the menu is open (e.g. an org removed), and reading
+   * role="menuitem" elements straight from the DOM at call time can never go
+   * stale the way a pre-built ref array could without its own truncation
+   * effect.
+   */
+  function getMenuItems(): HTMLButtonElement[] {
+    /* v8 ignore next -- only called from effects/handlers that run after this component has committed its (unconditional) container div, so the ref is always attached */
+    if (!containerRef.current) return [];
+    return Array.from(
+      containerRef.current.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'),
+    );
+  }
 
   // Move focus onto the first menu item the moment the menu opens - the
   // WAI-ARIA menu-button pattern's default behavior for an Enter/Space/click
   // open (as opposed to ArrowUp, which would seed the LAST item instead; no
   // caller here does that, so first-item is the only case to handle).
   useEffect(() => {
-    if (menuOpen) itemRefs.current[0]?.focus();
+    if (menuOpen) getMenuItems()[0]?.focus();
   }, [menuOpen]);
-
-  // Refs can't be written during render (React's own rule) - truncate here,
-  // post-commit, so a stale trailing ref can never survive the org list
-  // shrinking between renders (e.g. an org removed while the menu happens
-  // to be open) and get treated as a real focusable item by
-  // handleMenuKeyDown below.
-  useEffect(() => {
-    itemRefs.current.length = (orgs?.length ?? 0) + 2;
-  }, [orgs?.length]);
 
   if (!orgs) return null;
 
@@ -142,7 +128,7 @@ export function OrgSwitcher(): JSX.Element | null {
     // Always >= 2: the invitations and create rows below are unconditional
     // whenever this menu renders at all (the zero-orgs case returns its own
     // separate, menu-less JSX above) - no empty-items case to guard here.
-    const items = itemRefs.current.filter((el): el is HTMLButtonElement => el !== null);
+    const items = getMenuItems();
     const currentIndex = items.findIndex((el) => el === document.activeElement);
 
     function focusAt(index: number): void {
@@ -208,12 +194,6 @@ export function OrgSwitcher(): JSX.Element | null {
     );
   }
 
-  // Explicit indices (not a push-on-render counter), truncated to this exact
-  // count by the effect above so a stale trailing ref can never survive the
-  // org list shrinking between renders.
-  const INVITATIONS_ITEM_INDEX = orgs.length;
-  const CREATE_ITEM_INDEX = orgs.length + 1;
-
   return (
     <div ref={containerRef} className="relative px-3 py-4">
       <button
@@ -240,7 +220,7 @@ export function OrgSwitcher(): JSX.Element | null {
           aria-hidden="true"
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand-100 text-xs font-semibold text-brand-700"
         >
-          {activeOrg && orgInitials(activeOrg.name)}
+          {activeOrg && userInitials({ name: activeOrg.name })}
         </span>
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-sm font-medium text-gray-900">{activeOrg?.name}</span>
@@ -260,15 +240,12 @@ export function OrgSwitcher(): JSX.Element | null {
             Your organizations
           </div>
 
-          {orgs.map((org, orgIndex) => {
+          {orgs.map((org) => {
             const role = org.memberships[0]?.role ?? "VIEWER";
             const isActive = org.id === activeOrg?.id;
             return (
               <button
                 key={org.id}
-                ref={(el) => {
-                  itemRefs.current[orgIndex] = el;
-                }}
                 type="button"
                 role="menuitem"
                 aria-current={isActive ? "true" : undefined}
@@ -281,7 +258,7 @@ export function OrgSwitcher(): JSX.Element | null {
                   aria-hidden="true"
                   className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand-100 text-[10px] font-semibold text-brand-700"
                 >
-                  {orgInitials(org.name)}
+                  {userInitials({ name: org.name })}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-sm text-gray-900">{org.name}</span>
                 <Badge variant={ROLE_BADGE_VARIANT[role]}>{role}</Badge>
@@ -296,9 +273,6 @@ export function OrgSwitcher(): JSX.Element | null {
           <div className="my-1 border-t border-gray-100" />
 
           <button
-            ref={(el) => {
-              itemRefs.current[INVITATIONS_ITEM_INDEX] = el;
-            }}
             type="button"
             role="menuitem"
             onClick={() => {
@@ -315,9 +289,6 @@ export function OrgSwitcher(): JSX.Element | null {
           <div className="my-1 border-t border-gray-100" />
 
           <button
-            ref={(el) => {
-              itemRefs.current[CREATE_ITEM_INDEX] = el;
-            }}
             type="button"
             role="menuitem"
             onClick={() => {

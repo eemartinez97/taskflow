@@ -74,4 +74,13 @@ describe("isSessionRevoked", () => {
 
     await expect(isSessionRevoked("user-1", nowSeconds)).resolves.toBe(true);
   });
+
+  it("returns true (revoked) for a still-live session whose user no longer exists", async () => {
+    // e.g. deleted after the session cookie was issued - user?.passwordChangedAt
+    // ?? null would otherwise collapse this into the same "nothing to
+    // revoke" case as a user who simply never reset their password.
+    mockDb.user.findUnique.mockResolvedValue(null);
+
+    await expect(isSessionRevoked("user-1", nowSeconds)).resolves.toBe(true);
+  });
 });

@@ -28,7 +28,6 @@ const ROLE_COLORS: Record<Role, NonNullable<BadgeProps["variant"]>> = {
   VIEWER: "outline",
 };
 
-/** Near-verbatim move of the former /team page's member list - no behavior change. */
 export function MembersSection({
   orgId,
   currentUserId,

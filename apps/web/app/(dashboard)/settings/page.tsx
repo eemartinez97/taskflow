@@ -4,8 +4,10 @@ import type { JSX } from "react";
 import { LabelManager } from "./_components/label-manager";
 import { getOrgOrNull } from "@/lib/utils/org-utils";
 import { getServerTRPC } from "@/lib/trpc/server";
+import { canAdminOrg } from "@/lib/utils/role";
 import { ProfileForm } from "./_components/profile-form";
 import { CursorPreference } from "./_components/cursor-preference";
+import { OrganizationSection } from "./_components/organization-section";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -24,6 +26,7 @@ export default async function SettingsPage(): Promise<JSX.Element> {
     );
   }
 
+  const role = org.memberships[0]?.role ?? "VIEWER";
   const labels = await trpc.labels.list({ orgId: org.id });
 
   return (
@@ -31,6 +34,7 @@ export default async function SettingsPage(): Promise<JSX.Element> {
       <h2 className="text-lg font-semibold text-gray-900">Settings</h2>
       <ProfileForm />
       <CursorPreference />
+      {canAdminOrg(role) && <OrganizationSection org={org} role={role} />}
       <LabelManager orgId={org.id} initialLabels={labels} />
     </div>
   );

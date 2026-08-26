@@ -19,7 +19,7 @@ vi.mock("@/components/common/confirm-dialog", () => ({
 
 import { api } from "@/lib/trpc/client";
 import { useOnlineUsers } from "@/lib/hooks/use-online-users";
-import { MembersSection } from "@/app/(dashboard)/organizations/[orgId]/_components/members-section";
+import { MembersSection } from "@/app/(dashboard)/team/_components/members-section";
 import { mockUseQuery, setupMutationMock } from "@/tests/support/trpc";
 import { VALID_ORG_ID } from "@/tests/support/fixtures";
 

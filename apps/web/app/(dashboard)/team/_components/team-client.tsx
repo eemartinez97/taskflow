@@ -14,7 +14,7 @@ import { useDisclosure } from "@/lib/hooks/use-disclosure";
 import { useOrgInvitationsRealtime } from "@/lib/hooks/use-org-invitations-realtime";
 import { canAdminOrg, isOrgOwner } from "@/lib/utils/role";
 
-interface OrgDetailClientProps {
+interface TeamClientProps {
   orgId: string;
   orgName: string;
   currentUserId: string;
@@ -23,14 +23,14 @@ interface OrgDetailClientProps {
   initialInvitations: OrgInvitation[];
 }
 
-export function OrgDetailClient({
+export function TeamClient({
   orgId,
   orgName,
   currentUserId,
   currentUserRole,
   initialMembers,
   initialInvitations,
-}: OrgDetailClientProps): JSX.Element {
+}: TeamClientProps): JSX.Element {
   const inviteDialog = useDisclosure();
   const canAdmin = canAdminOrg(currentUserRole);
 
@@ -63,12 +63,7 @@ export function OrgDetailClient({
 
       {canAdmin && <InvitationsSection orgId={orgId} initialInvitations={initialInvitations} />}
 
-      <InviteDialog
-        orgId={orgId}
-        orgName={orgName}
-        open={inviteDialog.isOpen}
-        onClose={inviteDialog.close}
-      />
+      <InviteDialog orgId={orgId} open={inviteDialog.isOpen} onClose={inviteDialog.close} />
     </div>
   );
 }

@@ -1,16 +1,21 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import type { JSX } from "react";
 
 import { NoOrgState } from "@/components/common/no-org-state";
 import { getOrgOrNull } from "@/lib/utils/org-utils";
 import { getServerTRPC } from "@/lib/trpc/server";
+import { getSession } from "@/lib/auth/session";
+import { canAdminOrg } from "@/lib/utils/role";
+import { TeamClient } from "./_components/team-client";
 
 export const metadata: Metadata = { title: "Team" };
 
 /**
- * Kept (not deleted) as a redirect target: existing `Notification` rows with
- * `entityType: "org"` created before the invitations epic still link here.
+ * Shows the roster + invitations for the active org (the one the sidebar
+ * switcher currently has selected) - no [orgId] segment, unlike the old
+ * /organizations/[orgId] this replaced. `invitations.listForOrg` is only
+ * fetched for an admin/owner - calling it as a non-admin throws FORBIDDEN
+ * through the RSC caller and would 500 the page.
  */
 export default async function TeamPage(): Promise<JSX.Element> {
   const trpc = await getServerTRPC();
@@ -20,5 +25,23 @@ export default async function TeamPage(): Promise<JSX.Element> {
     return <NoOrgState context="Team members are managed inside an organization." />;
   }
 
-  redirect(`/organizations/${org.id}`);
+  const role = org.memberships[0]?.role ?? "VIEWER";
+  const canAdmin = canAdminOrg(role);
+
+  const [members, invitations, session] = await Promise.all([
+    trpc.orgs.members({ orgId: org.id }),
+    canAdmin ? trpc.invitations.listForOrg({ orgId: org.id }) : Promise.resolve([]),
+    getSession(),
+  ]);
+
+  return (
+    <TeamClient
+      orgId={org.id}
+      orgName={org.name}
+      currentUserId={session?.id ?? ""}
+      currentUserRole={role}
+      initialMembers={members}
+      initialInvitations={invitations}
+    />
+  );
 }

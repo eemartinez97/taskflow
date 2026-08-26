@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
-import { createIsolatedOrg, goToOrgDetail, uniqueOrgName } from "./helpers/org";
+import { createIsolatedOrg, goToTeam, uniqueOrgName } from "./helpers/org";
 import { dialogFieldByLabel, fieldByLabel } from "./helpers/field";
 import { getEmailedToken, newAuthenticatedSession } from "./helpers/auth";
 
@@ -37,7 +37,7 @@ test.describe("Invitation lifecycle", () => {
     );
 
     try {
-      await goToOrgDetail(page, org.name);
+      await goToTeam(page, org.name);
       await sendInvite(page, registeredUser.email);
 
       // Core behavioral change: the invitee did NOT join the org yet.
@@ -89,7 +89,7 @@ test.describe("Invitation lifecycle", () => {
     );
 
     try {
-      await goToOrgDetail(page, org.name);
+      await goToTeam(page, org.name);
       await sendInvite(page, registeredUser.email);
 
       // A brand-new user has zero orgs -> NoOrgState renders PendingInvitations.
@@ -126,7 +126,7 @@ test.describe("Invitation lifecycle", () => {
     );
 
     try {
-      await goToOrgDetail(page, org.name);
+      await goToTeam(page, org.name);
       await sendInvite(page, registeredUser.email);
 
       await inviteePage.goto("/projects");
@@ -176,7 +176,7 @@ test.describe("Invitation lifecycle", () => {
     );
 
     try {
-      await goToOrgDetail(page, org.name);
+      await goToTeam(page, org.name);
       await sendInvite(page, registeredUser.email);
 
       const token = await getEmailedToken(wrongPage, registeredUser.email);
@@ -212,7 +212,7 @@ test.describe("Invitation lifecycle", () => {
     await createIsolatedOrg(page, org.name);
 
     // Sanity check the "existing user" path stays a no-op for a fresh address.
-    await goToOrgDetail(page, org.name);
+    await goToTeam(page, org.name);
     await sendInvite(page, registeredUser.email);
     await expect(page.getByText("Members (1)")).toBeVisible();
 

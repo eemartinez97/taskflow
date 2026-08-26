@@ -69,18 +69,28 @@ describe("proxy middleware", () => {
       },
     );
 
-    it.each([
-      "/projects",
-      "/settings",
-      "/team",
-      "/organizations",
-      "/organizations/org-1",
-      "/invitations/raw-token",
-      "/tasks",
-    ])("passes through protected route %s without redirecting", async (path) => {
-      const res = await proxy(makeRequest(path));
+    it.each(["/projects", "/settings", "/team", "/invitations/raw-token", "/tasks"])(
+      "passes through protected route %s without redirecting",
+      async (path) => {
+        const res = await proxy(makeRequest(path));
 
-      expect(location(res)).toBeNull();
+        expect(location(res)).toBeNull();
+      },
+    );
+
+    it("redirects /organizations to /team", async () => {
+      const res = await proxy(makeRequest("/organizations"));
+
+      expect(res.status).toBe(307);
+      expect(location(res)).toContain("/team");
+    });
+
+    it("redirects /organizations/<orgId> to /team and sets the active-org cookie", async () => {
+      const res = await proxy(makeRequest("/organizations/org-1"));
+
+      expect(res.status).toBe(307);
+      expect(location(res)).toContain("/team");
+      expect(res.cookies.get("taskflow.activeOrgId")?.value).toBe("org-1");
     });
 
     it("redirects /register?invite=<token> to /invitations/<token> instead of /projects", async () => {
@@ -115,6 +125,7 @@ describe("proxy middleware", () => {
       ["/settings", "%2Fsettings"],
       ["/team", "%2Fteam"],
       ["/organizations", "%2Forganizations"],
+      ["/organizations/org-1", "%2Forganizations%2Forg-1"],
       ["/tasks", "%2Ftasks"],
     ])("redirects %s to /login with the correct callbackUrl", async (path, encodedPath) => {
       const res = await proxy(makeRequest(path));

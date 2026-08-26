@@ -1,4 +1,4 @@
-import { Building2, CheckSquare, FolderKanban, Mail, Settings } from "lucide-react";
+import { CheckSquare, FolderKanban, Mail, Settings, Users } from "lucide-react";
 import type { ComponentType } from "react";
 
 export interface NavItem {
@@ -13,9 +13,13 @@ export interface NavItem {
  * hardcoded "Dashboard" on every page; deriving the title from the same
  * list keeps the two in sync and makes adding a section a one-file edit.
  *
- * No "Team" entry: member management now lives at /organizations/[orgId]
- * (an org-scoped detail page, not a standalone nav destination) - reached
- * via the Organizations list, not the sidebar.
+ * "Team" (not "Organizations"): the org switcher in the sidebar already
+ * declares which org is active, so a separate org-picking screen was a
+ * redundant hop. /team shows the roster + invitations for whichever org is
+ * currently active; renaming/deleting an org lives in Settings instead.
+ * /organizations/[orgId] still exists as a deep link (see proxy.ts) that
+ * sets the active-org cookie and redirects here - old notifications with
+ * entityType "org" still point at it.
  *
  * Must stay a static module-scope array - it's both the Sidebar's link
  * source and (with SECONDARY_ROUTE_TITLES below) the Header's route->title
@@ -24,20 +28,19 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { label: "Projects", href: "/projects", icon: FolderKanban },
   { label: "My Tasks", href: "/tasks", icon: CheckSquare },
-  { label: "Organizations", href: "/organizations", icon: Building2 },
+  { label: "Team", href: "/team", icon: Users },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
 /**
  * Titles for routes reachable WITHOUT a sidebar link of their own:
- * /invitations/[token] (an emailed link, never a nav destination) and the
- * legacy /team redirect target. /organizations/[orgId] needs no entry here -
- * `pathname.startsWith("/organizations")` already matches NAV_ITEMS'
- * "Organizations" row. The Header checks this list after NAV_ITEMS so a
- * page's title doesn't silently fall back to "Dashboard". `icon` is unused
- * by the Header's title lookup but kept so both arrays share one shape.
+ * /invitations, both the index and the /[token] emailed-link page. No entry
+ * for /organizations/[orgId] - proxy.ts redirects it before any page ever
+ * renders, so the Header never observes that pathname. The Header checks
+ * this list after NAV_ITEMS so a page's title doesn't silently fall back to
+ * "Dashboard". `icon` is unused by the Header's title lookup but kept so
+ * both arrays share one shape.
  */
 export const SECONDARY_ROUTE_TITLES: NavItem[] = [
   { label: "Invitation", href: "/invitations", icon: Mail },
-  { label: "Team", href: "/team", icon: Building2 },
 ];

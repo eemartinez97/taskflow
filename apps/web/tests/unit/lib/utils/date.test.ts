@@ -1,7 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { formatRelativeTime } from "@/lib/utils/date";
+import { formatDate, formatRelativeTime } from "@/lib/utils/date";
 
 const NOW = new Date("2026-07-25T12:00:00.000Z");
+
+describe("formatDate", () => {
+  it("formats a Date pinned to en-US, regardless of the runtime's default locale", () => {
+    const date = new Date("2026-08-21T00:00:00.000Z");
+    expect(formatDate(date)).toBe(date.toLocaleDateString("en-US"));
+  });
+
+  it("accepts an ISO string as well as a Date", () => {
+    const iso = "2026-08-21T00:00:00.000Z";
+    expect(formatDate(iso)).toBe(new Date(iso).toLocaleDateString("en-US"));
+  });
+});
 
 describe("formatRelativeTime", () => {
   beforeEach(() => {

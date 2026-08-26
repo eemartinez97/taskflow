@@ -26,10 +26,10 @@ describe("PendingInvitations", () => {
     ]);
   });
 
-  it("renders nothing when there are no pending invitations", () => {
+  it("renders the shared EmptyState when there are no pending invitations", () => {
     mockUseQuery(api.invitations.listMine, []);
-    const { container } = renderUI(<PendingInvitations />);
-    expect(container).toBeEmptyDOMElement();
+    renderUI(<PendingInvitations />);
+    expect(screen.getByText("No pending invitations")).toBeInTheDocument();
   });
 
   it("renders the org name and role", () => {

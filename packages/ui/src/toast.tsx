@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type JSX } from "react";
+import { useEffect, useRef, useState, type JSX } from "react";
 import { cn } from "./utils";
 
 type ToastVariant = "success" | "error" | "warning" | "info";
@@ -22,24 +22,38 @@ export interface ToastProps {
   onDismiss: () => void;
 }
 
+/** Delay before dismissing once the pointer leaves a hovered toast. */
+const HOVER_DISMISS_DELAY_MS = 3000;
+
 export function Toast({
   message,
   variant = "info",
   duration = 4000,
   onDismiss,
 }: ToastProps): JSX.Element {
+  const [hovered, setHovered] = useState(false);
+  const wasHoveredRef = useRef(false);
+
   useEffect(() => {
-    if (duration === 0) return;
-    const timer = setTimeout(onDismiss, duration);
+    if (duration === 0 || hovered) return;
+    const timer = setTimeout(onDismiss, wasHoveredRef.current ? HOVER_DISMISS_DELAY_MS : duration);
     return () => {
       clearTimeout(timer);
     };
-  }, [duration, onDismiss]);
+  }, [duration, hovered, onDismiss]);
 
   return (
     <div
       role="alert"
       aria-live="assertive"
+      onMouseEnter={() => {
+        if (duration === 0) return;
+        wasHoveredRef.current = true;
+        setHovered(true);
+      }}
+      onMouseLeave={() => {
+        setHovered(false);
+      }}
       style={{ animation: "tf-slide-in 0.2s ease-out" }}
       className={cn(
         "flex items-start gap-3 rounded-lg border px-4 py-3 text-sm shadow-md",

@@ -18,10 +18,10 @@ import { makeMyInvitation } from "@/tests/support/factories";
 import { mockUseQuery } from "@/tests/support/trpc";
 
 describe("PendingInvitations", () => {
-  it("renders null when there are no pending invitations", () => {
+  it("renders the shared EmptyState when there are no pending invitations", () => {
     mockUseQuery(api.invitations.listMine, []);
-    const { container } = render(<PendingInvitations />);
-    expect(container).toBeEmptyDOMElement();
+    render(<PendingInvitations />);
+    expect(screen.getByText("No pending invitations")).toBeInTheDocument();
   });
 
   it("renders null while the query hasn't resolved yet", () => {
@@ -48,7 +48,7 @@ describe("PendingInvitations", () => {
     ]);
     render(<PendingInvitations />);
     expect(
-      screen.getByText(`Expires ${new Date("2026-06-13").toLocaleDateString()}`),
+      screen.getByText(`Expires ${new Date("2026-06-13").toLocaleDateString("en-US")}`),
     ).toBeInTheDocument();
   });
 

@@ -4,6 +4,7 @@ import { Prisma, type NotificationType } from "@taskflow/database";
 
 import {
   buildNotificationMessage,
+  deleteMemberInvitedNotifications,
   deleteNotificationById,
   listNotifications,
   markAllRead,
@@ -76,6 +77,21 @@ describe("deleteNotificationById", () => {
     await expect(deleteNotificationById(db, "n1", VALID_USER.id)).rejects.toThrow(
       "Connection lost",
     );
+  });
+});
+
+describe("deleteMemberInvitedNotifications", () => {
+  it("deletes only this user's MEMBER_INVITED notifications for this org", async () => {
+    await deleteMemberInvitedNotifications(db, VALID_USER.id, VALID_ORG_ID);
+
+    expect(mockDb.notification.deleteMany).toHaveBeenCalledWith({
+      where: {
+        userId: VALID_USER.id,
+        type: "MEMBER_INVITED",
+        entityType: "org",
+        entityId: VALID_ORG_ID,
+      },
+    });
   });
 });
 

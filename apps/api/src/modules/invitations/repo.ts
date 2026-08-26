@@ -65,6 +65,15 @@ export async function findInvitationById(db: PrismaClient, id: string): Promise<
   return db.invitation.findUnique({ where: { id } });
 }
 
+/** Looks up the single row `@@unique([orgId, email])` guarantees for this pair, if any. */
+export async function findInvitationByOrgAndEmail(
+  db: PrismaClient,
+  orgId: string,
+  email: string,
+): Promise<Invitation | null> {
+  return db.invitation.findUnique({ where: { orgId_email: { orgId, email } } });
+}
+
 const invitationWithOrgAndInviter = { ...invitationWithOrg, ...invitationWithInviter };
 
 export type InvitationPreviewRow = Prisma.InvitationGetPayload<{

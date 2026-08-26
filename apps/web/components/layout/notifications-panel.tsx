@@ -9,6 +9,7 @@ import { api } from "@/lib/trpc/client";
 import { useAppRouter } from "@/lib/hooks/use-app-router";
 import { useNotifications } from "@/lib/hooks/use-notifications";
 import { useInvitationActions } from "@/components/invitations/use-invitation-actions";
+import { formatDate } from "@/lib/utils/date";
 import type { MyInvitation } from "@taskflow/shared";
 
 interface NotificationsPanelProps {
@@ -59,17 +60,25 @@ export function NotificationsPanel({ onClose }: NotificationsPanelProps): JSX.El
   }, [onClose]);
 
   function notificationHref(n: {
+    type: string;
     entityType: string | null;
     entityId: string | null;
   }): string | null {
     if (n.entityType === "task" && n.entityId) return `/tasks?task=${n.entityId}`;
-    if (n.entityType === "org" && n.entityId) return `/organizations/${n.entityId}`;
+    // MEMBER_INVITED fires before the recipient accepts, so they aren't an
+    // org member yet - /organizations/<id> would bounce them to /team with a
+    // misleading "no longer part of" toast. Send them to the pending-
+    // invitations list instead, where the same Accept/Decline lives.
+    if (n.entityType === "org" && n.entityId) {
+      return n.type === "MEMBER_INVITED" ? "/invitations" : `/organizations/${n.entityId}`;
+    }
     return null;
   }
 
   function handleOpen(n: {
     id: string;
     read: boolean;
+    type: string;
     entityType: string | null;
     entityId: string | null;
   }): void {
@@ -139,9 +148,7 @@ export function NotificationsPanel({ onClose }: NotificationsPanelProps): JSX.El
             >
               <div className="flex-1 min-w-0">
                 <p className="leading-snug">{n.message}</p>
-                <p className="mt-0.5 text-xs text-gray-400">
-                  {new Date(n.createdAt).toLocaleDateString()}
-                </p>
+                <p className="mt-0.5 text-xs text-gray-400">{formatDate(n.createdAt)}</p>
 
                 {invitation && (
                   <div className="mt-2 flex gap-2">

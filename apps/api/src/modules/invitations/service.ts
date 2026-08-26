@@ -23,6 +23,7 @@ import {
   countPendingInvitations,
   declineInvitationTx,
   findInvitationById,
+  findInvitationByOrgAndEmail,
   findInvitationByTokenHash,
   findInvitationsForOrg,
   findPendingInvitationsForEmail,
@@ -39,6 +40,7 @@ import {
   getActorName,
   notify,
   buildNotificationMessage,
+  deleteMemberInvitedNotifications,
   notifyInvitationResolved,
   notifyMemberInvited,
 } from "../notifications/service";
@@ -130,6 +132,26 @@ export async function createInvitation(
     if (membership) {
       throw new TRPCError({ code: "CONFLICT", message: "This person is already a member." });
     }
+  }
+
+  // Without this, `create` could be called over and over for the same
+  // still-pending address - each call re-sends the email, rotates the
+  // token (silently invalidating the invitee's still-good link), and fires
+  // another MEMBER_INVITED notification, with none of `resend`'s cooldown.
+  // `resend` is the only intended path once a PENDING invite already exists.
+  // Reuses resolveInvitationState (the same PENDING+expiresAt check
+  // getInvitationPreviewByToken/getInvitationPublicPreviewByToken already
+  // use) instead of re-deriving "is this invite still live" by hand here -
+  // a PENDING row past its own expiresAt is deliberately still re-invitable
+  // (see cleanupStaleInvitations's docblock: it stays that way for up to
+  // STALE_INVITATION_GRACE_DAYS before the row is deleted, not flipped to
+  // some EXPIRED status - InvitationStatus has no such member).
+  const existingInvitation = await findInvitationByOrgAndEmail(db, orgId, data.email);
+  if (existingInvitation && resolveInvitationState(existingInvitation) === "VALID") {
+    throw new TRPCError({
+      code: "CONFLICT",
+      message: "This person already has a pending invitation. Use resend instead.",
+    });
   }
 
   // Excludes `data.email`'s own row: re-inviting an already-pending address
@@ -394,7 +416,12 @@ export async function acceptInvitation(
     throw error;
   }
 
-  const org = await findOrgById(db, invitation.orgId);
+  // Neither depends on the other - same pattern as createInvitation's own
+  // Promise.all([findOrgById, getActorName]) above.
+  const [org] = await Promise.all([
+    findOrgById(db, invitation.orgId),
+    deleteMemberInvitedNotifications(db, sessionUser.id, invitation.orgId),
+  ]);
   await notifyInvitationResolved(db, io, {
     recipientId: invitation.invitedById,
     actorId: sessionUser.id,
@@ -435,7 +462,12 @@ export async function declineInvitation(
     throw error;
   }
 
-  const org = await findOrgById(db, invitation.orgId);
+  // Neither depends on the other - same pattern as createInvitation's own
+  // Promise.all([findOrgById, getActorName]) above.
+  const [org] = await Promise.all([
+    findOrgById(db, invitation.orgId),
+    deleteMemberInvitedNotifications(db, sessionUser.id, invitation.orgId),
+  ]);
   await notifyInvitationResolved(db, io, {
     recipientId: invitation.invitedById,
     actorId: sessionUser.id,

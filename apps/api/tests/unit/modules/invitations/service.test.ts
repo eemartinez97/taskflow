@@ -115,6 +115,62 @@ describe("createInvitation", () => {
     expect(mockDb.invitation.upsert).not.toHaveBeenCalled();
   });
 
+  it("throws CONFLICT when this email already has a still-active PENDING invitation for this org", async () => {
+    mockDb.user.findUnique.mockResolvedValueOnce(null); // findUserByEmail
+    mockDb.invitation.findUnique.mockResolvedValueOnce(
+      buildInvitation({
+        email: INVITEE_EMAIL,
+        status: "PENDING",
+        expiresAt: new Date(Date.now() + 60_000),
+      }),
+    );
+
+    await expect(
+      createInvitation(db, mockIo, VALID_ORG_ID, VALID_USER.id, VALID_USER.email, data),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    // Would otherwise re-send the email, rotate the token, and (for a
+    // verified existing user) fire another MEMBER_INVITED notification on
+    // every call, with none of `resend`'s cooldown.
+    expect(mockSendOrgInviteEmail).not.toHaveBeenCalled();
+    expect(mockDb.invitation.upsert).not.toHaveBeenCalled();
+  });
+
+  it("allows re-inviting once the existing PENDING invitation has passed its own expiresAt", async () => {
+    mockDb.user.findUnique.mockResolvedValueOnce(null); // findUserByEmail
+    mockDb.invitation.findUnique.mockResolvedValueOnce(
+      buildInvitation({
+        email: INVITEE_EMAIL,
+        status: "PENDING",
+        expiresAt: new Date(Date.now() - 60_000),
+      }),
+    );
+    mockDb.invitation.count.mockResolvedValueOnce(0);
+    mockDb.invitation.upsert.mockResolvedValueOnce(buildInvitation({ email: INVITEE_EMAIL }));
+    mockDb.org.findUnique.mockResolvedValueOnce(org);
+    mockDb.user.findUnique.mockResolvedValueOnce({ name: "Alice" }); // getActorName
+
+    await expect(
+      createInvitation(db, mockIo, VALID_ORG_ID, VALID_USER.id, VALID_USER.email, data),
+    ).resolves.toEqual({ success: true });
+    expect(mockSendOrgInviteEmail).toHaveBeenCalled();
+  });
+
+  it("allows re-inviting once the existing invitation was DECLINED", async () => {
+    mockDb.user.findUnique.mockResolvedValueOnce(null); // findUserByEmail
+    mockDb.invitation.findUnique.mockResolvedValueOnce(
+      buildInvitation({ email: INVITEE_EMAIL, status: "DECLINED" }),
+    );
+    mockDb.invitation.count.mockResolvedValueOnce(0);
+    mockDb.invitation.upsert.mockResolvedValueOnce(buildInvitation({ email: INVITEE_EMAIL }));
+    mockDb.org.findUnique.mockResolvedValueOnce(org);
+    mockDb.user.findUnique.mockResolvedValueOnce({ name: "Alice" }); // getActorName
+
+    await expect(
+      createInvitation(db, mockIo, VALID_ORG_ID, VALID_USER.id, VALID_USER.email, data),
+    ).resolves.toEqual({ success: true });
+    expect(mockSendOrgInviteEmail).toHaveBeenCalled();
+  });
+
   it("invites a brand-new email with a /register?invite= link and no notification", async () => {
     mockDb.user.findUnique.mockResolvedValueOnce(null); // findUserByEmail
     mockDb.invitation.count.mockResolvedValueOnce(0);
@@ -513,6 +569,17 @@ describe("acceptInvitation / declineInvitation", () => {
       acceptInvitation(db, mockIo, sessionUser, { invitationId: invitation.id }),
     ).resolves.toEqual({ orgId: invitation.orgId, membership });
 
+    // Clears any stale MEMBER_INVITED notification from an earlier
+    // invite/decline cycle to this same org before notifying the inviter -
+    // see deleteMemberInvitedNotifications's docblock.
+    expect(mockDb.notification.deleteMany).toHaveBeenCalledWith({
+      where: {
+        userId: sessionUser.id,
+        type: "MEMBER_INVITED",
+        entityType: "org",
+        entityId: invitation.orgId,
+      },
+    });
     expect(mockDb.notification.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -616,6 +683,14 @@ describe("acceptInvitation / declineInvitation", () => {
       declineInvitation(db, mockIo, sessionUser, { invitationId: invitation.id }),
     ).resolves.toEqual({ success: true });
 
+    expect(mockDb.notification.deleteMany).toHaveBeenCalledWith({
+      where: {
+        userId: sessionUser.id,
+        type: "MEMBER_INVITED",
+        entityType: "org",
+        entityId: invitation.orgId,
+      },
+    });
     expect(mockDb.notification.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ type: "INVITATION_DECLINED" }) as unknown,

@@ -120,6 +120,111 @@ test.describe("Invitation lifecycle", () => {
     }
   });
 
+  test("re-inviting an address with a still-active PENDING invitation is rejected inline; exactly one row stays PENDING", async ({
+    page,
+  }) => {
+    const org = uniqueOrgName("Dup Invite Org");
+    await createIsolatedOrg(page, org.name);
+    const email = `e2e-dup-${randomUUID().slice(0, 8)}@taskflow.dev`;
+
+    await goToTeam(page, org.name);
+    await sendInvite(page, email);
+    await expect(page.getByText("PENDING")).toBeVisible();
+
+    // A second invite to the same still-pending address must be rejected,
+    // not silently re-send the email / rotate the token / re-notify.
+    await page.getByRole("button", { name: "Invite member" }).click();
+    await dialogFieldByLabel(page, "Email").fill(email);
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Send invite", exact: true })
+      .click();
+    await expect(page.getByText(/already has a pending invitation/i)).toBeVisible();
+    // Error keeps the dialog open (skipErrorToast + inline Alert, no onSuccess close).
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
+
+    await expect(page.getByText(email)).toHaveCount(1);
+  });
+
+  test("clicking a MEMBER_INVITED notification opens /invitations, not the org's team page", async ({
+    page,
+    browser,
+    registeredUser,
+  }) => {
+    const org = uniqueOrgName("Notif Link Org");
+    await createIsolatedOrg(page, org.name);
+
+    const { context: inviteeContext, page: inviteePage } = await newAuthenticatedSession(
+      browser,
+      registeredUser,
+    );
+
+    try {
+      await goToTeam(page, org.name);
+      await sendInvite(page, registeredUser.email);
+
+      await inviteePage.goto("/projects");
+      await inviteePage.getByRole("button", { name: /notifications/i }).click();
+      const notificationsPanel = inviteePage.getByRole("region", { name: "Notifications" });
+      const inviteRow = notificationsPanel.getByText(/invited you/i);
+      await expect(inviteRow).toBeVisible({ timeout: 15_000 });
+
+      await inviteRow.click();
+      await inviteePage.waitForURL(/\/invitations$/, { timeout: 15_000 });
+    } finally {
+      await inviteeContext.close();
+    }
+  });
+
+  test("declining via the notifications panel clears it; a later re-invite doesn't resurrect stale Accept/Decline buttons", async ({
+    page,
+    browser,
+    registeredUser,
+  }) => {
+    const org = uniqueOrgName("Resurrect Org");
+    await createIsolatedOrg(page, org.name);
+
+    const { context: inviteeContext, page: inviteePage } = await newAuthenticatedSession(
+      browser,
+      registeredUser,
+    );
+
+    try {
+      await goToTeam(page, org.name);
+      await sendInvite(page, registeredUser.email);
+
+      await inviteePage.goto("/projects");
+      await inviteePage.getByRole("button", { name: /notifications/i }).click();
+      const notificationsPanel = inviteePage.getByRole("region", { name: "Notifications" });
+      await expect(notificationsPanel.getByRole("button", { name: "Decline" })).toBeVisible({
+        timeout: 15_000,
+      });
+      await notificationsPanel.getByRole("button", { name: "Decline" }).click();
+
+      // The whole notification row is deleted server-side on decline, not
+      // just its buttons - see deleteMemberInvitedNotifications.
+      await expect(notificationsPanel.getByText(/invited you/i)).not.toBeVisible({
+        timeout: 15_000,
+      });
+
+      // Admin re-invites the same (now-declined) address, live, while the
+      // invitee's panel is still open.
+      await sendInvite(page, registeredUser.email);
+
+      // Exactly one actionable invite - the earlier, declined cycle's
+      // notification must not resurface with its own Accept/Decline just
+      // because the fresh invite shares the same org.
+      await expect(notificationsPanel.getByRole("button", { name: "Accept" })).toBeVisible({
+        timeout: 15_000,
+      });
+      await expect(notificationsPanel.getByRole("button", { name: "Accept" })).toHaveCount(1);
+      await expect(notificationsPanel.getByRole("button", { name: "Decline" })).toHaveCount(1);
+    } finally {
+      await inviteeContext.close();
+    }
+  });
+
   test("admin revokes a pending invite; the row flips to REVOKED and the invitee's pending list empties", async ({
     page,
     browser,

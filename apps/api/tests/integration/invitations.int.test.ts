@@ -101,4 +101,62 @@ describe("invitations end to end", () => {
       callerAs(ownerB).invitations.revoke({ orgId: orgB.id, invitationId: invitation.id }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
+
+  it("rejects inviting an email that already has a still-active PENDING invitation to the same org", async () => {
+    const { owner, org } = await seedWorkspace();
+
+    await callerAs(owner).invitations.create({
+      orgId: org.id,
+      data: { email: "bob-dup@example.com", role: "MEMBER" },
+    });
+
+    await expect(
+      callerAs(owner).invitations.create({
+        orgId: org.id,
+        data: { email: "bob-dup@example.com", role: "ADMIN" },
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+
+    await expect(
+      prisma.invitation.count({ where: { orgId: org.id, email: "bob-dup@example.com" } }),
+    ).resolves.toBe(1);
+  });
+
+  it("clears the invitee's stale MEMBER_INVITED notification on decline, so a later re-invite doesn't resurrect it", async () => {
+    const { owner, org } = await seedWorkspace();
+    const bob = await seedUser({ name: "Bob", email: "bob-notif@example.com" });
+    await prisma.user.update({ where: { id: bob.id }, data: { emailVerified: new Date() } });
+
+    await callerAs(owner).invitations.create({
+      orgId: org.id,
+      data: { email: bob.email, role: "MEMBER" },
+    });
+    const firstInvitation = await prisma.invitation.findFirstOrThrow({
+      where: { orgId: org.id, email: bob.email },
+    });
+    await expect(
+      prisma.notification.count({
+        where: { userId: bob.id, type: "MEMBER_INVITED", entityId: org.id },
+      }),
+    ).resolves.toBe(1);
+
+    await callerAs(bob).invitations.decline({ invitationId: firstInvitation.id });
+    await expect(
+      prisma.notification.count({
+        where: { userId: bob.id, type: "MEMBER_INVITED", entityId: org.id },
+      }),
+    ).resolves.toBe(0);
+
+    // A later re-invite creates its own fresh notification - it must not
+    // find the declined cycle's (now-deleted) row and skip creating one.
+    await callerAs(owner).invitations.create({
+      orgId: org.id,
+      data: { email: bob.email, role: "MEMBER" },
+    });
+    await expect(
+      prisma.notification.count({
+        where: { userId: bob.id, type: "MEMBER_INVITED", entityId: org.id },
+      }),
+    ).resolves.toBe(1);
+  });
 });

@@ -12,6 +12,7 @@ import {
   createOrgForUser,
   deleteOrgById,
   leaveOrg,
+  listAssigneeLookup,
   listFormerAssignees,
   listMembers,
   listOrgs,
@@ -88,11 +89,23 @@ const _buildOrgsRouter = (io: AppServer) =>
         return listFormerAssignees(ctx.db, input.orgId);
       }),
 
+    /**
+     * Combines `members` + `formerAssignees` into one round trip - the shape
+     * apps/web's useAssigneeLookup actually needs. `members`/`formerAssignees`
+     * stay as separate procedures too: the Team roster only ever needs the
+     * former, never the latter.
+     */
+    assigneeLookup: readerProcedure
+      .input(z.object({ orgId: idSchema }))
+      .query(async ({ ctx, input }) => {
+        return listAssigneeLookup(ctx.db, input.orgId);
+      }),
+
     /** Removes a member from the org. OWNER cannot be removed. */
     removeMember: ownerProcedure
       .input(z.object({ orgId: idSchema, userId: idSchema }))
       .mutation(async ({ ctx, input }) => {
-        return removeMemberFromOrg(ctx.db, io, input.orgId, input.userId);
+        return removeMemberFromOrg(ctx.db, io, input.orgId, input.userId, ctx.user.id);
       }),
 
     updateMemberRole: ownerProcedure

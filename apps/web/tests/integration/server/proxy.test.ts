@@ -93,6 +93,12 @@ describe("proxy middleware", () => {
       expect(res.cookies.get("taskflow.activeOrgId")?.value).toBe("org-1");
     });
 
+    it("tags the /team redirect with ?from=<orgId> so /team can detect a stale deep link", async () => {
+      const res = await proxy(makeRequest("/organizations/org-1"));
+
+      expect(location(res)).toContain("from=org-1");
+    });
+
     it("redirects /register?invite=<token> to /invitations/<token> instead of /projects", async () => {
       const res = await proxy(makeRequest("/register?invite=raw-token"));
 

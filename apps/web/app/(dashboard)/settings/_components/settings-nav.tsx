@@ -7,8 +7,6 @@ import { type JSX } from "react";
 import type { Role } from "@taskflow/shared";
 import { cn } from "@taskflow/ui";
 
-import { canAdminOrg } from "@/lib/utils/role";
-
 interface SettingsNavProps {
   /** null when the user has no org - the Organization group is hidden entirely in that case. */
   orgName: string | null;
@@ -27,20 +25,20 @@ const ACCOUNT_LINKS: NavLink[] = [
 
 /**
  * Settings' own secondary nav - two groups (Account, always; the active
- * org's settings, only when one exists). Org-scoped links are filtered by
- * role here so a MEMBER/VIEWER simply never sees a link to a page they
- * can't use - the pages themselves still gate independently (see
- * organization/page.tsx and labels/page.tsx) for anyone who navigates
- * there directly.
+ * org's settings, only when one exists). "General" links to
+ * /settings/organization for every role, not just OWNER/ADMIN - that page is
+ * also where LeaveOrgSection lives, and MEMBER/VIEWER need a way to reach it
+ * without typing the URL by hand. The page itself still hides admin-only
+ * sections (rename/delete org) by role (see organization/page.tsx); this nav
+ * only decides which links exist, not what each page shows once you're
+ * there.
  */
 export function SettingsNav({ orgName, role }: SettingsNavProps): JSX.Element {
   const pathname = usePathname();
 
   const orgLinks: NavLink[] = orgName
     ? [
-        ...(role && canAdminOrg(role)
-          ? [{ label: "General", href: "/settings/organization" }]
-          : []),
+        { label: "General", href: "/settings/organization" },
         // Labels is member-readable (labels.list excludes only VIEWER) - a
         // MEMBER sees this link too, just without create/delete controls
         // once there (see LabelManager's canManage prop).

@@ -255,7 +255,12 @@ interface UtilsInvalidate {
 /** Typed shape matching the api.useUtils() implementation in tests/mocks/trpc-api.tsx. */
 export interface MockApiUtils {
   invalidate: MockFn;
-  orgs: { list: UtilsInvalidate; members: UtilsInvalidate; formerAssignees: UtilsInvalidate };
+  orgs: {
+    list: UtilsInvalidate;
+    members: UtilsInvalidate;
+    formerAssignees: UtilsInvalidate;
+    assigneeLookup: UtilsInvalidate;
+  };
   invitations: { listForOrg: UtilsInvalidate; listMine: UtilsInvalidate };
   projects: { list: UtilsInvalidate };
   boards: { list: UtilsInvalidate; get: UtilsInvalidate };
@@ -405,6 +410,7 @@ export interface MockApiUtilsOverrides {
     list?: Partial<UtilsInvalidate>;
     members?: Partial<UtilsInvalidate>;
     formerAssignees?: Partial<UtilsInvalidate>;
+    assigneeLookup?: Partial<UtilsInvalidate>;
   };
   invitations?: { listForOrg?: Partial<UtilsInvalidate>; listMine?: Partial<UtilsInvalidate> };
   projects?: { list?: Partial<UtilsInvalidate> };
@@ -442,6 +448,7 @@ export function mockApiUtils(overrides: MockApiUtilsOverrides = {}): MockApiUtil
       list: makeUtilsInvalidate(overrides.orgs?.list),
       members: makeUtilsInvalidate(overrides.orgs?.members),
       formerAssignees: makeUtilsInvalidate(overrides.orgs?.formerAssignees),
+      assigneeLookup: makeUtilsInvalidate(overrides.orgs?.assigneeLookup),
     },
     invitations: {
       listForOrg: makeUtilsInvalidate(overrides.invitations?.listForOrg),

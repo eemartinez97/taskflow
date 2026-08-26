@@ -65,6 +65,7 @@ describe("orgs router", () => {
       mockIo,
       VALID_ORG_ID,
       ANOTHER_UUID,
+      VALID_USER.id,
     );
   });
 
@@ -119,6 +120,20 @@ describe("orgs router", () => {
     await caller().formerAssignees({ orgId: VALID_ORG_ID });
 
     expect(service.listFormerAssignees).toHaveBeenCalledWith(db, VALID_ORG_ID);
+  });
+
+  it("assigneeLookup -> listAssigneeLookup", async () => {
+    await caller().assigneeLookup({ orgId: VALID_ORG_ID });
+
+    expect(service.listAssigneeLookup).toHaveBeenCalledWith(db, VALID_ORG_ID);
+  });
+
+  it("assigneeLookup is readable by VIEWER", async () => {
+    grantRole("VIEWER");
+
+    await caller().assigneeLookup({ orgId: VALID_ORG_ID });
+
+    expect(service.listAssigneeLookup).toHaveBeenCalledWith(db, VALID_ORG_ID);
   });
 
   it("leave -> leaveOrg, scoped to the caller", async () => {

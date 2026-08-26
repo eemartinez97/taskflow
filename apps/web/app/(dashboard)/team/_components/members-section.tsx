@@ -62,7 +62,10 @@ export function MembersSection({
       // A removed member's tasks stay assigned to them (see apps/api's
       // removeMembershipAndNotify) - refresh so an already-open board/task
       // panel picks up the new ex-member instead of showing stale data.
-      void utils.orgs.formerAssignees.invalidate({ orgId });
+      // useAssigneeLookup (what kanban-board.tsx/task-detail-panel.tsx
+      // actually read) queries orgs.assigneeLookup, not orgs.formerAssignees
+      // directly - invalidating the latter alone is a no-op for either view.
+      void utils.orgs.assigneeLookup.invalidate({ orgId });
       setRemoveTarget(null);
     },
   });
@@ -136,7 +139,7 @@ export function MembersSection({
                   <Badge variant={ROLE_BADGE_VARIANT[m.role]}>{m.role}</Badge>
                 )}
 
-                {canAdmin && m.userId !== currentUserId && m.role !== "OWNER" && (
+                {isOwner && m.userId !== currentUserId && m.role !== "OWNER" && (
                   <Button
                     variant="ghost"
                     size="icon"

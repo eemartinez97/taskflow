@@ -47,12 +47,11 @@ test.describe("Leaving an organization", () => {
         { timeout: 15_000 },
       );
 
-      // /settings/organization has no sidebar link for a MEMBER (only
-      // OWNER/ADMIN get the "General" settings-nav entry - see
-      // settings-nav.tsx), but the route itself is still reachable and
-      // renders LeaveOrgSection regardless of role.
+      // "General" is a real sidebar link for every role, MEMBER included -
+      // see settings-nav.tsx (LeaveOrgSection lives on that same page,
+      // gated per-section by role, not by hiding the nav entry itself).
       await clickNavLink(memberPage, "Settings", /\/settings/);
-      await memberPage.goto("/settings/organization");
+      await clickNavLink(memberPage, "General", /\/settings\/organization/);
       await memberPage.getByRole("button", { name: "Leave", exact: true }).click();
       await memberPage
         .getByRole("dialog")

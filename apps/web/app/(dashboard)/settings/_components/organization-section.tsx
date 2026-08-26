@@ -2,7 +2,7 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState, type JSX } from "react";
+import { type JSX } from "react";
 
 import type { Org } from "@taskflow/database";
 import { updateOrgSchema, type Role, type UpdateOrg } from "@taskflow/shared";
@@ -19,6 +19,7 @@ import {
 
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { useAppRouter } from "@/lib/hooks/use-app-router";
+import { useDisclosure } from "@/lib/hooks/use-disclosure";
 import { isOrgOwner } from "@/lib/utils/role";
 import { clearActiveOrgId } from "@/lib/utils/active-org";
 import { toast } from "@/lib/toast/store";
@@ -37,7 +38,7 @@ interface OrganizationSectionProps {
 export function OrganizationSection({ org, role }: OrganizationSectionProps): JSX.Element {
   const router = useAppRouter();
   const utils = api.useUtils();
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const deleteDialog = useDisclosure();
 
   const {
     register,
@@ -68,7 +69,7 @@ export function OrganizationSection({ org, role }: OrganizationSectionProps): JS
       // Reset the active org so getOrgOrNull self-heals to a remaining one.
       clearActiveOrgId();
       void utils.orgs.list.invalidate();
-      setDeleteOpen(false);
+      deleteDialog.close();
       router.refresh();
     },
   });
@@ -120,12 +121,7 @@ export function OrganizationSection({ org, role }: OrganizationSectionProps): JS
               <p className="text-sm text-gray-600">
                 Permanently delete {org.name} and all of its projects, boards and tasks.
               </p>
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  setDeleteOpen(true);
-                }}
-              >
+              <Button variant="destructive" onClick={deleteDialog.open}>
                 Delete organization
               </Button>
             </div>
@@ -134,10 +130,8 @@ export function OrganizationSection({ org, role }: OrganizationSectionProps): JS
       )}
 
       <ConfirmDialog
-        open={deleteOpen}
-        onClose={() => {
-          setDeleteOpen(false);
-        }}
+        open={deleteDialog.isOpen}
+        onClose={deleteDialog.close}
         onConfirm={() => {
           deleteMutation.mutate({ orgId: org.id });
         }}

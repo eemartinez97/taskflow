@@ -292,6 +292,7 @@ describe("notifyInvitationResolved", () => {
 describe("notifyMemberLeft", () => {
   const opts = {
     actorId: VALID_USER.id,
+    removedUserId: VALID_USER.id,
     orgId: VALID_ORG_ID,
     orgName: "Acme",
   };
@@ -357,6 +358,28 @@ describe("notifyMemberLeft", () => {
     });
 
     expect(mockDb.notification.create).toHaveBeenCalledOnce();
+  });
+
+  it("uses a distinct 'removed' message, naming both people, when it's not a voluntary leave", async () => {
+    mockDb.user.findUnique
+      .mockResolvedValueOnce({ name: "Owner Alice" })
+      .mockResolvedValueOnce({ name: "Bob" });
+    mockDb.notification.create.mockResolvedValueOnce(notification);
+
+    await notifyMemberLeft(db, mockIo, {
+      ...opts,
+      removedUserId: ANOTHER_UUID,
+      recipientIds: [ANOTHER_UUID],
+      taskCount: 0,
+    });
+
+    expect(mockDb.notification.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          message: 'Owner Alice removed Bob from "Acme"',
+        }) as unknown,
+      }),
+    );
   });
 
   it("skips the actor if they are also a recipient, without dropping others", async () => {

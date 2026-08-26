@@ -29,6 +29,14 @@ export const orgWithMembership = {
   memberships: { select: { role: true, cursorsHidden: true } },
 } as const;
 
+// NOTE: must mirror the real export in @taskflow/database. It is imported by
+// modules/orgs/repo.ts; without it `select` resolved to `undefined` and
+// every assertion on it passed vacuously (same trap as commentWithAuthor below).
+export const formerAssigneeSelect = {
+  id: true,
+  name: true,
+} as const;
+
 export const boardWithColumns = {
   columns: { orderBy: { position: "asc" as const } },
 } as const;

@@ -269,7 +269,7 @@ describe("MembersSection", () => {
     });
     const utils = getLastMockUtils();
     expect(utils.orgs.members.invalidate).toHaveBeenCalledWith({ orgId: VALID_ORG_ID });
-    expect(utils.orgs.formerAssignees.invalidate).toHaveBeenCalledWith({ orgId: VALID_ORG_ID });
+    expect(utils.orgs.assigneeLookup.invalidate).toHaveBeenCalledWith({ orgId: VALID_ORG_ID });
   });
 
   it("closes the remove-member confirmation without removing when cancelled", async () => {

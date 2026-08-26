@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, type JSX } from "react";
+import { type JSX } from "react";
 
 import type { Role } from "@taskflow/shared";
 import { Button, Card, CardContent, CardHeader, CardTitle } from "@taskflow/ui";
 
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { useAppRouter } from "@/lib/hooks/use-app-router";
+import { useDisclosure } from "@/lib/hooks/use-disclosure";
 import { clearActiveOrgId } from "@/lib/utils/active-org";
+import { isOrgOwner } from "@/lib/utils/role";
 import { toast } from "@/lib/toast/store";
 import { api } from "@/lib/trpc/client";
 
@@ -27,14 +29,14 @@ interface LeaveOrgSectionProps {
 export function LeaveOrgSection({ orgId, orgName, role }: LeaveOrgSectionProps): JSX.Element {
   const router = useAppRouter();
   const utils = api.useUtils();
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const confirmDialog = useDisclosure();
 
   const leaveMutation = api.orgs.leave.useMutation({
     onSuccess: () => {
       toast.success(`You left ${orgName}.`);
       clearActiveOrgId();
       void utils.orgs.list.invalidate();
-      setConfirmOpen(false);
+      confirmDialog.close();
       router.push("/projects");
     },
   });
@@ -46,7 +48,7 @@ export function LeaveOrgSection({ orgId, orgName, role }: LeaveOrgSectionProps):
           <CardTitle className="text-red-700">Leave organization</CardTitle>
         </CardHeader>
         <CardContent>
-          {role === "OWNER" ? (
+          {isOrgOwner(role) ? (
             <p className="text-sm text-gray-600">
               As the owner, you can&apos;t leave {orgName}. Delete the organization instead if you
               no longer need it.
@@ -57,13 +59,7 @@ export function LeaveOrgSection({ orgId, orgName, role }: LeaveOrgSectionProps):
                 You&apos;ll lose access to {orgName}&apos;s projects, boards and tasks. You can
                 rejoin later if someone invites you again.
               </p>
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  setConfirmOpen(true);
-                }}
-                className="shrink-0"
-              >
+              <Button variant="destructive" onClick={confirmDialog.open} className="shrink-0">
                 Leave
               </Button>
             </div>
@@ -72,10 +68,8 @@ export function LeaveOrgSection({ orgId, orgName, role }: LeaveOrgSectionProps):
       </Card>
 
       <ConfirmDialog
-        open={confirmOpen}
-        onClose={() => {
-          setConfirmOpen(false);
-        }}
+        open={confirmDialog.isOpen}
+        onClose={confirmDialog.close}
         onConfirm={() => {
           leaveMutation.mutate({ orgId });
         }}

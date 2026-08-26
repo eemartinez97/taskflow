@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { callerAs, clearEmitted } from "./setup/caller";
 import { prisma, resetDb } from "./setup/db";
@@ -89,15 +89,20 @@ describe("leaving an organization", () => {
 
     await callerAs(bob).orgs.leave({ orgId: org.id });
 
-    const notifications = await prisma.notification.findMany({
-      where: { userId: owner.id, type: "MEMBER_LEFT" },
-    });
-    expect(notifications).toHaveLength(1);
-    expect(notifications[0]).toMatchObject({
-      actorId: bob.id,
-      entityId: org.id,
-      entityType: "org",
-      message: expect.stringContaining("2 tasks need reassignment") as string,
+    // notifyMemberLeft now runs fire-and-forget (see orgs/service.ts's
+    // removeMembershipAndNotify) - leave's own response doesn't wait behind
+    // it, so poll until the notification actually lands.
+    await vi.waitFor(async () => {
+      const notifications = await prisma.notification.findMany({
+        where: { userId: owner.id, type: "MEMBER_LEFT" },
+      });
+      expect(notifications).toHaveLength(1);
+      expect(notifications[0]).toMatchObject({
+        actorId: bob.id,
+        entityId: org.id,
+        entityType: "org",
+        message: expect.stringContaining("2 tasks need reassignment") as string,
+      });
     });
   });
 
@@ -108,12 +113,14 @@ describe("leaving an organization", () => {
 
     await callerAs(bob).orgs.leave({ orgId: org.id });
 
+    await vi.waitFor(async () => {
+      expect(
+        await prisma.notification.count({ where: { userId: owner.id, type: "MEMBER_LEFT" } }),
+      ).toBe(1);
+    });
     await expect(
       prisma.notification.findMany({ where: { userId: bob.id, type: "MEMBER_LEFT" } }),
     ).resolves.toEqual([]);
-    await expect(
-      prisma.notification.count({ where: { userId: owner.id, type: "MEMBER_LEFT" } }),
-    ).resolves.toBe(1);
   });
 });
 
@@ -132,10 +139,54 @@ describe("removing a member (admin-initiated)", () => {
     await expect(callerAs(owner).orgs.formerAssignees({ orgId: org.id })).resolves.toEqual([
       { id: bob.id, name: "Bob" },
     ]);
-    const notifications = await prisma.notification.findMany({
-      where: { userId: owner.id, type: "MEMBER_LEFT" },
+  });
+
+  it("notifies the removed member themselves, not the acting OWNER, and words it as a removal", async () => {
+    const { owner, org } = await seedWorkspace();
+    const bob = await seedUser({ name: "Bob" });
+    await seedMember(org.id, bob.id, "MEMBER");
+
+    await callerAs(owner).orgs.removeMember({ orgId: org.id, userId: bob.id });
+
+    // The OWNER performed the removal themselves - notify()'s own
+    // actor===recipient guard means they don't get notified of their own
+    // action, unlike the removed member.
+    await vi.waitFor(async () => {
+      const notifications = await prisma.notification.findMany({
+        where: { userId: bob.id, type: "MEMBER_LEFT" },
+      });
+      expect(notifications).toHaveLength(1);
+      expect(notifications[0]).toMatchObject({
+        actorId: owner.id,
+        entityId: org.id,
+        entityType: "org",
+        message: expect.stringMatching(/removed Bob from/) as string,
+      });
     });
-    expect(notifications).toHaveLength(1);
+    await expect(
+      prisma.notification.findMany({ where: { userId: owner.id, type: "MEMBER_LEFT" } }),
+    ).resolves.toEqual([]);
+  });
+
+  it("notifies a different admin with the acting OWNER's name, not the removed member's", async () => {
+    const { owner, org } = await seedWorkspace();
+    const admin = await seedUser({ name: "Admin Carol" });
+    await seedMember(org.id, admin.id, "ADMIN");
+    const bob = await seedUser({ name: "Bob" });
+    await seedMember(org.id, bob.id, "MEMBER");
+
+    await callerAs(owner).orgs.removeMember({ orgId: org.id, userId: bob.id });
+
+    await vi.waitFor(async () => {
+      const notifications = await prisma.notification.findMany({
+        where: { userId: admin.id, type: "MEMBER_LEFT" },
+      });
+      expect(notifications).toHaveLength(1);
+      expect(notifications[0]).toMatchObject({
+        actorId: owner.id,
+        message: expect.stringMatching(/removed Bob from/) as string,
+      });
+    });
   });
 });
 

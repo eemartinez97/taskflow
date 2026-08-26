@@ -2,6 +2,7 @@ import { type Prisma } from "./generated";
 import type {
   boardWithColumns,
   commentWithAuthor,
+  formerAssigneeSelect,
   invitationWithInviter,
   invitationWithOrg,
   membershipWithUser,
@@ -21,6 +22,11 @@ export type BoardWithColumns = Prisma.BoardGetPayload<{
 
 export type MembershipWithUser = Prisma.MembershipGetPayload<{
   include: typeof membershipWithUser;
+}>;
+
+/** Ex-member still assigned to a task in the org - see selects.ts's formerAssigneeSelect. */
+export type FormerAssignee = Prisma.UserGetPayload<{
+  select: typeof formerAssigneeSelect;
 }>;
 
 export type NotificationWithActor = Prisma.NotificationGetPayload<{

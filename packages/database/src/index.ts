@@ -40,6 +40,7 @@ export type {
   CommentWithAuthor,
   InvitationWithOrg,
   InvitationWithInviter,
+  FormerAssignee,
 } from "./types";
 
 // Query fragments - consumed by repo files in apps/api
@@ -53,4 +54,5 @@ export {
   commentWithAuthor,
   invitationWithOrg,
   invitationWithInviter,
+  formerAssigneeSelect,
 } from "./selects";

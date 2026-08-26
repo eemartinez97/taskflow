@@ -39,6 +39,12 @@ export const membershipWithUser = Prisma.validator<Prisma.MembershipInclude>()({
   user: { select: userBasicSelect },
 });
 
+/** Ex-member profile for task attribution - name only, no email (see repo.ts's findFormerAssignees privacy note). */
+export const formerAssigneeSelect = Prisma.validator<Prisma.UserSelect>()({
+  id: true,
+  name: true,
+});
+
 export const orgWithMembership = Prisma.validator<Prisma.OrgInclude>()({
   memberships: { select: { role: true, cursorsHidden: true } },
 });

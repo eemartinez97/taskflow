@@ -255,11 +255,17 @@ export async function notifyInvitationResolved(
 }
 
 /**
- * Notifies an org's OWNER/ADMIN members that someone stopped being a member
- * (either by leaving or by being removed - same event either way, see
- * modules/orgs/service.ts's removeMembershipAndNotify). Self-notification is
- * a non-issue here: `notify()`'s own actor===recipient guard silently skips
- * the departing user themselves if they happen to also be in `recipientIds`.
+ * Notifies an org's OWNER/ADMIN members - plus the removed member themselves,
+ * when this is an admin-initiated removal rather than a voluntary leave, so
+ * they get a realtime signal that they lost access instead of finding out
+ * from the next request that happens to 403 - that someone stopped being a
+ * member. `actorId` is the real actor (the departing user for a voluntary
+ * leave, the admin who removed them otherwise - see
+ * modules/orgs/service.ts's removeMembershipAndNotify), which is also what
+ * lets the message distinguish "X left" from "Y removed X". Self-notification
+ * is a non-issue: `notify()`'s own actor===recipient guard silently skips the
+ * actor themselves if they happen to also be in `recipientIds` (e.g. an
+ * OWNER removing a member is in their own adminIds recipient list).
  */
 export async function notifyMemberLeft(
   db: PrismaClient,
@@ -267,6 +273,7 @@ export async function notifyMemberLeft(
   opts: {
     recipientIds: (string | null | undefined)[];
     actorId: string;
+    removedUserId: string;
     orgId: string;
     orgName: string;
     taskCount: number;
@@ -275,8 +282,14 @@ export async function notifyMemberLeft(
   const recipients = [...new Set(opts.recipientIds.filter(Boolean))] as string[];
   if (recipients.length === 0) return;
 
-  const actorName = await getActorName(db, opts.actorId);
-  const base = buildNotificationMessage("MEMBER_LEFT", actorName, opts.orgName);
+  const isVoluntary = opts.actorId === opts.removedUserId;
+  const [actorName, removedUserName] = await Promise.all([
+    getActorName(db, opts.actorId),
+    isVoluntary ? Promise.resolve(null) : getActorName(db, opts.removedUserId),
+  ]);
+  const base = isVoluntary
+    ? buildNotificationMessage("MEMBER_LEFT", actorName, opts.orgName)
+    : `${actorName ?? "An admin"} removed ${removedUserName ?? "a member"} from "${opts.orgName}"`;
   const message =
     opts.taskCount > 0
       ? `${base} · ${String(opts.taskCount)} ${opts.taskCount === 1 ? "task needs" : "tasks need"} reassignment`

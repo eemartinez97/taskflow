@@ -1,4 +1,5 @@
 import type {
+  FormerAssignee,
   MembershipWithUser,
   Membership,
   Org,
@@ -6,7 +7,7 @@ import type {
   PrismaClient,
   Role,
 } from "@taskflow/database";
-import { membershipWithUser, orgWithMembership } from "@taskflow/database";
+import { formerAssigneeSelect, membershipWithUser, orgWithMembership } from "@taskflow/database";
 import type { CreateOrg, UpdateOrg } from "@taskflow/shared";
 import { stripUndefined } from "../../utils/prisma";
 
@@ -117,11 +118,6 @@ export async function countTasksAssignedInOrg(
   });
 }
 
-export interface FormerAssignee {
-  id: string;
-  name: string | null;
-}
-
 /**
  * Users still assigned to a task in this org who are no longer members -
  * task attribution is deliberately preserved when someone leaves/is removed
@@ -138,6 +134,6 @@ export async function findFormerAssignees(
       assignedTasks: { some: { column: { board: { project: { orgId } } } } },
       memberships: { none: { orgId } },
     },
-    select: { id: true, name: true },
+    select: formerAssigneeSelect,
   });
 }

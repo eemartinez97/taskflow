@@ -1,7 +1,7 @@
 "use client";
 
 import { UserPlus } from "lucide-react";
-import { type JSX } from "react";
+import { useEffect, type JSX } from "react";
 
 import type { MembershipWithUser } from "@taskflow/database";
 import type { OrgInvitation, Role } from "@taskflow/shared";
@@ -13,6 +13,7 @@ import { MembersSection } from "./members-section";
 import { useDisclosure } from "@/lib/hooks/use-disclosure";
 import { useOrgInvitationsRealtime } from "@/lib/hooks/use-org-invitations-realtime";
 import { canAdminOrg, isOrgOwner } from "@/lib/utils/role";
+import { toast } from "@/lib/toast/store";
 
 interface TeamClientProps {
   orgId: string;
@@ -21,6 +22,8 @@ interface TeamClientProps {
   currentUserRole: Role;
   initialMembers: MembershipWithUser[];
   initialInvitations: OrgInvitation[];
+  /** True when a /organizations/<orgId> deep link pointed at an org the caller no longer belongs to. */
+  staleOrgLink: boolean;
 }
 
 export function TeamClient({
@@ -30,11 +33,23 @@ export function TeamClient({
   currentUserRole,
   initialMembers,
   initialInvitations,
+  staleOrgLink,
 }: TeamClientProps): JSX.Element {
   const inviteDialog = useDisclosure();
   const canAdmin = canAdminOrg(currentUserRole);
 
   useOrgInvitationsRealtime(orgId);
+
+  useEffect(() => {
+    if (staleOrgLink) {
+      toast.info(
+        "That link pointed to an organization you're no longer part of - showing your default one instead.",
+      );
+    }
+    // Only meant to fire once, for the org this page happened to be
+    // server-rendered with - not a live state that needs re-checking.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="flex flex-col gap-8">

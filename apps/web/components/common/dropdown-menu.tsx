@@ -4,6 +4,7 @@ import type { JSX } from "react";
 import { useEffect, useRef, useState } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { Button, cn } from "@taskflow/ui";
+import { useOutsideClick } from "@/lib/hooks/use-outside-click";
 
 export interface DropdownItem {
   label: string;
@@ -34,18 +35,9 @@ export function DropdownMenu({
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Close on outside click
-  useEffect(() => {
-    function handleClick(e: MouseEvent): void {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    if (open) document.addEventListener("mousedown", handleClick);
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-    };
-  }, [open]);
+  useOutsideClick(containerRef, open, () => {
+    setOpen(false);
+  });
 
   // Close on Escape
   useEffect(() => {

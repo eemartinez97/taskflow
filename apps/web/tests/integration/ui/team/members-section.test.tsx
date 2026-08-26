@@ -65,7 +65,7 @@ const CURRENT_USER_ID = OWNER_MEMBER.userId;
 
 // -- Helpers --
 let mockInvalidateMembers: ReturnType<typeof vi.fn>;
-let mockInvalidateFormerAssignees: ReturnType<typeof vi.fn>;
+let mockInvalidateAssigneeLookup: ReturnType<typeof vi.fn>;
 let roleMutation: ReturnType<typeof wireCapturableMutation>;
 let removeMutation: ReturnType<typeof wireCapturableMutation>;
 
@@ -91,11 +91,11 @@ describe("MembersSection", () => {
   beforeEach(() => {
     vi.mocked(useOnlineUsers).mockReturnValue(new Set<string>());
     mockInvalidateMembers = vi.fn();
-    mockInvalidateFormerAssignees = vi.fn();
+    mockInvalidateAssigneeLookup = vi.fn();
     mockApiUtils({
       orgs: {
         members: { invalidate: mockInvalidateMembers },
-        formerAssignees: { invalidate: mockInvalidateFormerAssignees },
+        assigneeLookup: { invalidate: mockInvalidateAssigneeLookup },
       },
     });
     roleMutation = wireCapturableMutation(api.orgs.updateMemberRole);
@@ -259,7 +259,7 @@ describe("MembersSection", () => {
 
     expect(vi.mocked(toast.success)).toHaveBeenCalledWith("Member removed.");
     expect(mockInvalidateMembers).toHaveBeenCalledWith({ orgId: "org-1" });
-    expect(mockInvalidateFormerAssignees).toHaveBeenCalledWith({ orgId: "org-1" });
+    expect(mockInvalidateAssigneeLookup).toHaveBeenCalledWith({ orgId: "org-1" });
   });
 
   // -- Empty state (you're the only member) --

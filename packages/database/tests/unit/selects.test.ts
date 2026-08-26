@@ -59,9 +59,9 @@ describe("orgWithMembership", () => {
     expect(orgWithMembership).toHaveProperty("memberships");
   });
 
-  it("selects only role from memberships (minimal RBAC payload)", () => {
+  it("selects role and cursorsHidden from memberships", () => {
     expect(orgWithMembership.memberships).toEqual({
-      select: { role: true },
+      select: { role: true, cursorsHidden: true },
     });
   });
 

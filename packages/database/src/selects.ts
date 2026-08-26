@@ -40,7 +40,7 @@ export const membershipWithUser = Prisma.validator<Prisma.MembershipInclude>()({
 });
 
 export const orgWithMembership = Prisma.validator<Prisma.OrgInclude>()({
-  memberships: { select: { role: true } },
+  memberships: { select: { role: true, cursorsHidden: true } },
 });
 
 // Board fragment

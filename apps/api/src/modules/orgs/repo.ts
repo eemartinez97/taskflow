@@ -84,3 +84,15 @@ export async function updateMembershipRole(
     data: { role },
   });
 }
+
+export async function updateMembershipCursorPref(
+  db: PrismaClient,
+  orgId: string,
+  userId: string,
+  cursorsHidden: boolean,
+): Promise<Membership> {
+  return db.membership.update({
+    where: { orgId_userId: { orgId, userId } },
+    data: { cursorsHidden },
+  });
+}

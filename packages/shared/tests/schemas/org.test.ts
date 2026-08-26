@@ -6,6 +6,7 @@ import {
   membershipSchema,
   orgSchema,
   roleSchema,
+  updateCursorPreferenceSchema,
   updateOrgSchema,
 } from "@taskflow/shared";
 import { validMembershipPayload, validOrgPayload } from "./fixtures";
@@ -74,6 +75,28 @@ describe("membershipSchema", () => {
   it("parses a valid membership", () => {
     const result = membershipSchema.parse(validMembershipPayload);
     expect(result.role).toBe(validMembershipPayload.role);
+    expect(result.cursorsHidden).toBe(false);
+  });
+
+  it("rejects a missing cursorsHidden", () => {
+    const { cursorsHidden: _cursorsHidden, ...rest } = validMembershipPayload;
+    expect(() => membershipSchema.parse(rest)).toThrow();
+  });
+});
+
+describe("updateCursorPreferenceSchema", () => {
+  it("accepts a boolean cursorsHidden", () => {
+    expect(updateCursorPreferenceSchema.parse({ cursorsHidden: true })).toEqual({
+      cursorsHidden: true,
+    });
+  });
+
+  it("rejects a non-boolean cursorsHidden", () => {
+    expect(() => updateCursorPreferenceSchema.parse({ cursorsHidden: "yes" })).toThrow();
+  });
+
+  it("rejects a missing cursorsHidden", () => {
+    expect(() => updateCursorPreferenceSchema.parse({})).toThrow();
   });
 });
 

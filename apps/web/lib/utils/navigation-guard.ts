@@ -5,7 +5,7 @@
  * mounted; `hasUnsavedChanges()` ORs every registered check.
  *
  * Deliberately in-memory (not persisted) - this is ephemeral UI state, not a
- * user preference like active-org or cursor-pref.
+ * user preference like active-org.
  */
 type DirtyCheck = () => boolean;
 

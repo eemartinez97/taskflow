@@ -8,6 +8,7 @@ import {
   findOrgById,
   findOrgsByUser,
   removeMember,
+  updateMembershipCursorPref,
   updateMembershipRole,
   updateOrg,
 } from "../../../../src/modules/orgs/repo";
@@ -104,6 +105,16 @@ describe("orgs repo", () => {
       args: {
         where: { orgId_userId: { orgId: VALID_ORG_ID, userId: VALID_USER.id } },
         data: { role: "ADMIN" },
+      },
+    },
+    {
+      name: "updateMembershipCursorPref",
+      delegate: mockDb.membership.update,
+      resolves: membership,
+      call: () => updateMembershipCursorPref(db, VALID_ORG_ID, VALID_USER.id, true),
+      args: {
+        where: { orgId_userId: { orgId: VALID_ORG_ID, userId: VALID_USER.id } },
+        data: { cursorsHidden: true },
       },
     },
   ]);

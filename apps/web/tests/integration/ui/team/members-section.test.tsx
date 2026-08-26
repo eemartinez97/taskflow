@@ -79,6 +79,7 @@ function buildProps(
     currentUserId: CURRENT_USER_ID,
     currentUserRole: "OWNER",
     initialMembers: [OWNER_MEMBER, ADMIN_MEMBER, MEMBER_MEMBER],
+    onInviteClick: vi.fn(),
     ...overrides,
   };
 }
@@ -250,5 +251,35 @@ describe("MembersSection", () => {
 
     expect(vi.mocked(toast.success)).toHaveBeenCalledWith("Member removed.");
     expect(mockInvalidateMembers).toHaveBeenCalledWith({ orgId: "org-1" });
+  });
+
+  // -- Empty state (you're the only member) --
+
+  it("shows the empty state and its Invite member CTA when you're alone and can admin", () => {
+    setupMembersQuery([OWNER_MEMBER]);
+    const onInviteClick = vi.fn();
+    renderUI(<MembersSection {...buildProps({ initialMembers: [OWNER_MEMBER], onInviteClick })} />);
+
+    expect(screen.getByText(/you're the only one here/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /invite your first teammate/i }));
+    expect(onInviteClick).toHaveBeenCalledOnce();
+  });
+
+  it("hides the Invite member CTA in the empty state when you can't admin", () => {
+    setupMembersQuery([VIEWER_MEMBER]);
+    renderUI(
+      <MembersSection
+        {...buildProps({
+          currentUserId: VIEWER_MEMBER.userId,
+          currentUserRole: "VIEWER",
+          initialMembers: [VIEWER_MEMBER],
+        })}
+      />,
+    );
+
+    expect(screen.getByText(/you're the only one here/i)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /invite your first teammate/i }),
+    ).not.toBeInTheDocument();
   });
 });

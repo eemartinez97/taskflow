@@ -23,6 +23,14 @@ import { MembersSection } from "@/app/(dashboard)/team/_components/members-secti
 import { mockUseQuery, setupMutationMock } from "@/tests/support/trpc";
 import { VALID_ORG_ID } from "@/tests/support/fixtures";
 
+/** A second, inert row so a test's focal member doesn't accidentally trigger the "alone" empty state. */
+const OTHER_TEAMMATE = {
+  id: "m-other",
+  userId: "other-teammate",
+  role: "VIEWER" as const,
+  user: { id: "other-teammate", name: "Other Teammate", email: "other@x.com" },
+};
+
 describe("MembersSection", () => {
   it("renders members, online status, and hides admin controls for members", () => {
     vi.mocked(useOnlineUsers).mockReturnValue(new Set(["online-user"]));
@@ -47,6 +55,7 @@ describe("MembersSection", () => {
         currentUserId="online-user"
         currentUserRole="MEMBER"
         initialMembers={[]}
+        onInviteClick={vi.fn()}
       />,
     );
     expect(screen.getByText("Alice")).toBeInTheDocument();
@@ -63,6 +72,7 @@ describe("MembersSection", () => {
         role: "MEMBER",
         user: { id: "u-online", name: "Carl", email: "c@x.com" },
       },
+      OTHER_TEAMMATE,
     ]);
     render(
       <MembersSection
@@ -70,6 +80,7 @@ describe("MembersSection", () => {
         currentUserId="someone-else"
         currentUserRole="MEMBER"
         initialMembers={[]}
+        onInviteClick={vi.fn()}
       />,
     );
     expect(screen.getAllByLabelText("Online")).toHaveLength(1);
@@ -84,6 +95,7 @@ describe("MembersSection", () => {
         role: "ADMIN",
         user: { id: "u1", name: "Alice", email: "a@x.com" },
       },
+      OTHER_TEAMMATE,
     ]);
     const { mutateMock } = setupMutationMock(api.orgs.updateMemberRole);
     render(
@@ -92,9 +104,12 @@ describe("MembersSection", () => {
         currentUserId="owner-id"
         currentUserRole="OWNER"
         initialMembers={[]}
+        onInviteClick={vi.fn()}
       />,
     );
-    await userEvent.setup().selectOptions(screen.getByRole("combobox"), "MEMBER");
+    await userEvent
+      .setup()
+      .selectOptions(screen.getByRole("combobox", { name: /role for alice/i }), "MEMBER");
     expect(mutateMock).toHaveBeenCalledWith({
       orgId: VALID_ORG_ID,
       userId: "u1",
@@ -111,6 +126,7 @@ describe("MembersSection", () => {
         role: "MEMBER",
         user: { id: "u1", name: "Alice", email: "a@x.com" },
       },
+      OTHER_TEAMMATE,
     ]);
     render(
       <MembersSection
@@ -118,6 +134,7 @@ describe("MembersSection", () => {
         currentUserId="owner-id"
         currentUserRole="MEMBER"
         initialMembers={[]}
+        onInviteClick={vi.fn()}
       />,
     );
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
@@ -133,6 +150,7 @@ describe("MembersSection", () => {
         role: "OWNER",
         user: { id: "u1", name: "Alice", email: "a@x.com" },
       },
+      OTHER_TEAMMATE,
     ]);
     render(
       <MembersSection
@@ -140,6 +158,7 @@ describe("MembersSection", () => {
         currentUserId="owner-id"
         currentUserRole="OWNER"
         initialMembers={[]}
+        onInviteClick={vi.fn()}
       />,
     );
     expect(screen.queryByRole("button", { name: /remove alice/i })).not.toBeInTheDocument();
@@ -155,6 +174,7 @@ describe("MembersSection", () => {
         role: "ADMIN",
         user: { id: "owner-id", name: "Me", email: "m@x.com" },
       },
+      OTHER_TEAMMATE,
     ]);
     render(
       <MembersSection
@@ -162,6 +182,7 @@ describe("MembersSection", () => {
         currentUserId="owner-id"
         currentUserRole="OWNER"
         initialMembers={[]}
+        onInviteClick={vi.fn()}
       />,
     );
     expect(screen.queryByRole("button", { name: /remove me/i })).not.toBeInTheDocument();
@@ -176,6 +197,7 @@ describe("MembersSection", () => {
         role: "MEMBER",
         user: { id: "u1", name: "Alice", email: "a@x.com" },
       },
+      OTHER_TEAMMATE,
     ]);
     const { mutateMock } = setupMutationMock(api.orgs.removeMember);
     render(
@@ -184,6 +206,7 @@ describe("MembersSection", () => {
         currentUserId="owner-id"
         currentUserRole="OWNER"
         initialMembers={[]}
+        onInviteClick={vi.fn()}
       />,
     );
     await userEvent.setup().click(screen.getByRole("button", { name: /remove alice/i }));
@@ -200,6 +223,7 @@ describe("MembersSection", () => {
         role: "ADMIN",
         user: { id: "u1", name: "Alice", email: "a@x.com" },
       },
+      OTHER_TEAMMATE,
     ]);
     const { triggerSuccess } = setupMutationMock(api.orgs.updateMemberRole);
     render(
@@ -208,6 +232,7 @@ describe("MembersSection", () => {
         currentUserId="owner-id"
         currentUserRole="OWNER"
         initialMembers={[]}
+        onInviteClick={vi.fn()}
       />,
     );
     act(() => {
@@ -224,6 +249,7 @@ describe("MembersSection", () => {
         role: "MEMBER",
         user: { id: "u1", name: "Alice", email: "a@x.com" },
       },
+      OTHER_TEAMMATE,
     ]);
     const { triggerSuccess } = setupMutationMock(api.orgs.removeMember);
     render(
@@ -232,6 +258,7 @@ describe("MembersSection", () => {
         currentUserId="owner-id"
         currentUserRole="OWNER"
         initialMembers={[]}
+        onInviteClick={vi.fn()}
       />,
     );
     act(() => {
@@ -248,6 +275,7 @@ describe("MembersSection", () => {
         role: "MEMBER",
         user: { id: "u1", name: "Alice", email: "a@x.com" },
       },
+      OTHER_TEAMMATE,
     ]);
     const { mutateMock } = setupMutationMock(api.orgs.removeMember);
     render(
@@ -256,6 +284,7 @@ describe("MembersSection", () => {
         currentUserId="owner-id"
         currentUserRole="OWNER"
         initialMembers={[]}
+        onInviteClick={vi.fn()}
       />,
     );
     const user = userEvent.setup();
@@ -274,9 +303,65 @@ describe("MembersSection", () => {
         currentUserId="owner-id"
         currentUserRole="OWNER"
         initialMembers={[]}
+        onInviteClick={vi.fn()}
       />,
     );
     capturedConfirmProps.onConfirm?.();
     expect(mutateMock).not.toHaveBeenCalled();
+  });
+
+  // -- Empty state (you're the only member) --
+
+  it("shows the empty state with an Invite member CTA when you're alone and can admin", async () => {
+    vi.mocked(useOnlineUsers).mockReturnValue(new Set());
+    mockUseQuery(api.orgs.members, [
+      {
+        id: "m1",
+        userId: "owner-id",
+        role: "OWNER",
+        user: { id: "owner-id", name: "Me", email: "m@x.com" },
+      },
+    ]);
+    const onInviteClick = vi.fn();
+    render(
+      <MembersSection
+        orgId={VALID_ORG_ID}
+        currentUserId="owner-id"
+        currentUserRole="OWNER"
+        initialMembers={[]}
+        onInviteClick={onInviteClick}
+      />,
+    );
+    expect(screen.getByText(/you're the only one here/i)).toBeInTheDocument();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: /invite your first teammate/i }));
+    expect(onInviteClick).toHaveBeenCalledOnce();
+  });
+
+  it("shows the empty state without a CTA when you're alone and can't admin", () => {
+    vi.mocked(useOnlineUsers).mockReturnValue(new Set());
+    mockUseQuery(api.orgs.members, [
+      {
+        id: "m1",
+        userId: "member-id",
+        role: "MEMBER",
+        user: { id: "member-id", name: "Me", email: "m@x.com" },
+      },
+    ]);
+    render(
+      <MembersSection
+        orgId={VALID_ORG_ID}
+        currentUserId="member-id"
+        currentUserRole="MEMBER"
+        initialMembers={[]}
+        onInviteClick={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/you're the only one here/i)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /invite your first teammate/i }),
+    ).not.toBeInTheDocument();
   });
 });

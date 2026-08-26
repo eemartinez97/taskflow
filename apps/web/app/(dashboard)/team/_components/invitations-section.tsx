@@ -1,12 +1,13 @@
 "use client";
 
-import { RotateCw, XCircle } from "lucide-react";
+import { Mail, RotateCw, XCircle } from "lucide-react";
 import { useState, type JSX } from "react";
 
 import type { OrgInvitation } from "@taskflow/shared";
 import { Badge, Button, type BadgeProps } from "@taskflow/ui";
 
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
+import { EmptyState } from "@/components/common/empty-state";
 import { toast } from "@/lib/toast/store";
 import { api } from "@/lib/trpc/client";
 
@@ -76,9 +77,11 @@ export function InvitationsSection({
       </h3>
 
       {invitations.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-500">
-          No invitations sent yet.
-        </p>
+        <EmptyState
+          icon={Mail}
+          title="No invitations sent yet"
+          description="Use the Invite member button above to bring someone onto the team."
+        />
       ) : (
         <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
           {invitations.map((inv) => (

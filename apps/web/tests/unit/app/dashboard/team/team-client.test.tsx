@@ -6,7 +6,12 @@ vi.mock("@/lib/hooks/use-org-invitations-realtime", () => ({
   useOrgInvitationsRealtime: vi.fn(),
 }));
 vi.mock("@/app/(dashboard)/team/_components/members-section", () => ({
-  MembersSection: ({ orgId }: { orgId: string }) => <p>MembersSection: {orgId}</p>,
+  MembersSection: ({ orgId, onInviteClick }: { orgId: string; onInviteClick: () => void }) => (
+    <div>
+      <p>MembersSection: {orgId}</p>
+      <button onClick={onInviteClick}>Empty-state invite trigger</button>
+    </div>
+  ),
 }));
 vi.mock("@/app/(dashboard)/team/_components/invitations-section", () => ({
   InvitationsSection: ({ orgId }: { orgId: string }) => <p>InvitationsSection: {orgId}</p>,
@@ -64,5 +69,14 @@ describe("TeamClient", () => {
   it("always renders the members section", () => {
     render(<TeamClient {...buildProps()} />);
     expect(screen.getByText("MembersSection: org-1")).toBeInTheDocument();
+  });
+
+  it("wires MembersSection's onInviteClick to the same invite dialog", async () => {
+    render(<TeamClient {...buildProps({ currentUserRole: "ADMIN" })} />);
+    expect(screen.queryByText("InviteDialog open")).not.toBeInTheDocument();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: /empty-state invite trigger/i }));
+    expect(screen.getByText("InviteDialog open")).toBeInTheDocument();
   });
 });

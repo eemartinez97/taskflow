@@ -179,17 +179,28 @@ export function KanbanBoard({
   const renameMutation = api.boards.update.useMutation({
     onMutate: async ({ data }) => {
       await utils.boards.get.cancel({ orgId, boardId });
+      await utils.boards.list.cancel({ orgId, projectId });
       const previous = utils.boards.get.getData({ orgId, boardId });
+      const previousList = utils.boards.list.getData({ orgId, projectId });
       utils.boards.get.setData({ orgId, boardId }, (prev) =>
         prev ? { ...prev, name: data.name ?? prev.name } : prev,
       );
+      // The board switcher's <Select> reads its own boards.list query, not
+      // boards.get - without this it kept showing the old name until a full
+      // page reload re-fetched the list from the server.
+      utils.boards.list.setData({ orgId, projectId }, (prev) =>
+        prev?.map((b) => (b.id === boardId ? { ...b, name: data.name ?? b.name } : b)),
+      );
 
-      return { previous };
+      return { previous, previousList };
     },
     onError: (_err, _vars, ctx) => {
       // Roll back the optimistic name; the global MutationCache shows the toast
       if (ctx?.previous !== undefined) {
         utils.boards.get.setData({ orgId, boardId }, ctx.previous);
+      }
+      if (ctx?.previousList !== undefined) {
+        utils.boards.list.setData({ orgId, projectId }, ctx.previousList);
       }
     },
     onSuccess: () => {
@@ -197,6 +208,7 @@ export function KanbanBoard({
     },
     onSettled: () => {
       void utils.boards.get.invalidate({ orgId, boardId });
+      void utils.boards.list.invalidate({ orgId, projectId });
     },
   });
 

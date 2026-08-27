@@ -146,6 +146,7 @@ export function ProjectList({ orgId, initialOrg, initialProjects }: ProjectListP
         }}
         title="Delete project"
         description={`Are you sure you want to delete "${deleteTarget?.name ?? ""}"? This will permanently remove all boards, columns, and tasks.`}
+        {...(deleteTarget ? { confirmText: deleteTarget.name } : {})}
         confirmLabel="Delete project"
         loading={deleteMutation.isPending}
         danger

@@ -9,6 +9,7 @@ import { Button } from "@taskflow/ui";
 
 import { NotificationsPanel } from "./notifications-panel";
 import { NAV_ITEMS, SECONDARY_ROUTE_TITLES } from "@/lib/constants/navigation";
+import { useAppRouter } from "@/lib/hooks/use-app-router";
 import { useDisclosure } from "@/lib/hooks/use-disclosure";
 import { userInitials } from "@/lib/utils/user";
 import { api } from "@/lib/trpc/client";
@@ -18,6 +19,7 @@ import { useGlobalRealtime } from "@/lib/hooks/use-global-realtime";
 export function Header(): JSX.Element {
   const { data: session } = useSession();
   const pathname = usePathname();
+  const router = useAppRouter();
   const notifPanel = useDisclosure();
   const signOutMutation = api.auth.signOut.useMutation();
   useGlobalRealtime();
@@ -60,7 +62,14 @@ export function Header(): JSX.Element {
             )}
           </Button>
 
-          {notifPanel.isOpen && <NotificationsPanel onClose={notifPanel.close} />}
+          {notifPanel.isOpen && (
+            <NotificationsPanel
+              onClose={notifPanel.close}
+              onNavigate={(href) => {
+                router.push(href);
+              }}
+            />
+          )}
         </div>
 
         {/* User avatar */}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useSyncExternalStore, type JSX } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 import { useGlobalLoading } from "@/lib/hooks/use-global-loading";
 import {
@@ -38,10 +38,17 @@ export function NavProgressBar(): JSX.Element | null {
   );
   const active = useGlobalLoading();
   const pathname = usePathname();
+  // Search-params-only navigations (e.g. /team?from=x -> /team, or
+  // /team?from=x -> /team?from=y) never change pathname, so a pathname-only
+  // dependency here never clears them - the bar/dim/cursor stay stuck until
+  // the 8s fallback. `useSearchParams()` needs the Suspense boundary this
+  // component is already wrapped in (see app/providers.tsx).
+  const searchParams = useSearchParams();
+  const url = `${pathname}?${searchParams.toString()}`;
 
   useEffect(() => {
     endNavProgress();
-  }, [pathname]);
+  }, [url]);
 
   useEffect(() => {
     if (!navActive) return;

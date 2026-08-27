@@ -68,6 +68,88 @@ describe("ConfirmDialog", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it("copies confirmText to the clipboard and shows a brief 'Copied' state", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    // user-event installs its own navigator.clipboard stub as soon as
+    // setup() runs, so this must be defined AFTER setup() to not get
+    // clobbered by it.
+    const user = userEvent.setup();
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+
+    render(
+      <ConfirmDialog
+        open
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+        title="T"
+        description="D"
+        confirmText="my-org"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: 'Copy "my-org"' }));
+
+    expect(writeText).toHaveBeenCalledWith("my-org");
+    expect(await screen.findByRole("button", { name: "Copied" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: 'Copy "my-org"' }, { timeout: 2500 }),
+    ).toBeInTheDocument();
+  });
+
+  it("swallows a clipboard write rejection without crashing or showing 'Copied'", async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error("denied"));
+    const user = userEvent.setup();
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+
+    render(
+      <ConfirmDialog
+        open
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+        title="T"
+        description="D"
+        confirmText="my-org"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: 'Copy "my-org"' }));
+
+    expect(writeText).toHaveBeenCalledWith("my-org");
+    expect(screen.queryByRole("button", { name: "Copied" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: 'Copy "my-org"' })).toBeInTheDocument();
+  });
+
+  it("does nothing when the Clipboard API is unavailable", async () => {
+    const user = userEvent.setup();
+    // user-event's setup() installs its own navigator.clipboard stub, so
+    // this must run AFTER setup() to actually remove it.
+    // @ts-expect-error: deleting a non-optional lib.dom property to simulate
+    // an environment without the Clipboard API.
+    delete navigator.clipboard;
+
+    render(
+      <ConfirmDialog
+        open
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+        title="T"
+        description="D"
+        confirmText="my-org"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: 'Copy "my-org"' }));
+
+    expect(screen.queryByRole("button", { name: "Copied" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: 'Copy "my-org"' })).toBeInTheDocument();
+  });
+
   it("disables both buttons while loading", () => {
     render(
       <ConfirmDialog

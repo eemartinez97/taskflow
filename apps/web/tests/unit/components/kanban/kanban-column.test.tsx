@@ -8,6 +8,8 @@ vi.mock("@dnd-kit/utilities", () => import("@/tests/mocks/dnd-kit-utilities"));
 import { KanbanColumn } from "@/components/kanban/kanban-column";
 import { makeColumn, makeTask } from "@/tests/support/factories";
 
+window.HTMLElement.prototype.scrollIntoView = vi.fn();
+
 const column = makeColumn({ name: "To Do" });
 const task = makeTask();
 

@@ -5,10 +5,23 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/hooks/use-notifications", () => ({ useNotifications: vi.fn() }));
 vi.mock("@/lib/hooks/use-global-realtime", () => ({ useGlobalRealtime: vi.fn() }));
 vi.mock("@/components/layout/notifications-panel", () => ({
-  NotificationsPanel: ({ onClose }: { onClose: () => void }) => (
+  NotificationsPanel: ({
+    onClose,
+    onNavigate,
+  }: {
+    onClose: () => void;
+    onNavigate: (href: string) => void;
+  }) => (
     <div>
       Panel
       <button onClick={onClose}>close-panel</button>
+      <button
+        onClick={() => {
+          onNavigate("/team?from=some-org");
+        }}
+      >
+        navigate-panel
+      </button>
     </div>
   ),
 }));
@@ -20,6 +33,7 @@ import { useNotifications } from "@/lib/hooks/use-notifications";
 import { Header } from "@/components/layout/header";
 import { mockSession } from "@/tests/support/fixtures";
 import { setupMutationMockWithMutateCallbacks } from "@/tests/support/trpc";
+import { setupRouterMock } from "@/tests/support/render";
 
 describe("Header", () => {
   it("shows 'Dashboard' as a fallback title when the pathname matches no NAV_ITEM", () => {
@@ -66,6 +80,17 @@ describe("Header", () => {
     expect(screen.getByText("Panel")).toBeInTheDocument();
     await user.click(screen.getByText("close-panel"));
     expect(screen.queryByText("Panel")).not.toBeInTheDocument();
+  });
+
+  it("navigates via its own useAppRouter() when the panel requests it - not a locally-owned one that would unmount with the panel", async () => {
+    vi.mocked(usePathname).mockReturnValue("/projects");
+    vi.mocked(useNotifications).mockReturnValue({ notifications: [], unreadCount: 0 });
+    const { pushMock } = setupRouterMock();
+    render(<Header />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /notifications/i }));
+    await user.click(screen.getByText("navigate-panel"));
+    expect(pushMock).toHaveBeenCalledWith("/team?from=some-org");
   });
 
   it("shows user initials from the session", () => {

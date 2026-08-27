@@ -24,6 +24,7 @@ export function AddTaskButton({
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!adding) return;
@@ -38,6 +39,22 @@ export function AddTaskButton({
     if (!trimmed) return;
     onAdd(trimmed);
     setTitle("");
+    // Re-focus (Add button click moves focus off the input, unlike Enter)
+    // so the control stays open and ready for the next task, matching Enter.
+    inputRef.current?.focus();
+  }
+
+  // Fires on blur of the input AND the Add/Cancel buttons - relatedTarget
+  // tells us whether focus landed elsewhere inside this widget (e.g. Input
+  // -> Add button) or truly left it (another column's control, or away from
+  // the page). Only a real departure with nothing typed collapses the form -
+  // without this, clicking straight into another column's "Add task" left
+  // this one's input+buttons open indefinitely, since the input's own onBlur
+  // only ever saw focus move to this widget's own Add/Cancel button.
+  function handleContainerBlur(e: React.FocusEvent<HTMLDivElement>): void {
+    const next = e.relatedTarget;
+    if (next && rootRef.current?.contains(next)) return;
+    if (!title.trim()) setAdding(false);
   }
 
   if (!adding) {
@@ -59,8 +76,9 @@ export function AddTaskButton({
   }
 
   return (
-    <div className="flex flex-col gap-1.5 pt-1">
+    <div ref={rootRef} onBlur={handleContainerBlur} className="flex flex-col gap-1.5 pt-1">
       <Input
+        ref={inputRef}
         autoFocus
         value={title}
         onChange={(e) => {
@@ -72,9 +90,6 @@ export function AddTaskButton({
             setAdding(false);
             setTitle("");
           }
-        }}
-        onBlur={() => {
-          if (!title.trim()) setAdding(false);
         }}
         placeholder="Task title"
         maxLength={255}

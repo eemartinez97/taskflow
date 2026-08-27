@@ -78,8 +78,15 @@ import {
 } from "@/tests/support/trpc";
 
 interface BoardUpdateOptions {
-  onMutate?: (vars: { data: { name?: string } }) => Promise<{ previous: unknown }>;
-  onError?: (err: unknown, vars: unknown, ctx: { previous: unknown } | undefined) => void;
+  onMutate?: (vars: { data: { name?: string } }) => Promise<{
+    previous: unknown;
+    previousList: unknown;
+  }>;
+  onError?: (
+    err: unknown,
+    vars: unknown,
+    ctx: { previous: unknown; previousList: unknown } | undefined,
+  ) => void;
   onSuccess?: () => void;
   onSettled?: () => void;
 }
@@ -325,9 +332,37 @@ describe("KanbanBoard - mutations and drag handlers", () => {
     ) => unknown;
     expect(updater(undefined)).toBeUndefined(); // falsy branch of `prev ? ... : prev`
     expect(updater({ name: "Old" })).toEqual({ name: "New name" }); // truthy branch
-    call.onError?.(new Error("x"), {}, { previous: { name: "Old" } });
+
+    // The board switcher's own boards.list query gets the same optimistic rename.
+    const listUpdater = utils.boards.list.setData.mock.calls.at(-1)?.[1] as (
+      prev: { id: string; name: string }[] | undefined,
+    ) => unknown;
+    expect(listUpdater(undefined)).toBeUndefined(); // `prev?.map` on a missing list
+    expect(
+      listUpdater([
+        { id: VALID_BOARD_ID, name: "Old" },
+        { id: "other-board", name: "Kept" },
+      ]),
+    ).toEqual([
+      { id: VALID_BOARD_ID, name: "New name" },
+      { id: "other-board", name: "Kept" },
+    ]);
+
+    call.onError?.(
+      new Error("x"),
+      {},
+      { previous: { name: "Old" }, previousList: [{ id: VALID_BOARD_ID, name: "Old" }] },
+    );
+    expect(utils.boards.list.setData).toHaveBeenCalledWith(
+      { orgId: VALID_ORG_ID, projectId: VALID_PROJECT_ID },
+      [{ id: VALID_BOARD_ID, name: "Old" }],
+    );
     call.onSuccess?.();
     call.onSettled?.();
+    expect(utils.boards.list.invalidate).toHaveBeenCalledWith({
+      orgId: VALID_ORG_ID,
+      projectId: VALID_PROJECT_ID,
+    });
   });
 
   it("falls back to the previous board name when renaming with an undefined name", async () => {
@@ -341,6 +376,14 @@ describe("KanbanBoard - mutations and drag handlers", () => {
     ) => unknown;
     // `data.name` is undefined -> `data.name ?? prev.name` falls back to prev.name
     expect(updater({ name: "Old" })).toEqual({ name: "Old" });
+
+    const listUpdater = utils.boards.list.setData.mock.calls.at(-1)?.[1] as (
+      prev: { id: string; name: string }[] | undefined,
+    ) => unknown;
+    // Same fallback on the list side: `data.name ?? b.name`
+    expect(listUpdater([{ id: VALID_BOARD_ID, name: "Old" }])).toEqual([
+      { id: VALID_BOARD_ID, name: "Old" },
+    ]);
   });
 
   it("handles onError with an undefined rollback context (no-op)", () => {

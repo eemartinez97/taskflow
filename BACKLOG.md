@@ -298,3 +298,16 @@ rediscovered the hard way in production.
       `apps/api/src/metrics/`) but nothing scrapes or displays it. Add
       `prometheus` + `grafana` services to the compose stack for an actual
       dashboard instead of raw `curl`.
+
+## Product features
+
+- [ ] **Multi-language support (i18n).** No i18n library or translated
+      strings exist anywhere in `apps/web` today - every UI string is
+      hardcoded English JSX. Would need a library (e.g. `next-intl`) wired
+      into the App Router, a message-catalog structure, and every existing
+      component migrated off literal strings.
+- [ ] **Dark/light mode.** No theme toggle, no `dark:` Tailwind variants,
+      no `prefers-color-scheme` handling, no `next-themes` (or equivalent)
+      anywhere in `apps/web` - the design system (`packages/ui`) is
+      light-only. Would need a theme provider, persisted user preference,
+      and a pass over `packages/ui` + every page for dark-mode-safe colors.

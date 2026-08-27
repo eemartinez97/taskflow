@@ -60,11 +60,45 @@ describe("AddTaskButton", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByPlaceholderText(/task title/i)).not.toBeInTheDocument();
   });
-  it("collapses on blur with an empty value", async () => {
+  it("does not collapse when focus moves within the widget (e.g. to Cancel)", async () => {
     render(<AddTaskButton onAdd={vi.fn()} taskCount={0} />);
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: /add task/i }));
-    await user.tab();
+    await user.tab(); // Add is disabled while empty, so this lands on Cancel
+    expect(screen.getByPlaceholderText(/task title/i)).toBeInTheDocument();
+  });
+  it("collapses when focus truly leaves the widget while empty", async () => {
+    render(
+      <>
+        <AddTaskButton onAdd={vi.fn()} taskCount={0} />
+        <button type="button">Outside</button>
+      </>,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /add task/i }));
+    await user.click(screen.getByRole("button", { name: /outside/i }));
     expect(screen.queryByPlaceholderText(/task title/i)).not.toBeInTheDocument();
+  });
+  it("keeps the form open when focus leaves the widget with an unsaved draft", async () => {
+    render(
+      <>
+        <AddTaskButton onAdd={vi.fn()} taskCount={0} />
+        <button type="button">Outside</button>
+      </>,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /add task/i }));
+    await user.type(screen.getByPlaceholderText(/task title/i), "Unsaved draft");
+    await user.click(screen.getByRole("button", { name: /outside/i }));
+    expect(screen.getByPlaceholderText(/task title/i)).toHaveValue("Unsaved draft");
+  });
+  it("re-focuses the input after submitting via the Add button, so it stays open", async () => {
+    const onAdd = vi.fn();
+    render(<AddTaskButton onAdd={onAdd} taskCount={0} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /add task/i }));
+    await user.type(screen.getByPlaceholderText(/task title/i), "New task");
+    await user.click(screen.getByRole("button", { name: /^add$/i }));
+    expect(screen.getByPlaceholderText(/task title/i)).toHaveFocus();
   });
 });

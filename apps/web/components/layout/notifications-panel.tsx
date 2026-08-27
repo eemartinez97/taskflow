@@ -6,7 +6,7 @@ import { Check, CheckCheck, Trash2, X } from "lucide-react";
 import { Button } from "@taskflow/ui";
 
 import { api } from "@/lib/trpc/client";
-import { useAppRouter } from "@/lib/hooks/use-app-router";
+import { setActiveOrgId } from "@/lib/utils/active-org";
 import { useNotifications } from "@/lib/hooks/use-notifications";
 import { useInvitationActions } from "@/components/invitations/use-invitation-actions";
 import { formatDate } from "@/lib/utils/date";
@@ -14,12 +14,24 @@ import type { MyInvitation } from "@taskflow/shared";
 
 interface NotificationsPanelProps {
   onClose: () => void;
+  /**
+   * Navigates and closes the panel. Deliberately NOT this component's own
+   * useAppRouter() call: onClose() below unmounts NotificationsPanel (its
+   * parent renders it as `{isOpen && <NotificationsPanel .../>}`), which
+   * would tear down a locally-owned push()'s useTransition before its
+   * pending -> settled effect ever fires - orphaning the endNavProgress()
+   * call and leaving the top progress bar/content dim stuck until the 8s
+   * fallback timer. Header owns this instead, since it never unmounts
+   * across a dashboard navigation (it's rendered once in the (dashboard)
+   * layout), so its transition reliably clears when the destination
+   * actually finishes loading.
+   */
+  onNavigate: (href: string) => void;
 }
 
-export function NotificationsPanel({ onClose }: NotificationsPanelProps): JSX.Element {
+export function NotificationsPanel({ onClose, onNavigate }: NotificationsPanelProps): JSX.Element {
   const panelRef = useRef<HTMLDivElement>(null);
   const utils = api.useUtils();
-  const router = useAppRouter();
 
   const data = useNotifications();
   const { data: myInvitations } = api.invitations.listMine.useQuery();
@@ -70,7 +82,7 @@ export function NotificationsPanel({ onClose }: NotificationsPanelProps): JSX.El
     // misleading "no longer part of" toast. Send them to the pending-
     // invitations list instead, where the same Accept/Decline lives.
     if (n.entityType === "org" && n.entityId) {
-      return n.type === "MEMBER_INVITED" ? "/invitations" : `/organizations/${n.entityId}`;
+      return n.type === "MEMBER_INVITED" ? "/invitations" : `/team?from=${n.entityId}`;
     }
     return null;
   }
@@ -87,8 +99,19 @@ export function NotificationsPanel({ onClose }: NotificationsPanelProps): JSX.El
     const href = notificationHref(n);
     if (!href) return;
 
+    // INVITATION_ACCEPTED/DECLINED point at the org that fired them, which
+    // may not be the sidebar's currently active org - set the cookie
+    // client-side first (same mechanism org-switcher.tsx uses) so /team
+    // renders that org directly, instead of routing through proxy.ts's
+    // /organizations/<id> deep-link redirect (a full extra network
+    // round trip, un-prefetchable from an imperative push) just to get the
+    // same cookie write and land on the same /team?from=<id> URL.
+    if (n.entityType === "org" && n.entityId && n.type !== "MEMBER_INVITED") {
+      setActiveOrgId(n.entityId);
+    }
+
     onClose();
-    router.push(href);
+    onNavigate(href);
   }
 
   return (

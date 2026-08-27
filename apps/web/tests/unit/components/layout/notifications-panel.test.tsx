@@ -17,9 +17,9 @@ import { useNotifications } from "@/lib/hooks/use-notifications";
 import { useInvitationActions } from "@/components/invitations/use-invitation-actions";
 import { NotificationsPanel } from "@/components/layout/notifications-panel";
 import { mockUseQuery, setupMutationMock } from "@/tests/support/trpc";
-import { setupRouterMock } from "@/tests/support/render";
 import type { AppRouter } from "@taskflow/api/trpc";
 import type { inferRouterOutputs } from "@trpc/server";
+import { ACTIVE_ORG_COOKIE } from "@/lib/utils/active-org";
 import { VALID_ORG_ID, VALID_USER_ID } from "@/tests/support/fixtures";
 import { makeMyInvitation } from "@/tests/support/factories";
 
@@ -77,7 +77,7 @@ const genericNotification = makeNotification({
 describe("NotificationsPanel", () => {
   it("shows an empty state with no notifications", () => {
     vi.mocked(useNotifications).mockReturnValue({ notifications: [], unreadCount: 0 });
-    render(<NotificationsPanel onClose={vi.fn()} />);
+    render(<NotificationsPanel onClose={vi.fn()} onNavigate={vi.fn()} />);
     expect(screen.getByText(/no notifications yet/i)).toBeInTheDocument();
   });
 
@@ -86,7 +86,7 @@ describe("NotificationsPanel", () => {
       notifications: [taskNotification],
       unreadCount: 1,
     });
-    render(<NotificationsPanel onClose={vi.fn()} />);
+    render(<NotificationsPanel onClose={vi.fn()} onNavigate={vi.fn()} />);
     expect(screen.getByRole("button", { name: /mark all as read/i })).toBeInTheDocument();
   });
 
@@ -96,7 +96,7 @@ describe("NotificationsPanel", () => {
       unreadCount: 1,
     });
     const { mutateMock } = setupMutationMock(vi.mocked(api.notifications.markAllRead));
-    render(<NotificationsPanel onClose={vi.fn()} />);
+    render(<NotificationsPanel onClose={vi.fn()} onNavigate={vi.fn()} />);
     await userEvent.setup().click(screen.getByRole("button", { name: /mark all as read/i }));
     expect(mutateMock).toHaveBeenCalled();
   });
@@ -104,7 +104,7 @@ describe("NotificationsPanel", () => {
   it("closes on the X button", async () => {
     const onClose = vi.fn();
     vi.mocked(useNotifications).mockReturnValue({ notifications: [], unreadCount: 0 });
-    render(<NotificationsPanel onClose={onClose} />);
+    render(<NotificationsPanel onClose={onClose} onNavigate={vi.fn()} />);
     await userEvent.setup().click(screen.getByRole("button", { name: /close notifications/i }));
     expect(onClose).toHaveBeenCalledOnce();
   });
@@ -115,7 +115,7 @@ describe("NotificationsPanel", () => {
     render(
       <div>
         <button>outside</button>
-        <NotificationsPanel onClose={onClose} />
+        <NotificationsPanel onClose={onClose} onNavigate={vi.fn()} />
       </div>,
     );
     await userEvent.setup().click(screen.getByText("outside"));
@@ -124,68 +124,72 @@ describe("NotificationsPanel", () => {
 
   it("marks a task notification as read and navigates to /tasks?task=<id> on click", async () => {
     const onClose = vi.fn();
-    setupRouterMock();
-    const { pushMock } = setupRouterMock();
+    const onNavigate = vi.fn();
     vi.mocked(useNotifications).mockReturnValue({
       notifications: [taskNotification],
       unreadCount: 1,
     });
     const { mutateMock } = setupMutationMock(vi.mocked(api.notifications.markRead));
-    render(<NotificationsPanel onClose={onClose} />);
+    render(<NotificationsPanel onClose={onClose} onNavigate={onNavigate} />);
     await userEvent.setup().click(screen.getByText("New task assigned"));
     expect(mutateMock).toHaveBeenCalledWith({ ids: ["n1"] });
-    expect(pushMock).toHaveBeenCalledWith("/tasks?task=task-1");
+    expect(onNavigate).toHaveBeenCalledWith("/tasks?task=task-1");
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("navigates to /organizations/<entityId> for an org notification without marking read (already read)", async () => {
-    const { pushMock } = setupRouterMock();
+  it("navigates to /team?from=<entityId> for an org notification, switching the active-org cookie, without marking read (already read)", async () => {
+    document.cookie = `${ACTIVE_ORG_COOKIE}=; path=/; max-age=0`;
+    const onNavigate = vi.fn();
     vi.mocked(useNotifications).mockReturnValue({
       notifications: [orgNotification],
       unreadCount: 0,
     });
     const { mutateMock } = setupMutationMock(vi.mocked(api.notifications.markRead));
-    render(<NotificationsPanel onClose={vi.fn()} />);
+    render(<NotificationsPanel onClose={vi.fn()} onNavigate={onNavigate} />);
     await userEvent.setup().click(screen.getByText("They accepted your invitation"));
     expect(mutateMock).not.toHaveBeenCalled();
-    expect(pushMock).toHaveBeenCalledWith(`/organizations/${VALID_ORG_ID}`);
+    expect(onNavigate).toHaveBeenCalledWith(`/team?from=${VALID_ORG_ID}`);
+    // Set client-side (mirroring org-switcher.tsx) so /team resolves this
+    // org directly, instead of relying on proxy.ts's /organizations/<id>
+    // redirect to do it server-side - see notifications-panel.tsx's handleOpen.
+    expect(document.cookie).toContain(`${ACTIVE_ORG_COOKIE}=${VALID_ORG_ID}`);
   });
 
   it("navigates to /invitations for a MEMBER_INVITED notification (not a member of that org yet)", async () => {
-    const { pushMock } = setupRouterMock();
+    const onNavigate = vi.fn();
     vi.mocked(useNotifications).mockReturnValue({
       notifications: [pendingInviteNotification],
       unreadCount: 1,
     });
     const { mutateMock } = setupMutationMock(vi.mocked(api.notifications.markRead));
-    render(<NotificationsPanel onClose={vi.fn()} />);
+    render(<NotificationsPanel onClose={vi.fn()} onNavigate={onNavigate} />);
     await userEvent.setup().click(screen.getByText("Someone invited you to an org"));
     expect(mutateMock).toHaveBeenCalledWith({ ids: ["n5"] });
-    expect(pushMock).toHaveBeenCalledWith("/invitations");
+    expect(onNavigate).toHaveBeenCalledWith("/invitations");
   });
 
   it("does not navigate for an org notification with no entityId", async () => {
-    const { pushMock } = setupRouterMock();
+    const onNavigate = vi.fn();
     vi.mocked(useNotifications).mockReturnValue({
       notifications: [makeNotification({ id: "n4", type: "MEMBER_INVITED", entityType: "org" })],
       unreadCount: 0,
     });
-    render(<NotificationsPanel onClose={vi.fn()} />);
+    render(<NotificationsPanel onClose={vi.fn()} onNavigate={onNavigate} />);
     await userEvent.setup().click(screen.getByText("Default notification message"));
-    expect(pushMock).not.toHaveBeenCalled();
+    expect(onNavigate).not.toHaveBeenCalled();
   });
 
   it("does not navigate for a notification with no resolvable href", async () => {
-    const { pushMock } = setupRouterMock();
+    const onNavigate = vi.fn();
     vi.mocked(useNotifications).mockReturnValue({
       notifications: [genericNotification],
       unreadCount: 1,
     });
     const { mutateMock } = setupMutationMock(vi.mocked(api.notifications.markRead));
-    render(<NotificationsPanel onClose={vi.fn()} />);
+    render(<NotificationsPanel onClose={vi.fn()} onNavigate={onNavigate} />);
     await userEvent.setup().click(screen.getByText("Generic"));
     expect(mutateMock).toHaveBeenCalledWith({ ids: ["n3"] });
-    expect(pushMock).not.toHaveBeenCalled();
+    expect(onNavigate).not.toHaveBeenCalled();
   });
 
   it("marks a single notification as read via its own button, stopping propagation", async () => {
@@ -193,9 +197,8 @@ describe("NotificationsPanel", () => {
       notifications: [taskNotification],
       unreadCount: 1,
     });
-    setupRouterMock();
     const { mutateMock } = setupMutationMock(vi.mocked(api.notifications.markRead));
-    render(<NotificationsPanel onClose={vi.fn()} />);
+    render(<NotificationsPanel onClose={vi.fn()} onNavigate={vi.fn()} />);
     await userEvent.setup().click(screen.getByRole("button", { name: /mark as read/i }));
     expect(mutateMock).toHaveBeenCalledWith({ ids: ["n1"] });
   });
@@ -205,9 +208,8 @@ describe("NotificationsPanel", () => {
       notifications: [taskNotification],
       unreadCount: 1,
     });
-    setupRouterMock();
     const { mutateMock } = setupMutationMock(vi.mocked(api.notifications.delete));
-    render(<NotificationsPanel onClose={vi.fn()} />);
+    render(<NotificationsPanel onClose={vi.fn()} onNavigate={vi.fn()} />);
     await userEvent.setup().click(screen.getByRole("button", { name: /delete notification/i }));
     expect(mutateMock).toHaveBeenCalledWith({ notificationId: "n1" });
   });
@@ -218,7 +220,7 @@ describe("NotificationsPanel", () => {
       unreadCount: 1,
     });
     const { triggerSuccess } = setupMutationMock(vi.mocked(api.notifications.markRead));
-    render(<NotificationsPanel onClose={vi.fn()} />);
+    render(<NotificationsPanel onClose={vi.fn()} onNavigate={vi.fn()} />);
     triggerSuccess();
   });
 
@@ -231,7 +233,7 @@ describe("NotificationsPanel", () => {
       mockUseQuery(api.invitations.listMine, [
         makeMyInvitation({ id: "inv-1", orgId: VALID_ORG_ID }),
       ]);
-      render(<NotificationsPanel onClose={vi.fn()} />);
+      render(<NotificationsPanel onClose={vi.fn()} onNavigate={vi.fn()} />);
       expect(screen.getByRole("button", { name: "Accept" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Decline" })).toBeInTheDocument();
     });
@@ -244,7 +246,7 @@ describe("NotificationsPanel", () => {
       mockUseQuery(api.invitations.listMine, [
         makeMyInvitation({ id: "inv-1", orgId: "some-other-org" }),
       ]);
-      render(<NotificationsPanel onClose={vi.fn()} />);
+      render(<NotificationsPanel onClose={vi.fn()} onNavigate={vi.fn()} />);
       expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument();
     });
 
@@ -258,12 +260,12 @@ describe("NotificationsPanel", () => {
       mockUseQuery(api.invitations.listMine, [
         makeMyInvitation({ id: "inv-1", orgId: VALID_ORG_ID }),
       ]);
-      render(<NotificationsPanel onClose={vi.fn()} />);
+      render(<NotificationsPanel onClose={vi.fn()} onNavigate={vi.fn()} />);
       expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument();
     });
 
     it("accepts without marking read or navigating (stopPropagation)", async () => {
-      const { pushMock } = setupRouterMock();
+      const onNavigate = vi.fn();
       const accept = vi.fn();
       vi.mocked(useInvitationActions).mockReturnValue({
         accept,
@@ -279,17 +281,16 @@ describe("NotificationsPanel", () => {
         makeMyInvitation({ id: "inv-1", orgId: VALID_ORG_ID }),
       ]);
       const { mutateMock } = setupMutationMock(vi.mocked(api.notifications.markRead));
-      render(<NotificationsPanel onClose={vi.fn()} />);
+      render(<NotificationsPanel onClose={vi.fn()} onNavigate={onNavigate} />);
 
       await userEvent.setup().click(screen.getByRole("button", { name: "Accept" }));
 
       expect(accept).toHaveBeenCalledWith({ invitationId: "inv-1" });
       expect(mutateMock).not.toHaveBeenCalled();
-      expect(pushMock).not.toHaveBeenCalled();
+      expect(onNavigate).not.toHaveBeenCalled();
     });
 
     it("declines without marking read or navigating (stopPropagation)", async () => {
-      setupRouterMock();
       const decline = vi.fn();
       vi.mocked(useInvitationActions).mockReturnValue({
         accept: vi.fn(),
@@ -304,7 +305,7 @@ describe("NotificationsPanel", () => {
       mockUseQuery(api.invitations.listMine, [
         makeMyInvitation({ id: "inv-1", orgId: VALID_ORG_ID }),
       ]);
-      render(<NotificationsPanel onClose={vi.fn()} />);
+      render(<NotificationsPanel onClose={vi.fn()} onNavigate={vi.fn()} />);
 
       await userEvent.setup().click(screen.getByRole("button", { name: "Decline" }));
 

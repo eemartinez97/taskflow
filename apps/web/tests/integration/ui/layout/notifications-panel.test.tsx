@@ -3,7 +3,6 @@ import { screen, fireEvent } from "@testing-library/react";
 import { NotificationsPanel } from "@/components/layout/notifications-panel";
 import { api } from "@/lib/trpc/client";
 import { renderUI } from "../../helpers/render";
-import { setupRouterMock } from "@/tests/support/render";
 
 vi.mock("@/lib/hooks/use-notifications", () => ({
   useNotifications: vi.fn(() => ({ notifications: [], unreadCount: 0 })),
@@ -52,6 +51,7 @@ const UNREAD_NO_ENTITY_NOTIF: MockNotification = {
 // -- Mock mutation setup helpers --
 
 const mockOnClose = vi.fn();
+const mockOnNavigate = vi.fn();
 
 let mockMarkReadMutate: ReturnType<typeof vi.fn>;
 let mockMarkAllMutate: ReturnType<typeof vi.fn>;
@@ -84,8 +84,6 @@ function setupMutationMocks(): void {
 // -- Tests --
 
 describe("NotificationsPanel", () => {
-  const { router: mockRouter } = setupRouterMock();
-
   beforeEach(() => {
     vi.mocked(useNotifications).mockReturnValue({ notifications: [], unreadCount: 0 });
     setupMutationMocks();
@@ -94,14 +92,14 @@ describe("NotificationsPanel", () => {
   // -- Rendering --
 
   it("renders the 'Notifications' heading", () => {
-    renderUI(<NotificationsPanel onClose={mockOnClose} />);
+    renderUI(<NotificationsPanel onClose={mockOnClose} onNavigate={mockOnNavigate} />);
 
     expect(screen.getByText("Notifications")).toBeInTheDocument();
   });
 
   it("renders 'No notifications yet.' when the list is empty", () => {
     vi.mocked(useNotifications).mockReturnValue({ notifications: [], unreadCount: 0 });
-    renderUI(<NotificationsPanel onClose={mockOnClose} />);
+    renderUI(<NotificationsPanel onClose={mockOnClose} onNavigate={mockOnNavigate} />);
 
     expect(screen.getByText(/no notifications yet/i)).toBeInTheDocument();
   });
@@ -111,19 +109,19 @@ describe("NotificationsPanel", () => {
       notifications: [UNREAD_TASK_NOTIF] as never,
       unreadCount: 1,
     });
-    renderUI(<NotificationsPanel onClose={mockOnClose} />);
+    renderUI(<NotificationsPanel onClose={mockOnClose} onNavigate={mockOnNavigate} />);
 
     expect(screen.getByText(UNREAD_TASK_NOTIF.message)).toBeInTheDocument();
   });
 
   it("renders the Close button", () => {
-    renderUI(<NotificationsPanel onClose={mockOnClose} />);
+    renderUI(<NotificationsPanel onClose={mockOnClose} onNavigate={mockOnNavigate} />);
 
     expect(screen.getByRole("button", { name: /close notifications/i })).toBeInTheDocument();
   });
 
   it("has the region role with label 'Notifications'", () => {
-    renderUI(<NotificationsPanel onClose={mockOnClose} />);
+    renderUI(<NotificationsPanel onClose={mockOnClose} onNavigate={mockOnNavigate} />);
 
     expect(screen.getByRole("region", { name: "Notifications" })).toBeInTheDocument();
   });
@@ -131,21 +129,21 @@ describe("NotificationsPanel", () => {
   // -- Close behavior --
 
   it("calls onClose when the Close (X) button is clicked", () => {
-    renderUI(<NotificationsPanel onClose={mockOnClose} />);
+    renderUI(<NotificationsPanel onClose={mockOnClose} onNavigate={mockOnNavigate} />);
     fireEvent.click(screen.getByRole("button", { name: /close notifications/i }));
 
     expect(mockOnClose).toHaveBeenCalledOnce();
   });
 
   it("calls onClose when clicking outside the panel", () => {
-    renderUI(<NotificationsPanel onClose={mockOnClose} />);
+    renderUI(<NotificationsPanel onClose={mockOnClose} onNavigate={mockOnNavigate} />);
     fireEvent.mouseDown(document.body);
 
     expect(mockOnClose).toHaveBeenCalledOnce();
   });
 
   it("does NOT call onClose when clicking inside the panel", () => {
-    renderUI(<NotificationsPanel onClose={mockOnClose} />);
+    renderUI(<NotificationsPanel onClose={mockOnClose} onNavigate={mockOnNavigate} />);
     fireEvent.mouseDown(screen.getByRole("region", { name: "Notifications" }));
 
     expect(mockOnClose).not.toHaveBeenCalled();
@@ -155,7 +153,7 @@ describe("NotificationsPanel", () => {
 
   it("does NOT render the 'Mark all as read' button when unreadCount is 0", () => {
     vi.mocked(useNotifications).mockReturnValue({ notifications: [], unreadCount: 0 });
-    renderUI(<NotificationsPanel onClose={mockOnClose} />);
+    renderUI(<NotificationsPanel onClose={mockOnClose} onNavigate={mockOnNavigate} />);
 
     expect(screen.queryByRole("button", { name: /mark all as read/i })).not.toBeInTheDocument();
   });
@@ -165,7 +163,7 @@ describe("NotificationsPanel", () => {
       notifications: [UNREAD_TASK_NOTIF] as never,
       unreadCount: 1,
     });
-    renderUI(<NotificationsPanel onClose={mockOnClose} />);
+    renderUI(<NotificationsPanel onClose={mockOnClose} onNavigate={mockOnNavigate} />);
 
     expect(screen.getByRole("button", { name: /mark all as read/i })).toBeInTheDocument();
   });
@@ -175,7 +173,7 @@ describe("NotificationsPanel", () => {
       notifications: [UNREAD_TASK_NOTIF] as never,
       unreadCount: 1,
     });
-    renderUI(<NotificationsPanel onClose={mockOnClose} />);
+    renderUI(<NotificationsPanel onClose={mockOnClose} onNavigate={mockOnNavigate} />);
     fireEvent.click(screen.getByRole("button", { name: /mark all as read/i }));
 
     expect(mockMarkAllMutate).toHaveBeenCalledOnce();
@@ -188,7 +186,7 @@ describe("NotificationsPanel", () => {
       notifications: [UNREAD_TASK_NOTIF] as never,
       unreadCount: 1,
     });
-    renderUI(<NotificationsPanel onClose={mockOnClose} />);
+    renderUI(<NotificationsPanel onClose={mockOnClose} onNavigate={mockOnNavigate} />);
 
     expect(screen.getByRole("button", { name: "Mark as read" })).toBeInTheDocument();
   });
@@ -198,7 +196,7 @@ describe("NotificationsPanel", () => {
       notifications: [READ_ORG_NOTIF] as never,
       unreadCount: 0,
     });
-    renderUI(<NotificationsPanel onClose={mockOnClose} />);
+    renderUI(<NotificationsPanel onClose={mockOnClose} onNavigate={mockOnNavigate} />);
 
     expect(screen.queryByRole("button", { name: "Mark as read" })).not.toBeInTheDocument();
   });
@@ -208,7 +206,7 @@ describe("NotificationsPanel", () => {
       notifications: [UNREAD_TASK_NOTIF] as never,
       unreadCount: 1,
     });
-    renderUI(<NotificationsPanel onClose={mockOnClose} />);
+    renderUI(<NotificationsPanel onClose={mockOnClose} onNavigate={mockOnNavigate} />);
     fireEvent.click(screen.getByRole("button", { name: "Mark as read" }));
 
     expect(mockMarkReadMutate).toHaveBeenCalledWith({ ids: [UNREAD_TASK_NOTIF.id] });
@@ -221,7 +219,7 @@ describe("NotificationsPanel", () => {
       notifications: [UNREAD_TASK_NOTIF, READ_ORG_NOTIF] as never,
       unreadCount: 1,
     });
-    renderUI(<NotificationsPanel onClose={mockOnClose} />);
+    renderUI(<NotificationsPanel onClose={mockOnClose} onNavigate={mockOnNavigate} />);
 
     expect(screen.getAllByRole("button", { name: "Delete notification" })).toHaveLength(2);
   });
@@ -231,7 +229,7 @@ describe("NotificationsPanel", () => {
       notifications: [UNREAD_TASK_NOTIF] as never,
       unreadCount: 1,
     });
-    renderUI(<NotificationsPanel onClose={mockOnClose} />);
+    renderUI(<NotificationsPanel onClose={mockOnClose} onNavigate={mockOnNavigate} />);
     fireEvent.click(screen.getByRole("button", { name: "Delete notification" }));
 
     expect(mockDeleteMutate).toHaveBeenCalledWith({ notificationId: UNREAD_TASK_NOTIF.id });
@@ -244,11 +242,11 @@ describe("NotificationsPanel", () => {
       notifications: [UNREAD_TASK_NOTIF] as never,
       unreadCount: 1,
     });
-    renderUI(<NotificationsPanel onClose={mockOnClose} />);
+    renderUI(<NotificationsPanel onClose={mockOnClose} onNavigate={mockOnNavigate} />);
     fireEvent.click(screen.getByText(UNREAD_TASK_NOTIF.message));
 
     const expectedEntityId = UNREAD_TASK_NOTIF.entityId ?? "";
-    expect(mockRouter.push).toHaveBeenCalledWith(`/tasks?task=${expectedEntityId}`);
+    expect(mockOnNavigate).toHaveBeenCalledWith(`/tasks?task=${expectedEntityId}`);
     expect(mockOnClose).toHaveBeenCalledOnce();
   });
 
@@ -257,7 +255,7 @@ describe("NotificationsPanel", () => {
       notifications: [UNREAD_TASK_NOTIF] as never,
       unreadCount: 1,
     });
-    renderUI(<NotificationsPanel onClose={mockOnClose} />);
+    renderUI(<NotificationsPanel onClose={mockOnClose} onNavigate={mockOnNavigate} />);
     fireEvent.click(screen.getByText(UNREAD_TASK_NOTIF.message));
 
     expect(mockMarkReadMutate).toHaveBeenCalledWith({ ids: [UNREAD_TASK_NOTIF.id] });
@@ -268,21 +266,21 @@ describe("NotificationsPanel", () => {
       notifications: [READ_ORG_NOTIF] as never,
       unreadCount: 0,
     });
-    renderUI(<NotificationsPanel onClose={mockOnClose} />);
+    renderUI(<NotificationsPanel onClose={mockOnClose} onNavigate={mockOnNavigate} />);
     fireEvent.click(screen.getByText(READ_ORG_NOTIF.message));
 
     expect(mockMarkReadMutate).not.toHaveBeenCalled();
   });
 
-  it("navigates to /organizations/<entityId> and closes panel when clicking an org notification", () => {
+  it("navigates to /team?from=<entityId> and closes panel when clicking an org notification", () => {
     vi.mocked(useNotifications).mockReturnValue({
       notifications: [READ_ORG_NOTIF] as never,
       unreadCount: 0,
     });
-    renderUI(<NotificationsPanel onClose={mockOnClose} />);
+    renderUI(<NotificationsPanel onClose={mockOnClose} onNavigate={mockOnNavigate} />);
     fireEvent.click(screen.getByText(READ_ORG_NOTIF.message));
 
-    expect(mockRouter.push).toHaveBeenCalledWith(`/organizations/${READ_ORG_NOTIF.entityId ?? ""}`);
+    expect(mockOnNavigate).toHaveBeenCalledWith(`/team?from=${READ_ORG_NOTIF.entityId ?? ""}`);
     expect(mockOnClose).toHaveBeenCalledOnce();
   });
 
@@ -291,10 +289,10 @@ describe("NotificationsPanel", () => {
       notifications: [UNREAD_NO_ENTITY_NOTIF] as never,
       unreadCount: 1,
     });
-    renderUI(<NotificationsPanel onClose={mockOnClose} />);
+    renderUI(<NotificationsPanel onClose={mockOnClose} onNavigate={mockOnNavigate} />);
     fireEvent.click(screen.getByText(UNREAD_NO_ENTITY_NOTIF.message));
 
-    expect(mockRouter.push).not.toHaveBeenCalled();
+    expect(mockOnNavigate).not.toHaveBeenCalled();
     expect(mockOnClose).not.toHaveBeenCalled();
   });
 });

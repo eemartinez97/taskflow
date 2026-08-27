@@ -214,122 +214,136 @@ export function OrgSwitcher(): JSX.Element | null {
   }
 
   return (
-    <div ref={containerRef} className="relative px-3 py-4">
-      <button
-        ref={triggerRef}
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={menuOpen}
-        /* v8 ignore next -- activeOrg is always defined here: this JSX only renders past the orgs.length === 0 early return above, where firstOrg (its fallback) is guaranteed */
-        aria-label={`Switch organization, current: ${activeOrg?.name ?? ""}${
-          invitationCount > 0
-            ? `, ${String(invitationCount)} pending invitation${invitationCount === 1 ? "" : "s"}`
-            : ""
-        }`}
-        onClick={() => {
-          setMenuOpen((prev) => !prev);
-        }}
-        onKeyDown={(e) => {
-          // Standard menu-button affordance: Arrow keys open straight into
-          // the list instead of requiring an extra Enter/Space first.
-          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-            e.preventDefault();
-            setMenuOpen(true);
-          }
-        }}
-        className="flex w-full items-center gap-2 rounded-md border border-gray-200 bg-white px-2.5 py-2 text-left transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-      >
-        <span
-          aria-hidden="true"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand-100 text-xs font-semibold text-brand-700"
+    <div ref={containerRef} className="px-3 py-4">
+      {/* `relative` scopes the menu's `top-full` to just this button, not the
+      padded container above - otherwise the menu floats a full py-4 below
+      the button instead of hugging it. */}
+      <div className="relative">
+        <button
+          ref={triggerRef}
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          /* v8 ignore next -- activeOrg is always defined here: this JSX only renders past the orgs.length === 0 early return above, where firstOrg (its fallback) is guaranteed */
+          aria-label={`Switch organization, current: ${activeOrg?.name ?? ""}${
+            invitationCount > 0
+              ? `, ${String(invitationCount)} pending invitation${invitationCount === 1 ? "" : "s"}`
+              : ""
+          }`}
+          onClick={() => {
+            setMenuOpen((prev) => !prev);
+          }}
+          onKeyDown={(e) => {
+            // Standard menu-button affordance: Arrow keys open straight into
+            // the list instead of requiring an extra Enter/Space first.
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+              e.preventDefault();
+              setMenuOpen(true);
+            }
+          }}
+          className={cn(
+            "flex w-full items-center gap-2 border border-gray-200 bg-white px-2.5 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500",
+            // Open state reads as the menu's own top edge - flat bottom
+            // corners, no bottom border, and a pressed background - so the
+            // button and the menu below it look like one continuous piece
+            // instead of two unrelated boxes.
+            menuOpen
+              ? "rounded-t-md rounded-b-none border-b-0 bg-gray-50"
+              : "rounded-md hover:bg-gray-50",
+          )}
         >
-          {activeOrg && userInitials({ name: activeOrg.name })}
-        </span>
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-sm font-medium text-gray-900">{activeOrg?.name}</span>
-          <span className="text-xs text-gray-500">{activeRole}</span>
-        </span>
-        {invitationCount > 0 && (
-          <Badge aria-hidden="true" variant="warning">
-            {invitationCount}
-          </Badge>
-        )}
-        <ChevronsUpDown aria-hidden="true" className="h-4 w-4 shrink-0 text-gray-400" />
-      </button>
+          <span
+            aria-hidden="true"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand-100 text-xs font-semibold text-brand-700"
+          >
+            {activeOrg && userInitials({ name: activeOrg.name })}
+          </span>
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate text-sm font-medium text-gray-900">{activeOrg?.name}</span>
+            <span className="text-xs text-gray-500">{activeRole}</span>
+          </span>
+          {invitationCount > 0 && (
+            <Badge aria-hidden="true" variant="warning">
+              {invitationCount}
+            </Badge>
+          )}
+          <ChevronsUpDown aria-hidden="true" className="h-4 w-4 shrink-0 text-gray-400" />
+        </button>
 
-      {menuOpen && (
-        <div
-          role="menu"
-          aria-label="Organizations"
-          onKeyDown={handleMenuKeyDown}
-          className="absolute left-0 right-0 top-full z-50 mt-1 rounded-md border border-gray-200 bg-white py-1 shadow-md"
-        >
-          <div className="px-3 pb-1 pt-2 text-xs font-medium uppercase tracking-wide text-gray-400">
-            Your organizations
-          </div>
+        {menuOpen && (
+          <div
+            role="menu"
+            aria-label="Organizations"
+            onKeyDown={handleMenuKeyDown}
+            className="absolute left-0 right-0 top-full z-50 rounded-b-md border border-t-0 border-gray-200 bg-white py-1 shadow-md"
+          >
+            <div className="px-3 pb-1 pt-2 text-xs font-medium uppercase tracking-wide text-gray-400">
+              Your organizations
+            </div>
 
-          {orgs.map((org) => {
-            const role = org.memberships[0]?.role ?? "VIEWER";
-            const isActive = org.id === activeOrg?.id;
-            return (
-              <button
-                key={org.id}
-                type="button"
-                role="menuitem"
-                aria-current={isActive ? "true" : undefined}
-                onClick={() => {
-                  selectOrg(org.id);
-                }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-gray-50 focus-visible:outline-none focus-visible:bg-gray-50"
-              >
-                <span
-                  aria-hidden="true"
-                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand-100 text-[10px] font-semibold text-brand-700"
+            {orgs.map((org) => {
+              const role = org.memberships[0]?.role ?? "VIEWER";
+              const isActive = org.id === activeOrg?.id;
+              return (
+                <button
+                  key={org.id}
+                  type="button"
+                  role="menuitem"
+                  aria-current={isActive ? "true" : undefined}
+                  onClick={() => {
+                    selectOrg(org.id);
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-gray-50 focus-visible:outline-none focus-visible:bg-gray-50"
                 >
-                  {userInitials({ name: org.name })}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-sm text-gray-900">{org.name}</span>
-                <Badge variant={ROLE_BADGE_VARIANT[role]}>{role}</Badge>
-                <Check
-                  aria-hidden="true"
-                  className={cn("h-4 w-4 shrink-0 text-brand-600", !isActive && "invisible")}
-                />
-              </button>
-            );
-          })}
+                  <span
+                    aria-hidden="true"
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand-100 text-[10px] font-semibold text-brand-700"
+                  >
+                    {userInitials({ name: org.name })}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm text-gray-900">{org.name}</span>
+                  <Badge variant={ROLE_BADGE_VARIANT[role]}>{role}</Badge>
+                  <Check
+                    aria-hidden="true"
+                    className={cn("h-4 w-4 shrink-0 text-brand-600", !isActive && "invisible")}
+                  />
+                </button>
+              );
+            })}
 
-          <div className="my-1 border-t border-gray-100" />
+            <div className="my-1 border-t border-gray-100" />
 
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setMenuOpen(false);
-              router.push("/invitations");
-            }}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus-visible:outline-none focus-visible:bg-gray-50"
-          >
-            <Mail aria-hidden="true" className="h-4 w-4 shrink-0 text-gray-400" />
-            <span className="flex-1">Pending invitations</span>
-            {invitationCount > 0 && <Badge variant="warning">{invitationCount}</Badge>}
-          </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMenuOpen(false);
+                router.push("/invitations");
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus-visible:outline-none focus-visible:bg-gray-50"
+            >
+              <Mail aria-hidden="true" className="h-4 w-4 shrink-0 text-gray-400" />
+              <span className="flex-1">Pending invitations</span>
+              {invitationCount > 0 && <Badge variant="warning">{invitationCount}</Badge>}
+            </button>
 
-          <div className="my-1 border-t border-gray-100" />
+            <div className="my-1 border-t border-gray-100" />
 
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setMenuOpen(false);
-              createDialog.open();
-            }}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-brand-700 hover:bg-gray-50 focus-visible:outline-none focus-visible:bg-gray-50"
-          >
-            <Plus aria-hidden="true" className="h-4 w-4 shrink-0" />
-            Create organization
-          </button>
-        </div>
-      )}
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMenuOpen(false);
+                createDialog.open();
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-brand-700 hover:bg-gray-50 focus-visible:outline-none focus-visible:bg-gray-50"
+            >
+              <Plus aria-hidden="true" className="h-4 w-4 shrink-0" />
+              Create organization
+            </button>
+          </div>
+        )}
+      </div>
 
       {createOrgDialog}
 

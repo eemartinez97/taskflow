@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useSession } from "next-auth/react";
 import { useForm } from "react-hook-form";
-import { useEffect, type JSX } from "react";
+import { useEffect, useRef, type JSX } from "react";
 
 import { updateUserSchema, type UpdateUser } from "@taskflow/shared";
 import {
@@ -39,20 +39,25 @@ export function ProfileForm(): JSX.Element {
     register,
     handleSubmit,
     reset,
-    formState: { errors, isDirty },
+    formState: { errors },
   } = useForm<UpdateUser>({
     resolver: zodResolver(updateUserSchema),
     // Empty on mount; hydrated from auth.me once it resolves (see effect).
     defaultValues: { name: "", image: "" },
   });
 
-  // Single source of truth: auth.me (DB). `defaultValues` is cached on the
-  // first render only, so we sync the resolved values ONCE - but never while
-  // the user is editing (`isDirty`), preserving in-progress input.
+  // Single source of truth: auth.me (DB). Syncs the resolved values into the
+  // form exactly ONCE - a plain ref, not `isDirty` - so a stray dirty flag
+  // (RHF can report isDirty:true with an empty dirtyFields set very briefly
+  // right after mount, before any real user input) can never permanently
+  // block this hydration. Once synced, further auth.me updates are ignored
+  // so in-progress edits are never clobbered.
+  const hasHydrated = useRef(false);
   useEffect(() => {
-    if (!me || isDirty) return;
+    if (!me || hasHydrated.current) return;
+    hasHydrated.current = true;
     reset({ name: me.name ?? "", image: me.image ?? "" });
-  }, [me, isDirty, reset]);
+  }, [me, reset]);
 
   function onSubmit(data: UpdateUser): void {
     mutation.mutate(data);

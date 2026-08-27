@@ -1,6 +1,7 @@
 "use client";
 
 import { type JSX, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { usePathname } from "next/navigation";
 import { Check, ChevronsUpDown, Mail, Plus } from "lucide-react";
 
 import { Badge, cn } from "@taskflow/ui";
@@ -36,8 +37,25 @@ import { userInitials } from "@/lib/utils/user";
  * component reports unsaved changes (see navigation-guard.ts - currently the
  * task detail panel's form), a confirmation dialog runs first.
  */
-export function OrgSwitcher(): JSX.Element | null {
+interface OrgSwitcherProps {
+  /** Renders an icon-only button (org switching + name/role has no compact
+   * form of its own) that preserves the one thing collapse must not hide:
+   * the pending-invitations count.
+   *
+   * Sidebar keys this component on collapsed state (`key={collapsed ? ... }`)
+   * rather than this component resetting its own menu/dialog state on a
+   * `collapsed` change - remounting on toggle is what makes menuOpen,
+   * createDialog, confirmDialog, and pendingOrgId reset for free, the same
+   * as before collapsing fully unmounted this component. Without that key,
+   * e.g. opening the org menu then collapsing would leave menuOpen=true
+   * sitting inert behind the compact button, popping back open with no
+   * corresponding click the next time the sidebar expands. */
+  collapsed?: boolean;
+}
+
+export function OrgSwitcher({ collapsed = false }: OrgSwitcherProps): JSX.Element | null {
   const router = useAppRouter();
+  const pathname = usePathname();
   const { data: orgs } = api.orgs.list.useQuery();
   const { data: myInvitations } = api.invitations.listMine.useQuery();
   const activeId = useSyncExternalStore(subscribeActiveOrg, readActiveOrgId, getServerActiveOrgId);
@@ -78,6 +96,83 @@ export function OrgSwitcher(): JSX.Element | null {
     if (menuOpen) getMenuItems()[0]?.focus();
   }, [menuOpen]);
 
+  function switchTo(orgId: string): void {
+    // Only /projects of the NEW org has ids that make sense - always the nav
+    // target. refresh() is what actually re-fetches data for the new active
+    // org when we're already on /projects (push alone is a same-URL no-op
+    // in that case) - useAppRouter tracks both calls' real completion via
+    // React transitions, so the progress bar/content-dim show correctly
+    // either way.
+    setActiveOrgId(orgId);
+    router.push("/projects");
+    router.refresh();
+  }
+
+  // Defined up here (not down with the rest of the expanded-mode JSX) so the
+  // collapsed branch below can render it too - a zero-org user still needs a
+  // way to create their first org while collapsed, not just the invitations
+  // icon.
+  const createOrgDialog = (
+    <CreateOrgDialog
+      open={createDialog.isOpen}
+      onClose={createDialog.close}
+      onCreated={(orgId) => {
+        createDialog.close();
+        switchTo(orgId);
+      }}
+    />
+  );
+
+  if (collapsed) {
+    // Only the collapsed rail gets an active-state: here the button reads as
+    // a primary nav item (same visual slot/weight as the NAV_ITEMS icons
+    // above it), so it needs the same aria-current/highlight treatment.
+    // Expanded, this same destination is one row inside the org-switcher
+    // menu - clearly secondary there, so it intentionally gets none.
+    const isInvitationsActive = pathname.startsWith("/invitations");
+    return (
+      <div className="flex flex-col items-center gap-1 py-3">
+        {orgs?.length === 0 && (
+          <button
+            type="button"
+            title="Create organization"
+            aria-label="Create organization"
+            onClick={createDialog.open}
+            className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-600 text-white transition-colors hover:bg-brand-700"
+          >
+            <Plus aria-hidden="true" className="h-4 w-4" />
+          </button>
+        )}
+        <button
+          type="button"
+          title="Pending invitations"
+          aria-label={`Pending invitations${invitationCount > 0 ? `, ${String(invitationCount)}` : ""}`}
+          aria-current={isInvitationsActive ? "page" : undefined}
+          onClick={() => {
+            router.push("/invitations");
+          }}
+          className={cn(
+            "relative flex h-8 w-8 items-center justify-center rounded-md transition-colors",
+            isInvitationsActive
+              ? "bg-brand-50 text-brand-700"
+              : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
+          )}
+        >
+          <Mail aria-hidden="true" className="h-4 w-4" />
+          {invitationCount > 0 && (
+            <span
+              aria-hidden="true"
+              className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-medium text-white"
+            >
+              {invitationCount > 9 ? "9+" : invitationCount}
+            </span>
+          )}
+        </button>
+        {createOrgDialog}
+      </div>
+    );
+  }
+
   if (!orgs) return null;
 
   // Computed unconditionally (harmlessly undefined when orgs.length === 0,
@@ -93,18 +188,6 @@ export function OrgSwitcher(): JSX.Element | null {
   function closeMenuAndFocusTrigger(): void {
     setMenuOpen(false);
     triggerRef.current?.focus();
-  }
-
-  function switchTo(orgId: string): void {
-    // Only /projects of the NEW org has ids that make sense - always the nav
-    // target. refresh() is what actually re-fetches data for the new active
-    // org when we're already on /projects (push alone is a same-URL no-op
-    // in that case) - useAppRouter tracks both calls' real completion via
-    // React transitions, so the progress bar/content-dim show correctly
-    // either way.
-    setActiveOrgId(orgId);
-    router.push("/projects");
-    router.refresh();
   }
 
   function selectOrg(orgId: string): void {
@@ -166,17 +249,6 @@ export function OrgSwitcher(): JSX.Element | null {
         break;
     }
   }
-
-  const createOrgDialog = (
-    <CreateOrgDialog
-      open={createDialog.isOpen}
-      onClose={createDialog.close}
-      onCreated={(orgId) => {
-        createDialog.close();
-        switchTo(orgId);
-      }}
-    />
-  );
 
   if (orgs.length === 0) {
     return (

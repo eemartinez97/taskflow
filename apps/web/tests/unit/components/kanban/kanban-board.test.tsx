@@ -95,15 +95,24 @@ interface RenameColumnOptions {
   onError?: (err: unknown, vars: unknown, ctx: { previous: unknown } | undefined) => void;
   onSettled?: () => void;
 }
-interface OnSuccessOnlyOptions {
-  onSuccess?: (...args: never[]) => void;
-}
 interface OnErrorOnlyOptions {
   onError?: () => void;
 }
 interface CreateTaskOptions {
-  onSuccess?: (t: { columnId: string }) => void;
+  onSuccess?: (t: { id: string; columnId: string }) => void;
   onSettled?: () => void;
+}
+interface DeleteColumnOptions {
+  onSuccess?: (result: undefined, variables: { columnId: string }) => void;
+}
+interface ReorderColumnsOptions {
+  onSuccess?: (
+    result: undefined,
+    variables: { payload: { columns: { id: string; position: number }[] } },
+  ) => void;
+}
+interface AddColumnOptions {
+  onSuccess?: (column: { id: string; name: string; position: number }) => void;
 }
 
 const column = makeColumn({ id: VALID_COL_A_ID, name: "To Do" });
@@ -432,18 +441,53 @@ describe("KanbanBoard - mutations and drag handlers", () => {
     call.onSettled?.();
   });
 
-  it("invalidates board + myTasks on deleteColumn success", () => {
+  it("invalidates myTasks and removes the deleted column from cache on deleteColumn success (both setData branches)", () => {
     setupQueries();
     renderBoard();
-    const call = getLastMutationOptions<OnSuccessOnlyOptions>(api.boards.deleteColumn);
-    call.onSuccess?.();
+    const call = getLastMutationOptions<DeleteColumnOptions>(api.boards.deleteColumn);
+    call.onSuccess?.(undefined, { columnId: column.id });
+
+    const utils = getLastMockUtils();
+    const updater = utils.boards.get.setData.mock.calls.at(-1)?.[1] as (
+      prev: { columns: { id: string }[] } | undefined,
+    ) => unknown;
+    expect(updater(undefined)).toBeUndefined(); // falsy branch
+    const result = updater({ columns: [{ id: column.id }, { id: "other" }] }) as {
+      columns: { id: string }[];
+    };
+    expect(result.columns).toEqual([{ id: "other" }]);
   });
 
-  it("invalidates board on reorderColumns success", () => {
+  it("applies new positions and re-sorts columns on reorderColumns success (both setData branches)", () => {
     setupQueries();
     renderBoard();
-    const call = getLastMutationOptions<OnSuccessOnlyOptions>(api.boards.reorderColumns);
-    call.onSuccess?.();
+    const call = getLastMutationOptions<ReorderColumnsOptions>(api.boards.reorderColumns);
+    call.onSuccess?.(undefined, {
+      payload: {
+        columns: [
+          { id: "a", position: 2 },
+          { id: "b", position: 1 },
+        ],
+      },
+    });
+
+    const utils = getLastMockUtils();
+    const updater = utils.boards.get.setData.mock.calls.at(-1)?.[1] as (
+      prev: { columns: { id: string; position: number }[] } | undefined,
+    ) => unknown;
+    expect(updater(undefined)).toBeUndefined(); // falsy branch
+    const result = updater({
+      columns: [
+        { id: "a", position: 1 },
+        { id: "b", position: 2 },
+        { id: "c", position: 3 }, // no matching entry in the mutation payload - keeps its own position
+      ],
+    }) as { columns: { id: string; position: number }[] };
+    expect(result.columns).toEqual([
+      { id: "b", position: 1 },
+      { id: "a", position: 2 },
+      { id: "c", position: 3 },
+    ]);
   });
 
   it("invalidates tasks.list when the move mutation errors", () => {
@@ -453,19 +497,35 @@ describe("KanbanBoard - mutations and drag handlers", () => {
     call.onError?.();
   });
 
-  it("invalidates tasks.list and clears addingTaskColId when createTask settles/succeeds", () => {
+  it("clears addingTaskColId and upserts the new task into cache when createTask settles/succeeds", () => {
     setupQueries();
     renderBoard();
     const call = getLastMutationOptions<CreateTaskOptions>(api.tasks.create);
-    call.onSuccess?.({ columnId: VALID_COL_A_ID });
+    const newTask = { id: "new-task", columnId: VALID_COL_A_ID };
+    call.onSuccess?.(newTask);
     call.onSettled?.();
+
+    const utils = getLastMockUtils();
+    const updater = utils.tasks.list.setData.mock.calls.at(-1)?.[1] as (
+      prev: { id: string }[] | undefined,
+    ) => unknown;
+    expect(updater(undefined)).toEqual([newTask]); // upsertTask's "not found yet" branch
   });
 
-  it("invalidates board on addColumn success", () => {
+  it("appends the new column to cache on addColumn success (both setData branches)", () => {
     setupQueries();
     renderBoard();
-    const call = getLastMutationOptions<OnSuccessOnlyOptions>(api.boards.addColumn);
-    call.onSuccess?.();
+    const call = getLastMutationOptions<AddColumnOptions>(api.boards.addColumn);
+    const newColumn = { id: "new-col", name: "New", position: 2 };
+    call.onSuccess?.(newColumn);
+
+    const utils = getLastMockUtils();
+    const updater = utils.boards.get.setData.mock.calls.at(-1)?.[1] as (
+      prev: { columns: { id: string }[] } | undefined,
+    ) => unknown;
+    expect(updater(undefined)).toBeUndefined(); // falsy branch
+    const result = updater({ columns: [{ id: column.id }] }) as { columns: { id: string }[] };
+    expect(result.columns).toEqual([{ id: column.id }, newColumn]);
   });
 
   it("adds a task via AddTaskButton and calls createTaskMutation", async () => {

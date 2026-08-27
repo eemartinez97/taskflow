@@ -1,21 +1,15 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { getServerSnapshot, useSidebarCollapse } from "@/lib/hooks/use-sidebar-collapse";
+import { useSidebarCollapse } from "@/lib/hooks/use-sidebar-collapse";
+import { SIDEBAR_COLLAPSE_COOKIE } from "@/lib/utils/sidebar-collapse-cookie";
 
-const STORAGE_KEY = "taskflow.sidebar.collapsed";
+function clearCookie(): void {
+  document.cookie = `${SIDEBAR_COLLAPSE_COOKIE}=; path=/; max-age=0`;
+}
 
 describe("useSidebarCollapse", () => {
-  beforeEach(() => {
-    window.localStorage.clear();
-  });
-
-  afterEach(() => {
-    window.localStorage.clear();
-  });
-
-  it("getServerSnapshot always reports expanded", () => {
-    expect(getServerSnapshot()).toBe(false);
-  });
+  beforeEach(clearCookie);
+  afterEach(clearCookie);
 
   it("defaults to expanded when nothing is stored", () => {
     const { result } = renderHook(() => useSidebarCollapse());
@@ -23,13 +17,13 @@ describe("useSidebarCollapse", () => {
   });
 
   it("reads a previously persisted collapsed state on mount", () => {
-    window.localStorage.setItem(STORAGE_KEY, "true");
+    document.cookie = `${SIDEBAR_COLLAPSE_COOKIE}=true; path=/`;
     const { result } = renderHook(() => useSidebarCollapse());
     expect(result.current.collapsed).toBe(true);
   });
 
   it("treats any non-'true' stored value as expanded", () => {
-    window.localStorage.setItem(STORAGE_KEY, "false");
+    document.cookie = `${SIDEBAR_COLLAPSE_COOKIE}=false; path=/`;
     const { result } = renderHook(() => useSidebarCollapse());
     expect(result.current.collapsed).toBe(false);
   });
@@ -41,12 +35,12 @@ describe("useSidebarCollapse", () => {
       result.current.toggle();
     });
     expect(result.current.collapsed).toBe(true);
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBe("true");
+    expect(document.cookie).toContain(`${SIDEBAR_COLLAPSE_COOKIE}=true`);
 
     act(() => {
       result.current.toggle();
     });
     expect(result.current.collapsed).toBe(false);
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBe("false");
+    expect(document.cookie).toContain(`${SIDEBAR_COLLAPSE_COOKIE}=false`);
   });
 });

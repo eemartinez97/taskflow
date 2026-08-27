@@ -2,30 +2,7 @@
 
 import { useCallback, useSyncExternalStore } from "react";
 
-const STORAGE_KEY = "taskflow.sidebar.collapsed";
-
-const listeners = new Set<() => void>();
-
-function readCollapsed(): boolean {
-  return window.localStorage.getItem(STORAGE_KEY) === "true";
-}
-
-/** Exported for direct unit testing - useSyncExternalStore only calls this during actual SSR, never in jsdom. */
-export function getServerSnapshot(): boolean {
-  return false;
-}
-
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-}
-
-function writeCollapsed(value: boolean): void {
-  window.localStorage.setItem(STORAGE_KEY, String(value));
-  for (const listener of listeners) listener();
-}
+import { sidebarCollapseStore as store } from "@/lib/utils/sidebar-collapse-cookie";
 
 export interface SidebarCollapseState {
   collapsed: boolean;
@@ -33,17 +10,23 @@ export interface SidebarCollapseState {
 }
 
 /**
- * Persists the sidebar's collapsed/expanded state across sessions.
- * useSyncExternalStore (same pattern as active-org.ts) rather than
- * useState+useEffect - getServerSnapshot matches SSR's expanded output, and
- * the client snapshot syncs on mount without a setState-in-effect render
- * cascade.
+ * Persists the sidebar's collapsed/expanded state across sessions via a
+ * cookie (not localStorage) so the server can read it too. `initialCollapsed`
+ * should come from a server-side `cookies()` read (see `SidebarServer`) so it
+ * matches what the server actually rendered - useSyncExternalStore only
+ * calls this closure during real SSR/hydration, never afterward, so there is
+ * no expand/collapse flash on load.
  */
-export function useSidebarCollapse(): SidebarCollapseState {
-  const collapsed = useSyncExternalStore(subscribe, readCollapsed, getServerSnapshot);
+export function useSidebarCollapse(initialCollapsed = false): SidebarCollapseState {
+  const collapsed = useSyncExternalStore(
+    store.subscribe,
+    store.read,
+    /* v8 ignore next -- only invoked by useSyncExternalStore during real SSR/hydration; jsdom-based tests always exercise the client store.read() path instead */
+    () => initialCollapsed,
+  );
 
   const toggle = useCallback(() => {
-    writeCollapsed(!readCollapsed());
+    store.write(!store.read());
   }, []);
 
   return { collapsed, toggle };

@@ -1,6 +1,6 @@
 import { Suspense, type JSX } from "react";
 
-import { Sidebar } from "@/components/layout/sidebar";
+import { SidebarServer } from "@/components/layout/sidebar-server";
 import { Header } from "@/components/layout/header";
 import { DashboardContent } from "@/components/layout/dashboard-content";
 
@@ -29,9 +29,11 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children }: DashboardLayoutProps): JSX.Element {
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
-      {/* Wrap Sidebar and Header in case they use getSession internally */}
-      <Suspense fallback={<div className="w-64 bg-gray-100 animate-pulse" />}>
-        <Sidebar />
+      {/* Wrap Sidebar and Header in case they use getSession internally.
+      SidebarServer itself reads the sidebar-collapsed cookie (see its own
+      docblock) - that dynamic read must stay inside this Suspense boundary. */}
+      <Suspense fallback={<div className="w-56 bg-gray-100 animate-pulse" />}>
+        <SidebarServer />
       </Suspense>
       <div className="flex flex-1 flex-col overflow-hidden">
         <Suspense fallback={<div className="h-16 bg-white border-b animate-pulse" />}>

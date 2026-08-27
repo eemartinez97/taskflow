@@ -26,6 +26,7 @@ vi.mock("@/components/common/confirm-dialog", () => ({
     ) : null;
   },
 }));
+import { usePathname } from "next/navigation";
 import { api } from "@/lib/trpc/client";
 import { OrgSwitcher } from "@/components/layout/org-switcher";
 import { registerDirtyCheck } from "@/lib/utils/navigation-guard";
@@ -444,5 +445,142 @@ describe("OrgSwitcher", () => {
     render(<OrgSwitcher />);
     capturedConfirmProps.onConfirm?.();
     expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  // -- Collapsed (icon-only) mode --
+
+  it("renders only a compact invitations button when collapsed, with a count badge", async () => {
+    mockUseQuery(api.orgs.list, [orgA, orgB]);
+    mockUseQuery(api.invitations.listMine, [makeMyInvitation(), makeMyInvitation({ id: "inv-2" })]);
+    const { pushMock } = setupRouterMock();
+    render(<OrgSwitcher collapsed />);
+
+    expect(screen.queryByRole("button", { name: /switch organization/i })).not.toBeInTheDocument();
+    const button = screen.getByRole("button", { name: /pending invitations/i });
+    expect(button).toHaveTextContent("2");
+
+    await userEvent.setup().click(button);
+    expect(pushMock).toHaveBeenCalledWith("/invitations");
+  });
+
+  it("renders the compact invitations button without a badge when there are none", () => {
+    mockUseQuery(api.orgs.list, [orgA]);
+    mockUseQuery(api.invitations.listMine, []);
+    setupRouterMock();
+    render(<OrgSwitcher collapsed />);
+
+    const button = screen.getByRole("button", { name: /pending invitations/i });
+    expect(button).not.toHaveTextContent(/\d/);
+    expect(button).not.toHaveAccessibleName(/,/);
+  });
+
+  it("shows the compact invitations button even while orgs are still loading", () => {
+    mockUseQuery(api.orgs.list, undefined);
+    mockUseQuery(api.invitations.listMine, [makeMyInvitation()]);
+    setupRouterMock();
+    render(<OrgSwitcher collapsed />);
+
+    expect(screen.getByRole("button", { name: /pending invitations/i })).toHaveTextContent("1");
+  });
+
+  it("marks the compact invitations button as active (aria-current) when on /invitations", () => {
+    mockUseQuery(api.orgs.list, [orgA]);
+    mockUseQuery(api.invitations.listMine, []);
+    vi.mocked(usePathname).mockReturnValue("/invitations");
+    setupRouterMock();
+    render(<OrgSwitcher collapsed />);
+
+    expect(screen.getByRole("button", { name: /pending invitations/i })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  it("does not mark the compact invitations button as active on other routes", () => {
+    mockUseQuery(api.orgs.list, [orgA]);
+    mockUseQuery(api.invitations.listMine, []);
+    vi.mocked(usePathname).mockReturnValue("/projects");
+    setupRouterMock();
+    render(<OrgSwitcher collapsed />);
+
+    expect(screen.getByRole("button", { name: /pending invitations/i })).not.toHaveAttribute(
+      "aria-current",
+    );
+  });
+
+  it("also shows a compact create-organization button when collapsed with zero orgs", async () => {
+    mockUseQuery(api.orgs.list, []);
+    mockUseQuery(api.invitations.listMine, []);
+    setupRouterMock();
+    render(<OrgSwitcher collapsed />);
+
+    const createButton = screen.getByRole("button", { name: /create organization/i });
+    await userEvent.setup().click(createButton);
+    expect(screen.getByRole("button", { name: /^create$/i })).toBeInTheDocument();
+  });
+
+  it("does not show the compact create-organization button when collapsed with existing orgs", () => {
+    mockUseQuery(api.orgs.list, [orgA]);
+    mockUseQuery(api.invitations.listMine, []);
+    setupRouterMock();
+    render(<OrgSwitcher collapsed />);
+
+    expect(screen.queryByRole("button", { name: /create organization/i })).not.toBeInTheDocument();
+  });
+
+  it("does not show the compact create-organization button while orgs are still loading", () => {
+    mockUseQuery(api.orgs.list, undefined);
+    mockUseQuery(api.invitations.listMine, []);
+    setupRouterMock();
+    render(<OrgSwitcher collapsed />);
+
+    expect(screen.queryByRole("button", { name: /create organization/i })).not.toBeInTheDocument();
+  });
+
+  it("resets menu state across a collapse/expand round trip (remounted via key at the call site, matching Sidebar)", async () => {
+    mockUseQuery(api.orgs.list, [orgA, orgB]);
+    setupRouterMock();
+    const user = userEvent.setup();
+    const { rerender } = render(<OrgSwitcher key="expanded" collapsed={false} />);
+
+    await user.click(trigger());
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+
+    // Sidebar re-keys OrgSwitcher on every collapse/expand toggle - simulate
+    // that round trip here instead of just changing the `collapsed` prop in
+    // place, which wouldn't remount and so wouldn't exercise the reset.
+    rerender(<OrgSwitcher key="collapsed" collapsed />);
+    rerender(<OrgSwitcher key="expanded" collapsed={false} />);
+
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(trigger()).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("resets the create-org dialog across a collapse/expand round trip", async () => {
+    mockUseQuery(api.orgs.list, [orgA]);
+    setupRouterMock();
+    const user = userEvent.setup();
+    const { rerender } = render(<OrgSwitcher key="expanded" collapsed={false} />);
+
+    await user.click(trigger());
+    await user.click(screen.getByRole("menuitem", { name: /create organization/i }));
+    expect(screen.getByRole("button", { name: /^create$/i })).toBeInTheDocument();
+
+    rerender(<OrgSwitcher key="collapsed" collapsed />);
+    rerender(<OrgSwitcher key="expanded" collapsed={false} />);
+
+    expect(screen.queryByRole("button", { name: /^create$/i })).not.toBeInTheDocument();
+  });
+
+  it("caps the compact invitations badge at '9+' for more than 9 invitations", () => {
+    mockUseQuery(api.orgs.list, [orgA]);
+    mockUseQuery(
+      api.invitations.listMine,
+      Array.from({ length: 10 }, (_, i) => makeMyInvitation({ id: `inv-${String(i)}` })),
+    );
+    setupRouterMock();
+    render(<OrgSwitcher collapsed />);
+
+    expect(screen.getByRole("button", { name: /pending invitations/i })).toHaveTextContent("9+");
   });
 });

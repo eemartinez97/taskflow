@@ -121,7 +121,7 @@ export function OrganizationSection({ org, role }: OrganizationSectionProps): JS
               <p className="text-sm text-gray-600">
                 Permanently delete {org.name} and all of its projects, boards and tasks.
               </p>
-              <Button variant="destructive" onClick={deleteDialog.open}>
+              <Button variant="destructive" onClick={deleteDialog.open} className="shrink-0">
                 Delete organization
               </Button>
             </div>

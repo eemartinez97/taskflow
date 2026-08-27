@@ -53,10 +53,9 @@ test.describe("Leaving an organization", () => {
       await clickNavLink(memberPage, "Settings", /\/settings/);
       await clickNavLink(memberPage, "General", /\/settings\/organization/);
       await memberPage.getByRole("button", { name: "Leave", exact: true }).click();
-      await memberPage
-        .getByRole("dialog")
-        .getByRole("button", { name: "Yes, leave", exact: true })
-        .click();
+      const leaveDialog = memberPage.getByRole("dialog");
+      await leaveDialog.getByLabel(/type/i).fill(org.name);
+      await leaveDialog.getByRole("button", { name: "Yes, leave", exact: true }).click();
 
       await expect(memberPage).toHaveURL(/\/projects/, { timeout: 15_000 });
       // This was the member's ONLY org, so the switcher falls all the way

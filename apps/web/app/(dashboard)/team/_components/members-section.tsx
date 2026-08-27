@@ -168,6 +168,7 @@ export function MembersSection({
         }}
         title="Remove member"
         description={`Remove ${removeTarget?.user.name ?? removeTarget?.user.email ?? "this member"} from the organization?`}
+        {...(removeTarget ? { confirmText: removeTarget.user.email } : {})}
         confirmLabel="Remove"
         loading={removeMutation.isPending}
         danger

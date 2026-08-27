@@ -75,6 +75,7 @@ export function LeaveOrgSection({ orgId, orgName, role }: LeaveOrgSectionProps):
         }}
         title="Leave organization"
         description={`Are you sure you want to leave "${orgName}"? You'll need a new invitation to rejoin.`}
+        confirmText={orgName}
         confirmLabel="Yes, leave"
         loading={leaveMutation.isPending}
         danger

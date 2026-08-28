@@ -136,7 +136,7 @@ const defaultBoardProps = {
   initialTasks: { [VALID_COL_A_ID]: [task] },
   labelsByTask: {},
   presence: [] as { userId: string; name: string; color: string }[],
-  cursors: [] as { userId: string; x: number; y: number }[],
+  cursors: [] as { userId: string; x: number; y: number; columnId?: string }[],
   canEdit: true,
   canManageBoards: true,
 };
@@ -781,6 +781,26 @@ describe("KanbanBoard - mutations and drag handlers", () => {
       presence: [{ userId: "peer-1", name: "Peer One", color: "#000" }],
     });
     expect(screen.queryByText("Peer One")).not.toBeInTheDocument();
+  });
+
+  it("renders two peer cursors captured over the same column nested inside it", () => {
+    setupQueries();
+    vi.mocked(useCursorsHidden).mockReturnValue({
+      cursorsHidden: false,
+      setCursorsHidden: vi.fn(),
+    });
+    renderBoard({
+      cursors: [
+        { userId: "peer-1", x: 10, y: 10, columnId: VALID_COL_A_ID },
+        { userId: "peer-2", x: 20, y: 20, columnId: VALID_COL_A_ID },
+      ],
+      presence: [
+        { userId: "peer-1", name: "Peer One", color: "#000" },
+        { userId: "peer-2", name: "Peer Two", color: "#111" },
+      ],
+    });
+    expect(screen.getByText("Peer One")).toBeInTheDocument();
+    expect(screen.getByText("Peer Two")).toBeInTheDocument();
   });
 
   it("resolves a task's assignee from formerAssignees when they are no longer a member", () => {

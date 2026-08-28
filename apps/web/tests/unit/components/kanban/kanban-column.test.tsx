@@ -10,6 +10,14 @@ import { makeColumn, makeTask } from "@/tests/support/factories";
 
 window.HTMLElement.prototype.scrollIntoView = vi.fn();
 
+// KanbanColumn now sizes its cursor-flip check off its own scroll container
+// via useElementSize - jsdom has no real ResizeObserver.
+globalThis.ResizeObserver = class {
+  observe = vi.fn();
+  disconnect = vi.fn();
+  unobserve = vi.fn();
+};
+
 const column = makeColumn({ name: "To Do" });
 const task = makeTask();
 
@@ -26,6 +34,8 @@ const defaultProps = {
   addingTaskId: null,
   labelsByTask: {},
   canEdit: true,
+  cursors: [],
+  presenceById: new Map(),
 };
 
 describe("KanbanColumn", () => {

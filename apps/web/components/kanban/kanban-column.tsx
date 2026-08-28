@@ -2,17 +2,19 @@
 import { useSortable, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CircleMinus, GripVertical, Trash2 } from "lucide-react";
 import { CSS } from "@dnd-kit/utilities";
-import { type JSX } from "react";
+import { useRef, type JSX } from "react";
 
 import type { Column, Label, Task } from "@taskflow/database";
-import { TASK_STATUSES, type TaskStatus } from "@taskflow/shared";
+import { TASK_STATUSES, type SocketPresenceUser, type TaskStatus } from "@taskflow/shared";
 import { cn, InlineEditText } from "@taskflow/ui";
 
 import { STATUS_ICONS, STATUS_TEXT_COLORS } from "@/lib/constants/task";
+import { useElementSize } from "@/lib/hooks/use-element-size";
 import { formatTaskStatus } from "@/lib/utils/task";
 import { DropdownMenu } from "../common/dropdown-menu";
 import { AddTaskButton } from "./add-task-button";
 import { KanbanCard } from "./kanban-card";
+import { CursorPointer, shouldFlipCursorLabel, type LiveCursor } from "./kanban-cursors";
 
 interface KanbanColumnProps {
   column: Column;
@@ -29,6 +31,9 @@ interface KanbanColumnProps {
   labelsByTask: Record<string, Label[]>;
   /** False for VIEWER - hides rename/delete/add-task/drag, on this column and its cards. */
   canEdit: boolean;
+  /** Peer cursors captured over THIS column's own task list (see use-cursor-broadcast.ts). */
+  cursors: LiveCursor[];
+  presenceById: Map<string, SocketPresenceUser>;
 }
 
 /**
@@ -50,7 +55,12 @@ export function KanbanColumn({
   onSetColumnStatus,
   assigneeById,
   canEdit,
+  cursors,
+  presenceById,
 }: KanbanColumnProps): JSX.Element {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const { width: scrollWidth } = useElementSize(scrollRef);
+
   // Column-level sortable (for horizontal reorder)
   const {
     attributes,
@@ -191,9 +201,11 @@ export function KanbanColumn({
 
       {/* Task list / drop area (covered by the column's sortable droppable) */}
       <div
+        ref={scrollRef}
         data-column-scroll={column.id}
         className={cn(
-          "flex min-h-[80px] flex-1 flex-col gap-2 overflow-y-auto rounded-md p-1 transition-colors",
+          "relative flex min-h-[80px] flex-1 flex-col gap-2 overflow-y-auto rounded-md p-1",
+          "transition-colors",
           isOver && "bg-brand-50 ring-1 ring-brand-200",
         )}
       >
@@ -211,6 +223,25 @@ export function KanbanColumn({
             />
           ))}
         </SortableContext>
+
+        {/* Nested inside the scrollable div itself (not a sibling) so a
+            column's own vertical scroll repositions these dots for free -
+            mirrors the board-level overlay's horizontal-scroll trick, one
+            level deeper. overflow-hidden keeps an off-screen dot from
+            inflating this column's own scrollHeight. */}
+        <div
+          className="pointer-events-none absolute inset-0 z-40 overflow-hidden"
+          aria-hidden="true"
+        >
+          {cursors.map((c) => (
+            <CursorPointer
+              key={c.userId}
+              cursor={c}
+              meta={presenceById.get(c.userId)}
+              flip={shouldFlipCursorLabel(c.x, scrollWidth)}
+            />
+          ))}
+        </div>
 
         {canEdit && (
           <AddTaskButton

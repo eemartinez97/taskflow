@@ -11,7 +11,7 @@ import { mockSession } from "@/tests/mocks/next-auth";
 import { renderUI } from "../../helpers/render";
 import { wireCapturableMutation } from "../../helpers/mutation";
 import { mockApiUtils, mockUseQuery } from "@/tests/support/trpc";
-import { makeColumn, makeLabel, makeTask } from "@/tests/support/factories";
+import { makeBoard, makeColumn, makeLabel, makeTask } from "@/tests/support/factories";
 
 // -- Module mocks --
 
@@ -163,12 +163,15 @@ function buildProps(
     projectId: "proj-1",
     boardId: "board-1",
     boardName: "Main Board",
+    projectName: "Demo Project",
+    initialBoards: [makeBoard({ id: "board-1", name: "Main Board" })],
     columns: [COL_A, COL_B],
     initialTasks: BASE_INITIAL_TASKS,
     labelsByTask: {},
     presence: [],
     cursors: [],
     canEdit: true,
+    canManageBoards: true,
     ...overrides,
   };
 }
@@ -185,6 +188,7 @@ describe("KanbanBoard", () => {
     mockUseQuery(api.labels.list, []);
     mockUseQuery(api.orgs.assigneeLookup, { members: [], formerAssignees: [] });
     mockUseQuery(api.tasks.labelsByProject, []);
+    mockUseQuery(api.boards.list, [makeBoard({ id: "board-1", name: "Main Board" })]);
     setBoardsGetData = vi.fn();
     setTasksListData = vi.fn();
     mockApiUtils({
@@ -421,31 +425,37 @@ describe("KanbanBoard", () => {
 
   // -- Label filter --
 
-  it("renders a filter pill for each org label", () => {
+  it("renders a filter pill for each org label behind the Filter menu", () => {
     mockUseQuery(api.labels.list, [LABEL_BUG]);
 
     renderUI(<KanbanBoard {...buildProps()} />);
+    fireEvent.click(screen.getByRole("button", { name: /^filter$/i }));
 
-    expect(screen.getByRole("button", { name: "Bug" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitemcheckbox", { name: "Bug" })).toBeInTheDocument();
   });
 
-  it("marks a label filter pill as active (aria-pressed=true) when clicked", () => {
+  it("marks a label filter pill as active (aria-checked=true) when clicked", () => {
     mockUseQuery(api.labels.list, [LABEL_BUG]);
 
     renderUI(<KanbanBoard {...buildProps()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Bug" }));
+    fireEvent.click(screen.getByRole("button", { name: /^filter$/i }));
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Bug" }));
 
-    expect(screen.getByRole("button", { name: "Bug" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("menuitemcheckbox", { name: "Bug" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
   });
 
   it("shows the Clear button when at least one label filter is active", async () => {
     mockUseQuery(api.labels.list, [LABEL_BUG]);
 
     renderUI(<KanbanBoard {...buildProps()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Bug" }));
+    fireEvent.click(screen.getByRole("button", { name: /^filter$/i }));
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Bug" }));
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /clear/i })).toBeInTheDocument();
+      expect(screen.getByRole("menuitem", { name: /clear/i })).toBeInTheDocument();
     });
   });
 
@@ -453,17 +463,21 @@ describe("KanbanBoard", () => {
     mockUseQuery(api.labels.list, [LABEL_BUG]);
 
     renderUI(<KanbanBoard {...buildProps()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Bug" }));
+    fireEvent.click(screen.getByRole("button", { name: /^filter$/i }));
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Bug" }));
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /clear/i })).toBeInTheDocument();
+      expect(screen.getByRole("menuitem", { name: /clear/i })).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /clear/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /clear/i }));
 
     await waitFor(() => {
-      expect(screen.queryByRole("button", { name: /clear/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("menuitem", { name: /clear/i })).not.toBeInTheDocument();
     });
-    expect(screen.getByRole("button", { name: "Bug" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("menuitemcheckbox", { name: "Bug" })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
   });
 
   // -- Delete column flow --

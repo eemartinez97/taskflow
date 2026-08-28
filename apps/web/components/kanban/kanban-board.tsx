@@ -20,7 +20,7 @@ import {
 } from "@dnd-kit/sortable";
 import { useMemo, useRef, useState, type JSX } from "react";
 
-import type { Column, Label, Task } from "@taskflow/database";
+import type { Board, Column, Label, Task } from "@taskflow/database";
 import type { SocketPresenceUser } from "@taskflow/shared";
 
 import { findColumnIdForTask, findTaskInMap, type TasksMap } from "@/lib/board/tasks-map";
@@ -40,7 +40,9 @@ import { UserAvatar } from "../common/user-avatar";
 import { useSession } from "next-auth/react";
 import { useSocketRef } from "@/lib/socket/socket-context";
 import { useCursorBroadcast } from "@/lib/hooks/use-cursor-broadcast";
-import { Eye, EyeOff } from "lucide-react";
+import { MousePointer2 } from "lucide-react";
+import { BoardSwitcher } from "./board-switcher";
+import { LabelFilterMenu } from "./label-filter-menu";
 import { useCursorsHidden } from "@/lib/hooks/use-cursors-pref";
 import { CursorPointer, shouldFlipCursorLabel, type LiveCursor } from "./kanban-cursors";
 import { useElementSize } from "@/lib/hooks/use-element-size";
@@ -77,6 +79,9 @@ interface KanbanBoardProps {
   projectId: string;
   boardId: string;
   boardName: string;
+  projectName: string;
+  /** Every board in the project - powers the board switcher menu. */
+  initialBoards: Board[];
   columns: Column[];
   /** Initial tasks keyed by columnId - populated by the server prefetch */
   initialTasks: TasksMap;
@@ -85,6 +90,8 @@ interface KanbanBoardProps {
   cursors: LiveCursor[];
   /** False for VIEWER - hides/disables every write control (rename, add/delete column, add task, drag-and-drop). */
   canEdit: boolean;
+  /** Only OWNER/ADMIN may create/delete boards; the server enforces it too. */
+  canManageBoards: boolean;
 }
 
 /**
@@ -101,12 +108,15 @@ export function KanbanBoard({
   projectId,
   boardId,
   boardName,
+  projectName,
+  initialBoards,
   columns: initialColumns,
   initialTasks,
   labelsByTask,
   presence,
   cursors,
   canEdit,
+  canManageBoards,
 }: KanbanBoardProps): JSX.Element {
   const [overId, setOverId] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -447,100 +457,92 @@ export function KanbanBoard({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* Board header - click the name to rename (Enter/blur saves, Escape cancels) */}
-      <div className="mb-4 flex items-center gap-2">
+      {/* Board header - one row: project/board breadcrumb (click the board
+          name to rename; the chevron opens the board switcher) on the
+          left, live-cursors toggle + viewers + label filter on the right.
+          Replaces the previous 3-row stack (project name, board
+          name+eye+viewers, label chips) so the board itself gets that
+          vertical space back. */}
+      <div className="mb-4 flex items-center gap-1.5">
+        <span className="text-sm font-medium text-gray-400">{projectName}</span>
+        <span className="text-sm text-gray-300">/</span>
         <InlineEditText
           label="board name"
           value={boardName}
           maxLength={100}
           disabled={!canEdit}
-          className="text-sm font-medium text-gray-500"
+          className="text-sm font-medium text-gray-900"
           onSave={(name) => {
             renameMutation.mutate({ orgId, boardId, data: { name } });
           }}
         />
+        <BoardSwitcher
+          orgId={orgId}
+          projectId={projectId}
+          activeBoardId={boardId}
+          initialBoards={initialBoards}
+          canManage={canManageBoards}
+        />
 
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={cursorsHidden ? "Show live cursors" : "Hide live cursors"}
-          aria-pressed={cursorsHidden}
-          title={cursorsHidden ? "Show live cursors" : "Hide live cursors"}
-          onClick={() => {
-            setCursorsHidden(!cursorsHidden);
-          }}
-          className={cn(
-            "ml-1",
-            cursorsHidden
-              ? "bg-brand-50 text-brand-600 ring-1 ring-brand-200 hover:bg-brand-100 hover:text-brand-700"
-              : "text-gray-400 hover:text-gray-600",
-          )}
-        >
-          {cursorsHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-        </Button>
-
-        {viewers.length > 0 && (
-          <div
-            className="ml-auto flex items-center -space-x-1.5"
-            aria-label="People viewing this board"
-          >
-            {viewers.slice(0, 5).map((user) => (
-              <UserAvatar
-                key={user.userId}
-                user={{ name: user.name }}
-                size="sm"
-                color={user.color}
-                className="ring-2 ring-white"
-              />
-            ))}
-            {viewers.length > 5 && (
-              <span className="ml-2 text-xs text-gray-400">+{viewers.length - 5}</span>
+        <div className="ml-auto flex items-center gap-3">
+          {/* Mouse-pointer icon (not an eye) - this toggles live CURSORS,
+              not who's viewing (that's the avatar stack right next to it,
+              a distinct concept easy to conflate with an eye here). */}
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={cursorsHidden ? "Show live cursors" : "Hide live cursors"}
+            aria-pressed={cursorsHidden}
+            title={cursorsHidden ? "Show live cursors" : "Hide live cursors"}
+            onClick={() => {
+              setCursorsHidden(!cursorsHidden);
+            }}
+            className={cn(
+              // Overrides size="icon"'s default h-9 w-9 - full-size next to
+              // the h-6 w-6 avatars and the Filter pill made the active
+              // (filled) state look oversized against its neighbors.
+              "h-7 w-7",
+              cursorsHidden
+                ? "bg-brand-50 text-brand-600 ring-1 ring-brand-200 hover:bg-brand-100 hover:text-brand-700"
+                : "text-gray-400 hover:text-gray-600",
             )}
-          </div>
-        )}
-      </div>
+          >
+            <MousePointer2 className="h-4 w-4" />
+          </Button>
 
-      {/* Label filter - OR semantics, click to toggle */}
-      {orgLabels.length > 0 && (
-        <div className="mb-3 flex flex-wrap items-center gap-1.5">
-          {orgLabels.map((label) => {
-            const active = labelFilter.includes(label.id);
-            return (
-              <button
-                key={label.id}
-                type="button"
-                aria-pressed={active}
-                onClick={() => {
-                  toggleLabelFilter(label.id);
-                }}
-                className={cn(
-                  "rounded-full border px-2.5 py-0.5 text-xs font-medium transition-opacity",
-                  active ? "text-white" : "text-gray-600 opacity-60 hover:opacity-100",
-                )}
-                style={
-                  active
-                    ? { backgroundColor: label.color, borderColor: label.color }
-                    : { borderColor: label.color }
-                }
+          {viewers.length > 0 && (
+            <>
+              <div className="h-5 w-px bg-gray-200" />
+              <div
+                className="flex items-center -space-x-1.5"
+                aria-label="People viewing this board"
               >
-                {label.name}
-              </button>
-            );
-          })}
-
-          {labelFilter.length > 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                setLabelFilter([]);
-              }}
-              className="text-xs text-gray-400 hover:text-gray-600"
-            >
-              Clear
-            </button>
+                {viewers.slice(0, 5).map((user) => (
+                  <UserAvatar
+                    key={user.userId}
+                    user={{ name: user.name }}
+                    size="sm"
+                    color={user.color}
+                    className="ring-2 ring-white"
+                  />
+                ))}
+                {viewers.length > 5 && (
+                  <span className="ml-2 text-xs text-gray-400">+{viewers.length - 5}</span>
+                )}
+              </div>
+            </>
           )}
+
+          <LabelFilterMenu
+            orgLabels={orgLabels}
+            activeLabelIds={labelFilter}
+            onToggle={toggleLabelFilter}
+            onClear={() => {
+              setLabelFilter([]);
+            }}
+          />
         </div>
-      )}
+      </div>
 
       <DndContext
         id={`board-dnd-${boardId}`}

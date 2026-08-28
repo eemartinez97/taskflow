@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { api } from "@/lib/trpc/client";
 import { toast } from "@/lib/toast/store";
-import { CreateBoardDialog } from "@/app/(dashboard)/projects/[id]/_components/create-board-dialog";
+import { CreateBoardDialog } from "@/components/kanban/create-board-dialog";
 import { setupRouterMock } from "@/tests/support/render";
 import { mockUseMutationResult, setupMutationMock } from "@/tests/support/trpc";
 import { VALID_ORG_ID, VALID_PROJECT_ID } from "@/tests/support/fixtures";

@@ -49,7 +49,10 @@ describe("BoardPageClient", () => {
         boardId={VALID_BOARD_ID}
         initialBoard={boardWithColumns}
         initialTasks={{ [VALID_COL_A_ID]: [task] }}
+        projectName="Demo Project"
+        initialBoards={[board]}
         canEdit={true}
+        canManageBoards={true}
       />,
     );
     expect(screen.getByText(/KanbanBoard: Main Board/)).toBeInTheDocument();
@@ -64,7 +67,10 @@ describe("BoardPageClient", () => {
         boardId={VALID_BOARD_ID}
         initialBoard={boardWithColumns}
         initialTasks={{ [VALID_COL_A_ID]: [task] }}
+        projectName="Demo Project"
+        initialBoards={[board]}
         canEdit={true}
+        canManageBoards={true}
       />,
     );
     expect(screen.getByText("KanbanBoard: Main Board (1 columns)")).toBeInTheDocument();
@@ -81,7 +87,10 @@ describe("BoardPageClient", () => {
         boardId={VALID_BOARD_ID}
         initialBoard={boardWithColumns}
         initialTasks={{ [VALID_COL_A_ID]: [task] }}
+        projectName="Demo Project"
+        initialBoards={[board]}
         canEdit={true}
+        canManageBoards={true}
       />,
     );
     // Rendered via mocked KanbanBoard which doesn't display labels, but the
@@ -102,7 +111,10 @@ describe("BoardPageClient", () => {
         boardId={VALID_BOARD_ID}
         initialBoard={boardWithColumns}
         initialTasks={{ [VALID_COL_A_ID]: [task] }}
+        projectName="Demo Project"
+        initialBoards={[board]}
         canEdit={true}
+        canManageBoards={true}
       />,
     );
     expect(screen.getByText(/KanbanBoard: Main Board/)).toBeInTheDocument();
@@ -122,7 +134,10 @@ describe("BoardPageClient", () => {
         boardId={VALID_BOARD_ID}
         initialBoard={boardX}
         initialTasks={{}}
+        projectName="Demo Project"
+        initialBoards={[board]}
         canEdit={true}
+        canManageBoards={true}
       />,
     );
     expect(screen.getByText(/KanbanBoard/)).toBeInTheDocument();
@@ -140,7 +155,10 @@ describe("BoardPageClient", () => {
         boardId={VALID_BOARD_ID}
         initialBoard={boardWithColumns}
         initialTasks={{}}
+        projectName="Demo Project"
+        initialBoards={[board]}
         canEdit={true}
+        canManageBoards={true}
       />,
     );
     expect(screen.getByText(/KanbanBoard/)).toBeInTheDocument();

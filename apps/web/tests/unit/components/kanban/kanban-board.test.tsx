@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@dnd-kit/core", () => import("@/tests/mocks/dnd-kit"));
 vi.mock("@dnd-kit/sortable", () => import("@/tests/mocks/dnd-kit"));
@@ -63,7 +63,7 @@ import { useBoardDnD } from "@/lib/hooks/use-board-dnd";
 import { useColumnDnD } from "@/lib/hooks/use-column-dnd";
 import { useCursorsHidden } from "@/lib/hooks/use-cursors-pref";
 import { useSession, mockSession } from "@/tests/mocks/next-auth";
-import { makeColumn, makeTask } from "@/tests/support/factories";
+import { makeBoard, makeColumn, makeTask } from "@/tests/support/factories";
 import {
   VALID_BOARD_ID,
   VALID_COL_A_ID,
@@ -73,6 +73,7 @@ import {
 import {
   getLastMockUtils,
   getLastMutationOptions,
+  mockApiUtils,
   mockUseQuery,
   setupMutationMock,
 } from "@/tests/support/trpc";
@@ -129,12 +130,15 @@ const defaultBoardProps = {
   projectId: VALID_PROJECT_ID,
   boardId: VALID_BOARD_ID,
   boardName: "Main Board",
+  projectName: "Demo Project",
+  initialBoards: [makeBoard({ id: VALID_BOARD_ID, name: "Main Board" })],
   columns: [column],
   initialTasks: { [VALID_COL_A_ID]: [task] },
   labelsByTask: {},
   presence: [] as { userId: string; name: string; color: string }[],
   cursors: [] as { userId: string; x: number; y: number }[],
   canEdit: true,
+  canManageBoards: true,
 };
 /** Renders KanbanBoard with the shared default fixture, overriding only what a given test needs. */
 function renderBoard(overrides: Partial<typeof defaultBoardProps> = {}) {
@@ -146,9 +150,14 @@ function setupQueries(): void {
   mockUseQuery(api.orgs.assigneeLookup, { members: [], formerAssignees: [] });
   mockUseQuery(api.tasks.get, makeTask());
   mockUseQuery(api.tasks.labels, []);
+  mockUseQuery(api.boards.list, defaultBoardProps.initialBoards);
 }
 
 describe("KanbanBoard", () => {
+  beforeEach(() => {
+    mockUseQuery(api.boards.list, defaultBoardProps.initialBoards);
+  });
+
   it("renders the board name and every column", () => {
     setupQueries();
     renderBoard();
@@ -156,7 +165,7 @@ describe("KanbanBoard", () => {
     expect(screen.getByTestId(`column-${VALID_COL_A_ID}`)).toBeInTheDocument();
   });
 
-  it("renders the label filter toggles and toggles a filter on click", () => {
+  it("renders the label filter toggles behind the Filter menu and toggles a filter on click", async () => {
     const label = {
       id: "l1",
       orgId: VALID_ORG_ID,
@@ -168,7 +177,9 @@ describe("KanbanBoard", () => {
     mockUseQuery(api.labels.list, [label]);
     mockUseQuery(api.orgs.assigneeLookup, { members: [], formerAssignees: [] });
     renderBoard({ labelsByTask: { [task.id]: [label] } });
-    expect(screen.getByRole("button", { name: "Bug" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitemcheckbox", { name: "Bug" })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: /^filter$/i }));
+    expect(screen.getByRole("menuitemcheckbox", { name: "Bug" })).toBeInTheDocument();
   });
 
   it("filters out tasks with no entry in labelsByTask when a label filter is active", async () => {
@@ -192,7 +203,8 @@ describe("KanbanBoard", () => {
       labelsByTask: { [task.id]: [label] }, // taskWithoutLabels has NO entry here
     });
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Bug" }));
+    await user.click(screen.getByRole("button", { name: /^filter$/i }));
+    await user.click(screen.getByRole("menuitemcheckbox", { name: "Bug" }));
     // `(labelsByTask[t.id] ?? []).some(...)` -> `?? []` branch for taskWithoutLabels,
     // so it must NOT match the active filter and stays hidden.
     expect(screen.getByTestId(`task-card-${task.id}`)).toBeInTheDocument();
@@ -212,11 +224,12 @@ describe("KanbanBoard", () => {
     mockUseQuery(api.orgs.assigneeLookup, { members: [], formerAssignees: [] });
     renderBoard({ labelsByTask: { [task.id]: [label] } });
     const user = userEvent.setup();
-    const labelButton = screen.getByRole("button", { name: "Bug" });
+    await user.click(screen.getByRole("button", { name: /^filter$/i }));
+    const labelButton = screen.getByRole("menuitemcheckbox", { name: "Bug" });
     await user.click(labelButton); // add branch: [...prev, labelId]
-    expect(labelButton).toHaveAttribute("aria-pressed", "true");
+    expect(labelButton).toHaveAttribute("aria-checked", "true");
     await user.click(labelButton); // remove branch: prev.filter((id) => id !== labelId)
-    expect(labelButton).toHaveAttribute("aria-pressed", "false");
+    expect(labelButton).toHaveAttribute("aria-checked", "false");
   });
 
   it("shows viewer avatars including the current session user", () => {
@@ -335,6 +348,17 @@ describe("KanbanBoard", () => {
 });
 
 describe("KanbanBoard - mutations and drag handlers", () => {
+  beforeEach(() => {
+    mockUseQuery(api.boards.list, defaultBoardProps.initialBoards);
+    // Pins api.useUtils() to ONE shared object across every caller in the
+    // tree (KanbanBoard's own renameMutation AND BoardSwitcher's delete
+    // flow both call it) - without this, the default per-call fresh mock
+    // means getLastMockUtils() below can return BoardSwitcher's (unused)
+    // instance instead of the one a mutation's onMutate/onError closure
+    // actually captured and called setData on.
+    mockApiUtils();
+  });
+
   it("renames the board optimistically via onMutate, covering both ternary branches, and rolls back onError", async () => {
     setupQueries();
     renderBoard();
@@ -708,10 +732,11 @@ describe("KanbanBoard - mutations and drag handlers", () => {
     mockUseQuery(api.orgs.assigneeLookup, { members: [], formerAssignees: [] });
     renderBoard({ labelsByTask: { [task.id]: [label] } });
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Bug" }));
-    expect(await screen.findByRole("button", { name: /clear/i })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /clear/i }));
-    expect(screen.queryByRole("button", { name: /clear/i })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /^filter$/i }));
+    await user.click(screen.getByRole("menuitemcheckbox", { name: "Bug" }));
+    expect(await screen.findByRole("menuitem", { name: /clear/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("menuitem", { name: /clear/i }));
+    expect(screen.queryByRole("menuitem", { name: /clear/i })).not.toBeInTheDocument();
   });
 
   it("deletes the target column when the confirm dialog is confirmed", async () => {

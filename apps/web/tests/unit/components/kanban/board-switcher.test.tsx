@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { api } from "@/lib/trpc/client";
-import { BoardSwitcher } from "@/app/(dashboard)/projects/[id]/_components/board-switcher";
+import { BoardSwitcher } from "@/components/kanban/board-switcher";
 import { makeBoard } from "@/tests/support/factories";
 import { mockUseQuery, setupMutationMock } from "@/tests/support/trpc";
 import { setupRouterMock } from "@/tests/support/render";
@@ -12,8 +12,12 @@ import { VALID_ORG_ID, VALID_PROJECT_ID } from "@/tests/support/fixtures";
 const boardA = makeBoard({ id: "board-a", name: "Board A" });
 const boardB = makeBoard({ id: "board-b", name: "Board B" });
 
+async function openMenu(): Promise<void> {
+  await userEvent.setup().click(screen.getByRole("button", { name: /switch board/i }));
+}
+
 describe("BoardSwitcher", () => {
-  it("navigates to the selected board on change", async () => {
+  it("navigates to the selected board on click", async () => {
     mockUseQuery(api.boards.list, [boardA, boardB]);
     const { pushMock } = setupRouterMock();
     render(
@@ -25,11 +29,29 @@ describe("BoardSwitcher", () => {
         canManage
       />,
     );
-    await userEvent.setup().selectOptions(screen.getByLabelText(/select board/i), boardB.id);
+    await openMenu();
+    await userEvent.setup().click(screen.getByRole("menuitem", { name: "Board B" }));
     expect(pushMock).toHaveBeenCalledWith(`/projects/${VALID_PROJECT_ID}?board=${boardB.id}`);
   });
 
-  it("hides delete when canManage is false", () => {
+  it("does not navigate when clicking the already-active board", async () => {
+    mockUseQuery(api.boards.list, [boardA, boardB]);
+    const { pushMock } = setupRouterMock();
+    render(
+      <BoardSwitcher
+        orgId={VALID_ORG_ID}
+        projectId={VALID_PROJECT_ID}
+        activeBoardId={boardA.id}
+        initialBoards={[boardA, boardB]}
+        canManage
+      />,
+    );
+    await openMenu();
+    await userEvent.setup().click(screen.getByRole("menuitem", { name: /^Board A/ }));
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("hides delete when canManage is false", async () => {
     mockUseQuery(api.boards.list, [boardA, boardB]);
     setupRouterMock();
     render(
@@ -41,10 +63,11 @@ describe("BoardSwitcher", () => {
         canManage={false}
       />,
     );
-    expect(screen.queryByRole("button", { name: /delete current board/i })).not.toBeInTheDocument();
+    await openMenu();
+    expect(screen.queryByRole("menuitem", { name: /delete/i })).not.toBeInTheDocument();
   });
 
-  it("hides delete when there is only one board (even for managers)", () => {
+  it("hides delete when there is only one board (even for managers)", async () => {
     mockUseQuery(api.boards.list, [boardA]);
     setupRouterMock();
     render(
@@ -56,7 +79,8 @@ describe("BoardSwitcher", () => {
         canManage
       />,
     );
-    expect(screen.queryByRole("button", { name: /delete current board/i })).not.toBeInTheDocument();
+    await openMenu();
+    expect(screen.queryByRole("menuitem", { name: /delete/i })).not.toBeInTheDocument();
   });
 
   it("opens the create board dialog", async () => {
@@ -71,7 +95,8 @@ describe("BoardSwitcher", () => {
         canManage
       />,
     );
-    await userEvent.setup().click(screen.getByRole("button", { name: /create board/i }));
+    await openMenu();
+    await userEvent.setup().click(screen.getByRole("menuitem", { name: /new board/i }));
     expect(screen.getByText("Create board")).toBeInTheDocument();
   });
 
@@ -89,7 +114,8 @@ describe("BoardSwitcher", () => {
       />,
     );
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: /delete current board/i }));
+    await openMenu();
+    await user.click(screen.getByRole("menuitem", { name: /delete current board/i }));
     await user.type(screen.getByLabelText(/type/i), "Board A");
     await user.click(screen.getByRole("button", { name: "Delete board" }));
     expect(mutateMock).toHaveBeenCalledWith({ orgId: VALID_ORG_ID, boardId: boardA.id });
@@ -116,7 +142,7 @@ describe("BoardSwitcher", () => {
         canManage
       />,
     );
-    // Only one board => delete button hidden; simulate the mutation's onSuccess directly.
+    // Only one board => delete control hidden; simulate the mutation's onSuccess directly.
     triggerSuccess();
     expect(pushMock).toHaveBeenCalledWith(`/projects/${VALID_PROJECT_ID}`);
   });
@@ -133,7 +159,53 @@ describe("BoardSwitcher", () => {
         canManage
       />,
     );
-    await userEvent.setup().click(screen.getByRole("button", { name: /delete current board/i }));
+    await openMenu();
+    await userEvent.setup().click(screen.getByRole("menuitem", { name: /delete/i }));
     expect(screen.getByLabelText(/type/i)).toBeInTheDocument();
+  });
+
+  it("closes the menu on outside click and on Escape", async () => {
+    mockUseQuery(api.boards.list, [boardA, boardB]);
+    setupRouterMock();
+    render(
+      <div>
+        <BoardSwitcher
+          orgId={VALID_ORG_ID}
+          projectId={VALID_PROJECT_ID}
+          activeBoardId={boardA.id}
+          initialBoards={[boardA, boardB]}
+          canManage
+        />
+        <button type="button">outside</button>
+      </div>,
+    );
+    const user = userEvent.setup();
+    await openMenu();
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "outside" }));
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+    await openMenu();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("stays open when a non-Escape key is pressed", async () => {
+    mockUseQuery(api.boards.list, [boardA, boardB]);
+    setupRouterMock();
+    render(
+      <BoardSwitcher
+        orgId={VALID_ORG_ID}
+        projectId={VALID_PROJECT_ID}
+        activeBoardId={boardA.id}
+        initialBoards={[boardA, boardB]}
+        canManage
+      />,
+    );
+    const user = userEvent.setup();
+    await openMenu();
+    await user.keyboard("{a}");
+    expect(screen.getByRole("menu")).toBeInTheDocument();
   });
 });

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent, waitFor, act } from "@testing-library/react";
-import { CreateBoardDialog } from "@/app/(dashboard)/projects/[id]/_components/create-board-dialog";
+import { CreateBoardDialog } from "@/components/kanban/create-board-dialog";
 import { api } from "@/lib/trpc/client";
 import { renderUI } from "../../helpers/render";
 import { wireCapturableMutation, mockMutationError } from "../../helpers/mutation";

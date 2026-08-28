@@ -2,7 +2,7 @@
 
 import { useMemo, type JSX } from "react";
 
-import type { BoardWithColumns, Label } from "@taskflow/database";
+import type { Board, BoardWithColumns, Label } from "@taskflow/database";
 
 import { useBoardRealtime } from "@/lib/hooks/use-board-realtime";
 import { KanbanBoard } from "@/components/kanban/kanban-board";
@@ -16,10 +16,15 @@ interface BoardPageClientProps {
   orgId: string;
   projectId: string;
   boardId: string;
+  projectName: string;
   initialBoard: BoardWithColumns;
+  /** Every board in the project - powers the board switcher menu. */
+  initialBoards: Board[];
   initialTasks: TasksMap;
   /** False for VIEWER - KanbanBoard hides/disables every write control. */
   canEdit: boolean;
+  /** Only OWNER/ADMIN may create/delete boards; the server enforces it too. */
+  canManageBoards: boolean;
 }
 
 /**
@@ -37,9 +42,12 @@ export function BoardPageClient({
   orgId,
   projectId,
   boardId,
+  projectName,
   initialBoard,
+  initialBoards,
   initialTasks,
   canEdit,
+  canManageBoards,
 }: BoardPageClientProps): JSX.Element {
   // 1. Real-time: connect Socket.IO and wire cache-update handlers
   const { data } = api.boards.get.useQuery({ orgId, boardId }, { initialData: initialBoard });
@@ -86,12 +94,15 @@ export function BoardPageClient({
         projectId={projectId}
         boardId={board.id}
         boardName={board.name}
+        projectName={projectName}
+        initialBoards={initialBoards}
         columns={columns}
         initialTasks={liveTasks}
         labelsByTask={labelsByTask}
         presence={presence}
         cursors={cursors}
         canEdit={canEdit}
+        canManageBoards={canManageBoards}
       />
     </SocketProvider>
   );

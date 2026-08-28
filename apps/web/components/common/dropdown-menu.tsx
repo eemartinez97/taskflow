@@ -1,9 +1,10 @@
 "use client";
 
 import type { JSX } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { Button, cn } from "@taskflow/ui";
+import { useEscapeKey } from "@/lib/hooks/use-escape-key";
 import { useOutsideClick } from "@/lib/hooks/use-outside-click";
 
 export interface DropdownItem {
@@ -39,16 +40,9 @@ export function DropdownMenu({
     setOpen(false);
   });
 
-  // Close on Escape
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent): void {
-      if (e.key === "Escape") setOpen(false);
-    }
-    if (open) document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [open]);
+  useEscapeKey(open, () => {
+    setOpen(false);
+  });
 
   return (
     <div ref={containerRef} className={cn("relative inline-block", className)}>

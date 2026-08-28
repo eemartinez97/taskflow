@@ -6,7 +6,6 @@ import type { TasksMap } from "@/lib/board/tasks-map";
 import { getServerTRPC } from "@/lib/trpc/server";
 import { getOrgOrNull } from "@/lib/utils/org-utils";
 import { BoardPageClient } from "./board";
-import { BoardSwitcher } from "./_components/board-switcher";
 import { canAdminOrg, canMutateInOrg } from "@/lib/utils/role";
 
 interface PageProps {
@@ -101,23 +100,16 @@ export default async function ProjectBoardPage({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="mb-4 flex shrink-0 items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900">{project.name}</h2>
-        <BoardSwitcher
-          orgId={project.orgId}
-          canManage={canManage}
-          projectId={projectId}
-          activeBoardId={board.id}
-          initialBoards={boards}
-        />
-      </div>
       <BoardPageClient
         orgId={project.orgId}
         projectId={projectId}
         boardId={board.id}
+        projectName={project.name}
         initialBoard={board}
+        initialBoards={boards}
         initialTasks={initialTasks}
         canEdit={canEdit}
+        canManageBoards={canManage}
       />
     </div>
   );

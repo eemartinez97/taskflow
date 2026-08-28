@@ -119,7 +119,7 @@ describe("POSITION_STEP", () => {
 
 describe("SOCKET_EVENTS", () => {
   it("contains all socket event strings", () => {
-    expect(Object.keys(SOCKET_EVENTS)).toHaveLength(21);
+    expect(Object.keys(SOCKET_EVENTS)).toHaveLength(22);
   });
 
   it("invitation events use invitation: prefix", () => {

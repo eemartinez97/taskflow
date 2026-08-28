@@ -25,13 +25,27 @@ import { emptyStringToNull } from "@/lib/utils/form";
 export function ProfileForm(): JSX.Element {
   const { update } = useSession();
   const { data: me, isPending } = api.auth.me.useQuery();
+  const utils = api.useUtils();
 
   const mutation = api.auth.updateProfile.useMutation({
     meta: { skipErrorToast: true }, // shown inline below
     onSuccess: async (updated) => {
       toast.success("Profile updated.");
-      // Refresh the JWT-backed session so the header updates immediately
-      await update({ name: updated.name, image: updated.image });
+      // Refresh the JWT-backed session so the header updates immediately, and
+      // invalidate every tRPC-cached display of this user's name/avatar -
+      // useSession().update() only fixes components reading the session
+      // directly (header, board presence chip); it does nothing for the
+      // settings preview itself or any other screen reading this same data
+      // through a query (org member list, task assignee pickers/cards,
+      // comment authors), which would otherwise show the old name until
+      // that query's own 30s staleTime lapses or the page is refreshed.
+      await Promise.all([
+        update({ name: updated.name, image: updated.image }),
+        utils.auth.me.invalidate(),
+        utils.orgs.members.invalidate(),
+        utils.orgs.assigneeLookup.invalidate(),
+        utils.comments.list.invalidate(),
+      ]);
     },
   });
 

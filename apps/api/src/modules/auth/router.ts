@@ -28,7 +28,9 @@ import {
  * Factory (not a static router, like orgs/boards/tasks/comments): verifyEmail
  * needs `io` to claim any pending org invitations addressed to the
  * newly-verified email (see modules/invitations/service.ts's
- * claimInvitationsForUser).
+ * claimInvitationsForUser), and updateProfile needs it to correct this
+ * user's already-connected sockets/peers (see socket/presence.ts's
+ * broadcastProfileNameUpdate).
  */
 const _buildAuthRouter = (io: AppServer) =>
   createTRPCRouter({
@@ -47,7 +49,7 @@ const _buildAuthRouter = (io: AppServer) =>
     /** Updates the current user's own profile (name / avatar URL). */
     updateProfile: protectedProcedure
       .input(updateUserSchema)
-      .mutation(async ({ ctx, input }) => updateMyProfile(ctx.db, ctx.user.id, input)),
+      .mutation(async ({ ctx, input }) => updateMyProfile(ctx.db, io, ctx.user.id, input)),
 
     // -- Public (publicProcedure) - no session required --
 

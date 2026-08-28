@@ -84,6 +84,10 @@ export const SOCKET_EVENTS = {
   PRESENCE_ONLINE_SYNC: "presence:online-sync",
   // Sent only to the joining socket: who is already in the room
   PRESENCE_SYNC: "presence:sync",
+  // Sent org-wide when a member's own profile (name) changes, so peers'
+  // already-cached presence rosters and cursor labels correct themselves
+  // without waiting for that member's socket to reconnect.
+  PRESENCE_USER_UPDATED: "presence:user-updated",
   // Typing indicator (client -> server, server -> room)
   TASK_TYPING: "task:typing",
   // Invitation events (server -> client). RECEIVED goes to the invitee's

@@ -27,7 +27,9 @@ describe("auth router", () => {
   it("updateProfile -> updateMyProfile with validated input", async () => {
     await caller().updateProfile({ name: "Bob" });
 
-    expect(service.updateMyProfile).toHaveBeenCalledWith(db, VALID_USER.id, { name: "Bob" });
+    expect(service.updateMyProfile).toHaveBeenCalledWith(db, mockIo, VALID_USER.id, {
+      name: "Bob",
+    });
   });
 
   it.each(["me", "signOut"] as const)("%s requires a session", async (procedure) => {

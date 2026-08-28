@@ -83,6 +83,8 @@ function buildProps(
     addingTaskId: null,
     labelsByTask: {},
     canEdit: true,
+    cursors: [],
+    presenceById: new Map(),
     ...overrides,
   };
 }
@@ -91,6 +93,13 @@ function buildProps(
 describe("KanbanColumn", () => {
   beforeEach(() => {
     HTMLElement.prototype.scrollIntoView = vi.fn();
+    // KanbanColumn sizes its cursor-flip check off its own scroll container
+    // via useElementSize - jsdom has no real ResizeObserver.
+    globalThis.ResizeObserver = class {
+      observe = vi.fn();
+      disconnect = vi.fn();
+      unobserve = vi.fn();
+    };
   });
 
   // -- Rendering --

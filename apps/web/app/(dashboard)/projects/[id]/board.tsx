@@ -23,7 +23,7 @@ interface BoardPageClientProps {
   initialTasks: TasksMap;
   /** False for VIEWER - KanbanBoard hides/disables every write control. */
   canEdit: boolean;
-  /** Only OWNER/ADMIN may create/delete boards; the server enforces it too. */
+  /** Only OWNER/ADMIN may *delete* boards; the server enforces it too. Board creation is gated by canEdit, not this. */
   canManageBoards: boolean;
 }
 

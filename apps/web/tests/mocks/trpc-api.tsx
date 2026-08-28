@@ -131,6 +131,7 @@ export const api = {
   useQueries: vi.fn(() => []),
   useUtils: vi.fn(() => ({
     invalidate: vi.fn(),
+    auth: { me: utilsInvalidate() },
     orgs: {
       list: utilsInvalidate(),
       members: utilsInvalidate(),

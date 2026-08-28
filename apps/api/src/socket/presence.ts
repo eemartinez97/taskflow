@@ -1,3 +1,4 @@
+import type { PrismaClient } from "@taskflow/database";
 import {
   presenceCursorSchema,
   presenceUserSchema,
@@ -8,6 +9,8 @@ import {
 } from "@taskflow/shared";
 import { logger } from "../config/logger";
 import { shouldDropPresencePacket } from "./rate-limit";
+import { findUserOrgIds } from "./presence-repo";
+import { emitToOrg } from "./emit";
 import type { AppServer, AppSocket } from "./events";
 
 // Color resolution
@@ -274,4 +277,42 @@ export async function buildOnlineSync(
   }
 
   socket.emit(SOCKET_EVENTS.PRESENCE_ONLINE_SYNC, { userIds: [...online] });
+}
+
+/**
+ * Called after a user's own profile name changes (auth.updateProfile).
+ * `socket.data.userName` is set once at handshake (server.ts's
+ * authenticateSocket) and never re-read from the JWT for the socket's whole
+ * lifetime, so without this, PRESENCE_JOIN/PRESENCE_SYNC on the next board
+ * switch would keep re-broadcasting the OLD name even after the mutation
+ * succeeds and the NextAuth session itself has already been updated.
+ *
+ * No Redis/cluster adapter is configured (see events.ts's InterServerEvents
+ * docblock) - every connected socket lives in this same process, and the
+ * default in-memory adapter's fetchSockets() returns the real local Socket
+ * instances (not a serialized snapshot), so mutating `.data` here directly
+ * takes effect immediately for any future room join.
+ *
+ * That alone doesn't fix rosters/cursor labels peers have ALREADY cached
+ * from a join that happened before this update - PRESENCE_USER_UPDATED
+ * corrects those live, without waiting for the changed user's socket to
+ * reconnect or for peers to re-join the board.
+ */
+export async function broadcastProfileNameUpdate(
+  io: AppServer,
+  db: PrismaClient,
+  userId: string,
+  name: string | null,
+): Promise<void> {
+  const [sockets, orgIds] = await Promise.all([
+    io.in(`${SOCKET_USER_ROOM_PREFIX}${userId}`).fetchSockets(),
+    findUserOrgIds(db, userId),
+  ]);
+  for (const socket of sockets) {
+    socket.data.userName = name;
+  }
+
+  for (const orgId of orgIds) {
+    emitToOrg(io, orgId, SOCKET_EVENTS.PRESENCE_USER_UPDATED, { userId, name });
+  }
 }

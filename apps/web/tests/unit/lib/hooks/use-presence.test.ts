@@ -45,6 +45,25 @@ describe("usePresence", () => {
     expect(result.current).toEqual([]);
   });
 
+  it("patches a peer's cached name on PRESENCE_USER_UPDATED without touching others", () => {
+    const { result } = renderHook(() => usePresence(socketRef));
+    act(() => {
+      triggerSocketEvent(SOCKET_EVENTS.PRESENCE_SYNC, {
+        users: [
+          { userId: "u1", name: "Old Name", color: "#fff" },
+          { userId: "u2", name: "Bob", color: "#000" },
+        ],
+      });
+    });
+    act(() => {
+      triggerSocketEvent(SOCKET_EVENTS.PRESENCE_USER_UPDATED, { userId: "u1", name: "New Name" });
+    });
+    expect(result.current).toEqual([
+      { userId: "u1", name: "New Name", color: "#fff" },
+      { userId: "u2", name: "Bob", color: "#000" },
+    ]);
+  });
+
   it("does nothing when the socket ref has no current socket", () => {
     const { result } = renderHook(() => usePresence({ current: null }));
     expect(result.current).toEqual([]);

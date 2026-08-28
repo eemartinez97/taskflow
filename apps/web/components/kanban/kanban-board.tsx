@@ -88,9 +88,9 @@ interface KanbanBoardProps {
   labelsByTask: Record<string, Label[]>;
   presence: SocketPresenceUser[];
   cursors: LiveCursor[];
-  /** False for VIEWER - hides/disables every write control (rename, add/delete column, add task, drag-and-drop). */
+  /** False for VIEWER - hides/disables every write control (rename, add/delete column, add task, drag-and-drop). Also gates board *creation* (MEMBER+) via BoardSwitcher's canCreate prop. */
   canEdit: boolean;
-  /** Only OWNER/ADMIN may create/delete boards; the server enforces it too. */
+  /** Only OWNER/ADMIN may *delete* boards; the server enforces it too. Board creation is gated by canEdit above, not this. */
   canManageBoards: boolean;
 }
 
@@ -154,13 +154,31 @@ export function KanbanBoard({
   // and colored per user instead of all sharing one brand dot.
   const presenceById = useMemo(() => new Map(presence.map((u) => [u.userId, u])), [presence]);
 
-  // Single continuous coordinate plane - see use-cursor-broadcast.ts for why
-  // per-column frames were reverted (they caused DOM remounts/flicker at
-  // every column boundary crossing).
+  // Single continuous coordinate plane for x (and for y when the cursor
+  // isn't over any column) - see use-cursor-broadcast.ts for why per-column
+  // frames were reverted for THAT case (caused DOM remounts/flicker at every
+  // column boundary crossing while dragging across the whole board width).
   const peerCursors: LiveCursor[] = useMemo(
     () => cursors.filter((c) => c.userId !== currentUserId),
     [cursors, currentUserId],
   );
+
+  // Vertical scroll is per-column, not board-wide, so a cursor captured
+  // inside a column's task list (columnId set) is rendered nested inside
+  // that same column's own scroll container instead of the board-level
+  // overlay below - see use-cursor-broadcast.ts and kanban-column.tsx.
+  const columnCursorsById = useMemo(() => {
+    const map = new Map<string, LiveCursor[]>();
+    for (const c of peerCursors) {
+      if (!c.columnId) continue;
+      const list = map.get(c.columnId);
+      if (list) list.push(c);
+      else map.set(c.columnId, [c]);
+    }
+    return map;
+  }, [peerCursors]);
+
+  const boardLevelCursors = useMemo(() => peerCursors.filter((c) => !c.columnId), [peerCursors]);
 
   // Live cursors: same socket for listening (useCursors) and broadcasting.
   const socketRef = useSocketRef();
@@ -481,9 +499,9 @@ export function KanbanBoard({
           projectId={projectId}
           activeBoardId={boardId}
           initialBoards={initialBoards}
+          canCreate={canEdit}
           canManage={canManageBoards}
         />
-
         <div className="ml-auto flex items-center gap-3">
           {/* Mouse-pointer icon (not an eye) - this toggles live CURSORS,
               not who's viewing (that's the avatar stack right next to it,
@@ -492,7 +510,11 @@ export function KanbanBoard({
             variant="ghost"
             size="icon"
             aria-label={cursorsHidden ? "Show live cursors" : "Hide live cursors"}
-            aria-pressed={cursorsHidden}
+            // "Pressed"/filled = the feature is currently ON (cursors showing),
+            // same convention as the Filter pill below - was previously wired
+            // to cursorsHidden itself, which highlighted the button when live
+            // cursors were OFF, backwards from every other toggle in the app.
+            aria-pressed={!cursorsHidden}
             title={cursorsHidden ? "Show live cursors" : "Hide live cursors"}
             onClick={() => {
               setCursorsHidden(!cursorsHidden);
@@ -502,7 +524,7 @@ export function KanbanBoard({
               // the h-6 w-6 avatars and the Filter pill made the active
               // (filled) state look oversized against its neighbors.
               "h-7 w-7",
-              cursorsHidden
+              !cursorsHidden
                 ? "bg-brand-50 text-brand-600 ring-1 ring-brand-200 hover:bg-brand-100 hover:text-brand-700"
                 : "text-gray-400 hover:text-gray-600",
             )}
@@ -596,6 +618,8 @@ export function KanbanBoard({
                   onSetColumnStatus={(columnId, status) => {
                     setColumnStatusMutation.mutate({ orgId, columnId, status });
                   }}
+                  cursors={cursorsHidden ? [] : (columnCursorsById.get(column.id) ?? [])}
+                  presenceById={presenceById}
                 />
               ))}
 
@@ -615,7 +639,7 @@ export function KanbanBoard({
               aria-hidden="true"
             >
               {!cursorsHidden &&
-                peerCursors.map((c) => (
+                boardLevelCursors.map((c) => (
                   <CursorPointer
                     key={c.userId}
                     cursor={c}

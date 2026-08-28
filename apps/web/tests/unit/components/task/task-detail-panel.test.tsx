@@ -5,14 +5,6 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/utils/navigation-guard", () => ({
   registerDirtyCheck: vi.fn(() => () => undefined),
 }));
-vi.mock("@/components/task/task-comments", () => ({
-  TaskComments: ({ onToggleExpand }: { onToggleExpand: () => void }) => (
-    <div>
-      TaskComments
-      <button onClick={onToggleExpand}>Toggle Comments</button>
-    </div>
-  ),
-}));
 vi.mock("@/components/task/task-labels", () => ({
   TaskLabels: ({
     onAdd,
@@ -185,7 +177,7 @@ describe("TaskDetailPanel", () => {
         onClose={vi.fn()}
       />,
     );
-    await userEvent.setup().click(screen.getByRole("button", { name: /toggle comments/i }));
+    await userEvent.setup().click(screen.getByRole("button", { name: /expand comments/i }));
   });
 
   it("syncs the labels cache when a label is added", async () => {

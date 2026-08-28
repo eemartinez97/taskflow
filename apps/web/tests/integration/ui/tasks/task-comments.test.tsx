@@ -2,7 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { useSession } from "next-auth/react";
 import { SOCKET_EVENTS } from "@taskflow/shared";
-import { TaskComments } from "@/components/task/task-comments";
+import { useTaskComments } from "@/lib/hooks/use-task-comments";
+import { TaskCommentsList } from "@/components/task/task-comments-list";
+import { TaskCommentComposer } from "@/components/task/task-comment-composer";
 import { api } from "@/lib/trpc/client";
 import { mockSession } from "@/tests/mocks/next-auth";
 import { mockSocket, resetHandlerStore, triggerSocketEvent } from "@/tests/mocks/socket-io-client";
@@ -55,6 +57,49 @@ const OTHER_COMMENT: MockComment = {
   author: { id: "other-user-id", name: "Bob", email: "bob@taskflow.dev" },
 };
 
+/**
+ * Combines the hook with both presentational halves, exactly how
+ * task-detail-panel.tsx wires them (list inline, composer in its own
+ * section) - see use-task-comments.ts's docblock for why the feature is
+ * split across three files instead of one.
+ */
+function TaskCommentsHarness({
+  taskId = "task-1",
+  isExpanded = false,
+  canEdit = true,
+  onToggleExpand = vi.fn(),
+}: {
+  taskId?: string;
+  isExpanded?: boolean;
+  canEdit?: boolean;
+  onToggleExpand?: () => void;
+}) {
+  const comments = useTaskComments({ orgId: "org-1", projectId: "proj-1", taskId });
+  return (
+    <>
+      <TaskCommentsList
+        comments={comments.comments}
+        isPending={comments.isPending}
+        sessionUserId={comments.sessionUserId}
+        isExpanded={isExpanded}
+        canEdit={canEdit}
+        onToggleExpand={onToggleExpand}
+        onDelete={comments.deleteComment}
+      />
+      {canEdit && (
+        <TaskCommentComposer
+          body={comments.body}
+          setBody={comments.setBody}
+          submit={comments.submit}
+          notifyTyping={comments.notifyTyping}
+          typingUserIds={comments.typingUserIds}
+          isPosting={comments.isPosting}
+        />
+      )}
+    </>
+  );
+}
+
 // -- Helpers --
 let createMutation: ReturnType<typeof wireCapturableMutation>;
 let deleteMutation: ReturnType<typeof wireCapturableMutation>;
@@ -63,20 +108,8 @@ function setupCommentsQuery(comments: MockComment[]): void {
   mockUseQuery(api.comments.list, comments);
 }
 
-function buildProps(overrides: Partial<Parameters<typeof TaskComments>[0]> = {}) {
-  return {
-    orgId: "org-1",
-    projectId: "proj-1",
-    taskId: "task-1",
-    isExpanded: false,
-    canEdit: true,
-    onToggleExpand: vi.fn(),
-    ...overrides,
-  };
-}
-
 // -- Tests --
-describe("TaskComments", () => {
+describe("Task comments (list + composer)", () => {
   beforeEach(() => {
     resetHandlerStore();
     vi.mocked(useSession).mockReturnValue({
@@ -100,19 +133,19 @@ describe("TaskComments", () => {
   // -- Rendering --
 
   it("renders the Comments heading", () => {
-    renderUI(<TaskComments {...buildProps()} />);
+    renderUI(<TaskCommentsHarness />);
 
     expect(screen.getByText("Comments")).toBeInTheDocument();
   });
 
   it("renders the expand/collapse toggle button", () => {
-    renderUI(<TaskComments {...buildProps()} />);
+    renderUI(<TaskCommentsHarness />);
 
     expect(screen.getByRole("button", { name: /expand comments/i })).toBeInTheDocument();
   });
 
   it("renders the 'No comments yet.' message when the list is empty", () => {
-    renderUI(<TaskComments {...buildProps()} />);
+    renderUI(<TaskCommentsHarness />);
 
     expect(screen.getByText("No comments yet.")).toBeInTheDocument();
   });
@@ -125,14 +158,14 @@ describe("TaskComments", () => {
       isSuccess: false,
     });
 
-    renderUI(<TaskComments {...buildProps()} />);
+    renderUI(<TaskCommentsHarness />);
 
     expect(screen.getByText(/loading comments/i)).toBeInTheDocument();
   });
 
   it("renders each comment body and author name", () => {
     setupCommentsQuery([OWN_COMMENT, OTHER_COMMENT]);
-    renderUI(<TaskComments {...buildProps()} />);
+    renderUI(<TaskCommentsHarness />);
 
     expect(screen.getByText("Looks like a JWT issue.")).toBeInTheDocument();
     expect(screen.getByText("I can reproduce this.")).toBeInTheDocument();
@@ -144,7 +177,7 @@ describe("TaskComments", () => {
 
   it("calls onToggleExpand when the toggle button is clicked", () => {
     const mockToggle = vi.fn();
-    renderUI(<TaskComments {...buildProps({ onToggleExpand: mockToggle })} />);
+    renderUI(<TaskCommentsHarness onToggleExpand={mockToggle} />);
 
     fireEvent.click(screen.getByRole("button", { name: /expand comments/i }));
 
@@ -152,20 +185,19 @@ describe("TaskComments", () => {
   });
 
   it("renders 'Collapse comments' aria-label when isExpanded is true", () => {
-    renderUI(<TaskComments {...buildProps({ isExpanded: true })} />);
+    renderUI(<TaskCommentsHarness isExpanded />);
 
     expect(screen.getByRole("button", { name: /collapse comments/i })).toBeInTheDocument();
   });
 
   // -- Post a comment --
 
-  it("calls createMutation.mutate with the trimmed body when the Post button is clicked", () => {
-    renderUI(<TaskComments {...buildProps()} />);
+  it("calls createMutation.mutate with the trimmed body when Enter is pressed", () => {
+    renderUI(<TaskCommentsHarness />);
 
-    fireEvent.change(screen.getByPlaceholderText("Add a comment..."), {
-      target: { value: "  Great find!  " },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /post/i }));
+    const input = screen.getByPlaceholderText("Add a comment...");
+    fireEvent.change(input, { target: { value: "  Great find!  " } });
+    fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
 
     expect(createMutation.mutate).toHaveBeenCalledWith({
       orgId: "org-1",
@@ -175,20 +207,8 @@ describe("TaskComments", () => {
     });
   });
 
-  it("calls createMutation.mutate when Enter is pressed in the comment input", () => {
-    renderUI(<TaskComments {...buildProps()} />);
-
-    const input = screen.getByPlaceholderText("Add a comment...");
-    fireEvent.change(input, { target: { value: "Nice work" } });
-    fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
-
-    expect(createMutation.mutate).toHaveBeenCalledWith(
-      expect.objectContaining({ body: "Nice work" }),
-    );
-  });
-
   it("does NOT call createMutation.mutate when Enter+Shift is pressed (multiline)", () => {
-    renderUI(<TaskComments {...buildProps()} />);
+    renderUI(<TaskCommentsHarness />);
 
     const input = screen.getByPlaceholderText("Add a comment...");
     fireEvent.change(input, { target: { value: "Line 1" } });
@@ -197,31 +217,28 @@ describe("TaskComments", () => {
     expect(createMutation.mutate).not.toHaveBeenCalled();
   });
 
-  it("does NOT call createMutation.mutate when the input is empty", () => {
-    renderUI(<TaskComments {...buildProps()} />);
-    fireEvent.click(screen.getByRole("button", { name: /post/i }));
+  it("does NOT call createMutation.mutate when Enter is pressed on an empty input", () => {
+    renderUI(<TaskCommentsHarness />);
+    fireEvent.keyDown(screen.getByPlaceholderText("Add a comment..."), {
+      key: "Enter",
+      shiftKey: false,
+    });
 
     expect(createMutation.mutate).not.toHaveBeenCalled();
-  });
-
-  it("disables the Post button when the comment input is empty", () => {
-    renderUI(<TaskComments {...buildProps()} />);
-
-    expect(screen.getByRole("button", { name: /post/i })).toBeDisabled();
   });
 
   // -- Delete a comment --
 
   it("renders a Delete comment button only for the current user's own comment", () => {
     setupCommentsQuery([OWN_COMMENT, OTHER_COMMENT]);
-    renderUI(<TaskComments {...buildProps()} />);
+    renderUI(<TaskCommentsHarness />);
 
     expect(screen.getAllByRole("button", { name: /delete comment/i })).toHaveLength(1);
   });
 
   it("calls deleteMutation.mutate with the correct ids when Delete is clicked", () => {
     setupCommentsQuery([OWN_COMMENT]);
-    renderUI(<TaskComments {...buildProps()} />);
+    renderUI(<TaskCommentsHarness />);
 
     fireEvent.click(screen.getByRole("button", { name: "Delete comment" }));
 
@@ -234,9 +251,20 @@ describe("TaskComments", () => {
 
   it("does NOT render a Delete button for another user's comment", () => {
     setupCommentsQuery([OTHER_COMMENT]);
-    renderUI(<TaskComments {...buildProps()} />);
+    renderUI(<TaskCommentsHarness />);
 
     expect(screen.queryByRole("button", { name: "Delete comment" })).not.toBeInTheDocument();
+  });
+
+  // -- canEdit=false (VIEWER) --
+
+  it("hides the composer entirely for a read-only viewer, even for the caller's own comment", () => {
+    setupCommentsQuery([OWN_COMMENT]);
+    renderUI(<TaskCommentsHarness canEdit={false} />);
+
+    expect(screen.getByText(OWN_COMMENT.body)).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/add a comment/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /delete comment/i })).not.toBeInTheDocument();
   });
 
   // -- Socket: typing indicator --
@@ -245,7 +273,7 @@ describe("TaskComments", () => {
     const { useSocketRef } = await import("@/lib/socket/socket-context");
     vi.mocked(useSocketRef).mockReturnValue(mockSocketRef);
 
-    renderUI(<TaskComments {...buildProps()} />);
+    renderUI(<TaskCommentsHarness />);
 
     act(() => {
       triggerSocketEvent(SOCKET_EVENTS.TASK_TYPING, {
@@ -263,7 +291,7 @@ describe("TaskComments", () => {
     const { useSocketRef } = await import("@/lib/socket/socket-context");
     vi.mocked(useSocketRef).mockReturnValue(mockSocketRef);
 
-    renderUI(<TaskComments {...buildProps()} />);
+    renderUI(<TaskCommentsHarness />);
 
     act(() => {
       triggerSocketEvent(SOCKET_EVENTS.TASK_TYPING, { taskId: "task-1", userId: "user-a" });
@@ -279,7 +307,7 @@ describe("TaskComments", () => {
     const { useSocketRef } = await import("@/lib/socket/socket-context");
     vi.mocked(useSocketRef).mockReturnValue(mockSocketRef);
 
-    renderUI(<TaskComments {...buildProps({ taskId: "task-1" })} />);
+    renderUI(<TaskCommentsHarness taskId="task-1" />);
 
     triggerSocketEvent(SOCKET_EVENTS.TASK_TYPING, {
       taskId: "task-DIFFERENT",
@@ -295,7 +323,7 @@ describe("TaskComments", () => {
     const { useSocketRef } = await import("@/lib/socket/socket-context");
     vi.mocked(useSocketRef).mockReturnValue(mockSocketRef);
 
-    renderUI(<TaskComments {...buildProps()} />);
+    renderUI(<TaskCommentsHarness />);
 
     act(() => {
       triggerSocketEvent(SOCKET_EVENTS.TASK_TYPING, { taskId: "task-1", userId: "user-a" });
@@ -313,7 +341,7 @@ describe("TaskComments", () => {
     const { useSocketRef } = await import("@/lib/socket/socket-context");
     vi.mocked(useSocketRef).mockReturnValue(null);
 
-    renderUI(<TaskComments {...buildProps()} />);
+    renderUI(<TaskCommentsHarness />);
 
     // Socket's on() should not have been called since socketRef is null
     expect(mockSocket.on).not.toHaveBeenCalled();

@@ -94,6 +94,19 @@ describe("boards router", () => {
       },
     ],
     [
+      "setColumnStatus",
+      () => caller().setColumnStatus({ ...org, columnId: VALID_COLUMN_ID, status: "DONE" }),
+      () => {
+        expect(service.setColumnStatus).toHaveBeenCalledWith(
+          db,
+          mockIo,
+          VALID_COLUMN_ID,
+          VALID_USER.id,
+          "DONE",
+        );
+      },
+    ],
+    [
       "deleteColumn",
       () => caller().deleteColumn({ ...org, columnId: VALID_COLUMN_ID }),
       () => {

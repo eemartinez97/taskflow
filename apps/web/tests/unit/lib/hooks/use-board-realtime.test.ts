@@ -187,6 +187,44 @@ describe("useBoardRealtime", () => {
     ]);
   });
 
+  it("patches every affected task's status on TASK_STATUS_BULK_UPDATED, in both tasks.list and tasks.get", () => {
+    vi.mocked(useSocket).mockReturnValue({ current: mockSocket as never });
+    renderHook(() => useBoardRealtime(baseOpts));
+    const utils = getLastMockUtils();
+
+    triggerSocketEvent(SOCKET_EVENTS.TASK_STATUS_BULK_UPDATED, {
+      columnId: VALID_COL_A_ID,
+      status: "DONE",
+      taskIds: ["t1", "t2"],
+    });
+
+    expect(utils.tasks.list.setData).toHaveBeenCalled();
+    const listUpdater = utils.tasks.list.setData.mock.calls.at(-1)?.[1] as (
+      prev: { id: string; status: string }[] | undefined,
+    ) => unknown[] | undefined;
+    // prev undefined -> optional chaining short-circuits to undefined
+    expect(listUpdater(undefined)).toBeUndefined();
+    // prev populated - matching ids get the new status, others are untouched
+    expect(
+      listUpdater([
+        { id: "t1", status: "TODO" },
+        { id: "t2", status: "IN_PROGRESS" },
+        { id: "t3", status: "TODO" },
+      ]),
+    ).toEqual([
+      { id: "t1", status: "DONE" },
+      { id: "t2", status: "DONE" },
+      { id: "t3", status: "TODO" },
+    ]);
+
+    expect(utils.tasks.get.setData).toHaveBeenCalledTimes(2);
+    const getUpdater = utils.tasks.get.setData.mock.calls[0]?.[1] as (
+      prev: { status: string } | undefined,
+    ) => unknown;
+    expect(getUpdater(undefined)).toBeUndefined();
+    expect(getUpdater({ status: "TODO" })).toEqual({ status: "DONE" });
+  });
+
   it("defaults to an empty array in the snapshot when the cache has no entry for a column", () => {
     vi.mocked(useSocket).mockReturnValue({ current: mockSocket as never });
     renderHook(() => useBoardRealtime(baseOpts));

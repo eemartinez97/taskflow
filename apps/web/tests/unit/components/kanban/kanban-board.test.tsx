@@ -95,6 +95,12 @@ interface RenameColumnOptions {
   onError?: (err: unknown, vars: unknown, ctx: { previous: unknown } | undefined) => void;
   onSettled?: () => void;
 }
+interface SetColumnStatusOptions {
+  onMutate?: (vars: { columnId: string; status: string | null }) => Promise<{ previous: unknown }>;
+  onSuccess?: (column: { id: string; mappedStatus: string | null }) => void;
+  onError?: (err: unknown, vars: unknown, ctx: { previous: unknown } | undefined) => void;
+  onSettled?: () => void;
+}
 interface OnErrorOnlyOptions {
   onError?: () => void;
 }
@@ -441,6 +447,106 @@ describe("KanbanBoard - mutations and drag handlers", () => {
     call.onSettled?.();
   });
 
+  it("writes the bulk-synced status straight into tasks.list and tasks.get when setColumnStatus succeeds with a real status", () => {
+    setupQueries();
+    renderBoard();
+    const call = getLastMutationOptions<SetColumnStatusOptions>(api.boards.setColumnStatus);
+
+    const taskA = makeTask({ id: "task-a", columnId: column.id, status: "TODO" });
+    const taskB = makeTask({ id: "task-b", columnId: column.id, status: "DONE" }); // already matches - skip branch
+    const utils = getLastMockUtils();
+    utils.tasks.list.getData.mockReturnValue([taskA, taskB]);
+
+    call.onSuccess?.({ id: column.id, mappedStatus: "DONE" });
+
+    expect(utils.tasks.list.setData).toHaveBeenCalledWith(
+      { orgId: VALID_ORG_ID, columnId: column.id },
+      [
+        { ...taskA, status: "DONE" }, // map ternary: status differed -> replaced
+        taskB, // map ternary: status already matched -> kept as-is
+      ],
+    );
+
+    // Only taskA actually changed status - taskB hits the loop's `continue` and never
+    // gets a tasks.get write.
+    expect(utils.tasks.get.setData).toHaveBeenCalledTimes(1);
+    const [key, updater] = utils.tasks.get.setData.mock.calls[0] as [
+      { orgId: string; taskId: string },
+      (prev: { status: string } | undefined) => unknown,
+    ];
+    expect(key).toEqual({ orgId: VALID_ORG_ID, taskId: taskA.id });
+    expect(updater(undefined)).toBeUndefined(); // falsy branch
+    expect(updater({ ...taskA })).toEqual({ ...taskA, status: "DONE" }); // truthy branch
+  });
+
+  it("falls back to an empty array when tasks.list has no cached data yet for the column (`?? []` branch)", () => {
+    setupQueries();
+    renderBoard();
+    const call = getLastMutationOptions<SetColumnStatusOptions>(api.boards.setColumnStatus);
+    const utils = getLastMockUtils(); // tasks.list.getData defaults to returning undefined
+
+    call.onSuccess?.({ id: column.id, mappedStatus: "DONE" });
+
+    expect(utils.tasks.list.setData).toHaveBeenCalledWith(
+      { orgId: VALID_ORG_ID, columnId: column.id },
+      [],
+    );
+    expect(utils.tasks.get.setData).not.toHaveBeenCalled();
+  });
+
+  it("does NOT touch tasks.list/tasks.get when setColumnStatus clears the mapping (existing tasks are untouched server-side)", () => {
+    setupQueries();
+    renderBoard();
+    const call = getLastMutationOptions<SetColumnStatusOptions>(api.boards.setColumnStatus);
+    call.onSuccess?.({ id: column.id, mappedStatus: null });
+
+    const utils = getLastMockUtils();
+    expect(utils.tasks.list.setData).not.toHaveBeenCalled();
+    expect(utils.tasks.get.setData).not.toHaveBeenCalled();
+  });
+
+  it("handles setColumnStatus onError with an undefined rollback context (no-op)", () => {
+    setupQueries();
+    renderBoard();
+    const call = getLastMutationOptions<Pick<SetColumnStatusOptions, "onError">>(
+      api.boards.setColumnStatus,
+    );
+    expect(() => {
+      call.onError?.(new Error("x"), {}, undefined);
+    }).not.toThrow();
+  });
+
+  it("maps a column to a status optimistically via onMutate, covering the column-map ternary, and rolls back onError", async () => {
+    setupQueries();
+    renderBoard();
+    const call = getLastMutationOptions<SetColumnStatusOptions>(api.boards.setColumnStatus);
+    await call.onMutate?.({ columnId: column.id, status: "DONE" });
+    const utils = getLastMockUtils();
+    const updater = utils.boards.get.setData.mock.calls.at(-1)?.[1] as (
+      prev: { columns: { id: string; mappedStatus: string | null }[] } | undefined,
+    ) => unknown;
+    expect(updater(undefined)).toBeUndefined(); // falsy branch
+    const result = updater({
+      columns: [
+        { id: column.id, mappedStatus: null },
+        { id: "other", mappedStatus: "TODO" },
+      ],
+    }) as {
+      columns: { id: string; mappedStatus: string | null }[];
+    };
+    expect(result.columns).toEqual([
+      { id: column.id, mappedStatus: "DONE" }, // map ternary TRUE branch
+      { id: "other", mappedStatus: "TODO" }, // map ternary FALSE branch
+    ]);
+    call.onError?.(new Error("x"), {}, { previous: { columns: [] } });
+    call.onSettled?.();
+    const utilsAfterSettle = getLastMockUtils();
+    expect(utilsAfterSettle.boards.get.invalidate).toHaveBeenCalledWith({
+      orgId: VALID_ORG_ID,
+      boardId: VALID_BOARD_ID,
+    });
+  });
+
   it("invalidates myTasks and removes the deleted column from cache on deleteColumn success (both setData branches)", () => {
     setupQueries();
     renderBoard();
@@ -495,6 +601,32 @@ describe("KanbanBoard - mutations and drag handlers", () => {
     renderBoard();
     const call = getLastMutationOptions<OnErrorOnlyOptions>(api.tasks.move);
     call.onError?.();
+  });
+
+  it("patches tasks.get and every column's tasks.list cache from the server-returned task on move success", () => {
+    setupQueries();
+    renderBoard();
+    const call = getLastMutationOptions<{
+      onSuccess?: (task: {
+        id: string;
+        columnId: string;
+        position: number;
+        status: string;
+      }) => void;
+    }>(api.tasks.move);
+    const movedTask = { id: "moved-1", columnId: column.id, position: 1500, status: "DONE" };
+
+    call.onSuccess?.(movedTask);
+
+    const utils = getLastMockUtils();
+    expect(utils.tasks.get.setData).toHaveBeenCalledWith(
+      { orgId: VALID_ORG_ID, taskId: "moved-1" },
+      movedTask,
+    );
+    expect(utils.tasks.list.setData).toHaveBeenCalledWith(
+      { orgId: VALID_ORG_ID, columnId: column.id },
+      [movedTask],
+    );
   });
 
   it("clears addingTaskColId and upserts the new task into cache when createTask settles/succeeds", () => {
@@ -752,6 +884,20 @@ describe("KanbanBoard - mutations and drag handlers", () => {
     expect(mutateMock).toHaveBeenCalledWith(
       expect.objectContaining({ orgId: VALID_ORG_ID, columnId: column.id, name: "Renamed column" }),
     );
+  });
+
+  it("maps a column's status via the status-mapping select", async () => {
+    setupQueries();
+    const { mutateMock } = setupMutationMock(api.boards.setColumnStatus);
+    renderBoard();
+    await userEvent
+      .setup()
+      .selectOptions(screen.getByLabelText(/status mapping for column to do/i), "DONE");
+    expect(mutateMock).toHaveBeenCalledWith({
+      orgId: VALID_ORG_ID,
+      columnId: column.id,
+      status: "DONE",
+    });
   });
 
   it("clears the delete-column target when deleteColumnMutation succeeds", () => {

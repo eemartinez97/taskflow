@@ -21,6 +21,7 @@ const defaultProps = {
   onTaskClick: vi.fn(),
   onRenameColumn: vi.fn(),
   onDeleteColumn: vi.fn(),
+  onSetColumnStatus: vi.fn(),
   assigneeById: new Map(),
   addingTaskId: null,
   labelsByTask: {},
@@ -121,6 +122,30 @@ describe("KanbanColumn", () => {
       />,
     );
     expect(screen.getByTestId(`task-card-${task.id}`)).toBeInTheDocument();
+  });
+
+  it("calls onSetColumnStatus with the chosen status when the status-mapping select changes", async () => {
+    const onSetColumnStatus = vi.fn();
+    render(<KanbanColumn {...defaultProps} onSetColumnStatus={onSetColumnStatus} />);
+    await userEvent
+      .setup()
+      .selectOptions(screen.getByLabelText(/status mapping for column to do/i), "DONE");
+    expect(onSetColumnStatus).toHaveBeenCalledWith(column.id, "DONE");
+  });
+
+  it("calls onSetColumnStatus with null when 'No status' is chosen (clearing the mapping)", async () => {
+    const onSetColumnStatus = vi.fn();
+    render(
+      <KanbanColumn
+        {...defaultProps}
+        column={makeColumn({ name: "To Do", mappedStatus: "TODO" })}
+        onSetColumnStatus={onSetColumnStatus}
+      />,
+    );
+    await userEvent
+      .setup()
+      .selectOptions(screen.getByLabelText(/status mapping for column to do/i), "No status");
+    expect(onSetColumnStatus).toHaveBeenCalledWith(column.id, null);
   });
 
   it("hides every write control (drag handle, rename, delete, add task) when canEdit is false", () => {

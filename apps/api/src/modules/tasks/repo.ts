@@ -1,5 +1,11 @@
-import { POSITION_STEP, type CreateTask, type MoveTask, type UpdateTask } from "@taskflow/shared";
-import type { Label, PrismaClient, Task } from "@taskflow/database";
+import {
+  POSITION_STEP,
+  type CreateTask,
+  type MoveTask,
+  type TaskStatus,
+  type UpdateTask,
+} from "@taskflow/shared";
+import type { DbClient, Label, PrismaClient, Task } from "@taskflow/database";
 
 import { stripUndefined } from "../../utils/prisma";
 
@@ -70,7 +76,7 @@ export async function getMaxTaskPosition(db: PrismaClient, columnId: string): Pr
 
 export async function createTask(
   db: PrismaClient,
-  data: CreateTask & { position: number; creatorId: string },
+  data: CreateTask & { position: number; creatorId: string; status?: TaskStatus | undefined },
 ): Promise<Task> {
   return db.task.create({ data: stripUndefined(data) });
 }
@@ -83,14 +89,84 @@ export async function updateTask(
   return db.task.update({ where: { id: taskId }, data: stripUndefined(data) });
 }
 
-export async function moveTask(db: PrismaClient, payload: MoveTask): Promise<Task> {
-  return db.task.update({
-    where: { id: payload.taskId },
-    data: {
-      columnId: payload.targetColumnId,
-      position: payload.position,
-    },
+export interface MoveTaskResult {
+  task: Task;
+  /** Whether this write actually changed the task's status - see below. */
+  statusChanged: boolean;
+}
+
+/**
+ * Moves a task, optionally deriving its status from the target column's
+ * mapping. `statusChanged` is computed via a conditional `updateMany`
+ * (`status: { not: status }`, same idiom as auth/tokens.ts's
+ * consumeEmailVerification) rather than by comparing against a separately
+ * pre-fetched "existing" row - that snapshot can go stale across the await
+ * gap if a concurrent request changes the same task's status in between,
+ * silently mis-firing tasks/service.ts's taskStatusChangesTotal metric. A
+ * plain `update()` can't report this either way, since it always succeeds
+ * once the row exists regardless of its prior status.
+ */
+export async function moveTask(
+  db: PrismaClient,
+  payload: MoveTask & { status?: TaskStatus | undefined },
+): Promise<MoveTaskResult> {
+  const data = stripUndefined({
+    columnId: payload.targetColumnId,
+    position: payload.position,
+    status: payload.status,
   });
+
+  let statusChanged = false;
+  if (payload.status !== undefined) {
+    const { count } = await db.task.updateMany({
+      where: { id: payload.taskId, status: { not: payload.status } },
+      data,
+    });
+    statusChanged = count > 0;
+  }
+
+  // Either no status change was requested, or the task's status already
+  // matched the target (updateMany above matched zero rows either way) -
+  // still need to apply columnId/position.
+  if (!statusChanged) {
+    await db.task.update({ where: { id: payload.taskId }, data });
+  }
+
+  const task = await db.task.findUniqueOrThrow({ where: { id: payload.taskId } });
+  return { task, statusChanged };
+}
+
+/**
+ * Bulk-syncs every task already in a column to a newly-assigned status, so
+ * mapping a column doesn't only affect tasks created/moved AFTER the fact.
+ * Returns the ids of tasks actually changed (for the metric increment and
+ * the realtime broadcast) - see boards/service.ts's setColumnStatus, which
+ * calls this only when the new mapping is non-null (unmapping intentionally
+ * leaves existing tasks' status untouched, matching moveTask's own "no
+ * mapping -> don't touch status" rule above).
+ *
+ * Scopes both the read and the write to `status: { not: status }` - tasks
+ * already at the target status are excluded from both, so re-mapping a
+ * column to the status most of its tasks already hold doesn't inflate the
+ * metric with no-op "transitions".
+ */
+export async function bulkSetTaskStatusForColumn(
+  db: DbClient,
+  columnId: string,
+  status: TaskStatus,
+): Promise<string[]> {
+  const toChange = await db.task.findMany({
+    where: { columnId, status: { not: status } },
+    select: { id: true },
+  });
+  if (toChange.length === 0) return [];
+
+  await db.task.updateMany({
+    where: { columnId, status: { not: status } },
+    data: { status },
+  });
+
+  return toChange.map((t) => t.id);
 }
 
 export async function deleteTask(db: PrismaClient, taskId: string): Promise<void> {

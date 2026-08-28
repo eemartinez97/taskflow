@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { idSchema } from "./common";
 import { nameField } from "../utils/normalize";
+import { taskStatusSchema } from "./task";
 
 export const boardSchema = z.object({
   id: idSchema,
@@ -22,6 +23,10 @@ export const columnSchema = z.object({
   boardId: idSchema,
   name: nameField(1, 100),
   position: z.number(),
+  // When set, creating/moving a task into this column auto-sets its status
+  // to match - see setColumnStatusSchema below. Null means "no mapping",
+  // i.e. a purely organizational column that never touches task status.
+  mappedStatus: taskStatusSchema.nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -34,6 +39,11 @@ export const createColumnSchema = columnSchema
   .extend({ position: z.number().optional() });
 
 export const updateColumnSchema = createColumnSchema.partial();
+
+export const setColumnStatusSchema = z.object({
+  columnId: idSchema,
+  status: taskStatusSchema.nullable(),
+});
 
 export const reorderColumnsSchema = z.object({
   boardId: idSchema,

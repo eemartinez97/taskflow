@@ -30,6 +30,7 @@ import type {
   projectSchema,
   reorderColumnsSchema,
   roleSchema,
+  setColumnStatusSchema,
   taskPrioritySchema,
   taskSchema,
   taskStatusSchema,
@@ -90,6 +91,7 @@ export type UpdateBoard = z.infer<typeof updateBoardSchema>;
 export type CreateColumn = z.infer<typeof createColumnSchema>;
 export type UpdateColumn = z.infer<typeof updateColumnSchema>;
 export type ReorderColumns = z.infer<typeof reorderColumnsSchema>;
+export type SetColumnStatus = z.infer<typeof setColumnStatusSchema>;
 
 // Task
 export type TaskPriority = z.infer<typeof taskPrioritySchema>;

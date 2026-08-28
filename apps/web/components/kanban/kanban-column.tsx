@@ -1,12 +1,15 @@
 "use client";
 import { useSortable, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { GripVertical, Trash2 } from "lucide-react";
+import { CircleMinus, GripVertical, Trash2 } from "lucide-react";
 import { CSS } from "@dnd-kit/utilities";
 import { type JSX } from "react";
 
 import type { Column, Label, Task } from "@taskflow/database";
+import { TASK_STATUSES, type TaskStatus } from "@taskflow/shared";
 import { cn, InlineEditText } from "@taskflow/ui";
 
+import { STATUS_ICONS, STATUS_TEXT_COLORS } from "@/lib/constants/task";
+import { formatTaskStatus } from "@/lib/utils/task";
 import { DropdownMenu } from "../common/dropdown-menu";
 import { AddTaskButton } from "./add-task-button";
 import { KanbanCard } from "./kanban-card";
@@ -20,6 +23,7 @@ interface KanbanColumnProps {
   onTaskClick: (task: Task) => void;
   onRenameColumn: (columnId: string, name: string) => void;
   onDeleteColumn: (column: Column) => void;
+  onSetColumnStatus: (columnId: string, status: TaskStatus | null) => void;
   assigneeById: Map<string, { name: string | null; email: string | null; isFormer?: boolean }>;
   addingTaskId: string | null; // columnId being added to
   labelsByTask: Record<string, Label[]>;
@@ -43,6 +47,7 @@ export function KanbanColumn({
   labelsByTask,
   onRenameColumn,
   onDeleteColumn,
+  onSetColumnStatus,
   assigneeById,
   canEdit,
 }: KanbanColumnProps): JSX.Element {
@@ -57,6 +62,7 @@ export function KanbanColumn({
   } = useSortable({ id: column.id, data: { type: "column" }, disabled: !canEdit });
 
   const taskIds = tasks.map((t) => t.id);
+  const StatusIcon = column.mappedStatus ? STATUS_ICONS[column.mappedStatus] : CircleMinus;
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -73,9 +79,11 @@ export function KanbanColumn({
         isThisColumnDragging && "opacity-50",
       )}
     >
-      {/* Column header - drag handle + name + task count */}
+      {/* Column header - drag handle, status icon, name, count, menu all on
+          one row (Linear/Jira-style: no separate "Status:" row/label - the
+          icon shape + color next to the name IS the status). */}
       <div className="flex shrink-0 items-center justify-between rounded-md bg-gray-50 px-3 py-2 select-none">
-        <div className="flex items-center gap-1.5 min-w-0">
+        <div className="flex items-center gap-1 min-w-0">
           {/* Drag handle for column reorder */}
           {canEdit && (
             <button
@@ -92,6 +100,60 @@ export function KanbanColumn({
               <GripVertical className="h-3.5 w-3.5" />
             </button>
           )}
+
+          {/* Maps this column to a TaskStatus - creating a task here, or
+              dragging one in, then auto-sets Task.status to match (see
+              apps/api's tasks/service.ts); setting a mapping also bulk-syncs
+              every task already sitting in the column. "No status" leaves a
+              column purely organizational (e.g. "Blocked") - moving a task
+              there, or clearing an existing mapping, never touches status.
+              Icon SHAPE carries the meaning (not just color) - the same
+              convention Linear/Jira/Asana use for workflow-state glyphs, so
+              it reads correctly before you've learned the color mapping.
+              Still a native <select> for free keyboard/a11y support - it's
+              just visually collapsed to an invisible layer on top of the
+              decorative icon (a standard "icon-triggers-native-select"
+              trick), not a custom listbox. */}
+          <div
+            className={cn(
+              "relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-colors",
+              canEdit && "hover:bg-gray-200/70 focus-within:ring-2 focus-within:ring-brand-500",
+            )}
+            title="Auto-sets task status when a task is created or dropped here"
+          >
+            <StatusIcon
+              aria-hidden="true"
+              className={cn(
+                "h-3.5 w-3.5",
+                column.mappedStatus ? STATUS_TEXT_COLORS[column.mappedStatus] : "text-gray-300",
+              )}
+            />
+            <select
+              // Suffixed with the column id, not just its name - column.name
+              // has no uniqueness constraint anywhere (schema or addColumn),
+              // and "To Do" is literally the default name new columns get,
+              // so two same-named columns would otherwise produce identical
+              // aria-labels a screen reader (and getByLabelText) can't tell
+              // apart. Existing `/status mapping for column to do/i` test
+              // matchers still pass - RTL's getByLabelText regex match is a
+              // substring match, not an exact one.
+              aria-label={`Status mapping for column ${column.name} (${column.id})`}
+              disabled={!canEdit}
+              value={column.mappedStatus ?? ""}
+              onChange={(e) => {
+                onSetColumnStatus(column.id, (e.target.value || null) as TaskStatus | null);
+              }}
+              className="absolute inset-0 cursor-pointer appearance-none opacity-0 disabled:cursor-not-allowed"
+            >
+              <option value="">No status</option>
+              {TASK_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {formatTaskStatus(s)}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <InlineEditText
             label={`column name (${column.name})`}
             value={column.name}

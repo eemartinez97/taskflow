@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SOCKET_EVENTS } from "@taskflow/shared";
 
 import {
@@ -14,6 +14,7 @@ import {
   removeLabelFromTaskById,
   updateTaskById,
 } from "../../../../src/modules/tasks/service";
+import { appCollectors } from "../../../../src/metrics";
 import { buildLabel, buildTask } from "../../../factories";
 import {
   ANOTHER_UUID,
@@ -82,6 +83,10 @@ describe("read paths", () => {
 });
 
 describe("createTaskInColumn", () => {
+  beforeEach(() => {
+    appCollectors.tasksCreatedTotal.reset();
+  });
+
   it("appends at the end of the column and broadcasts task:created", async () => {
     mockDb.task.findFirst.mockResolvedValueOnce({ position: 1000 });
     mockDb.task.create.mockResolvedValueOnce(task);
@@ -103,6 +108,7 @@ describe("createTaskInColumn", () => {
         creatorId: VALID_USER.id,
       },
     });
+    expect((await appCollectors.tasksCreatedTotal.get()).values[0]?.value).toBe(1);
     expectEmittedToProject(VALID_PROJECT_ID, SOCKET_EVENTS.TASK_CREATED, { task }, VALID_USER.id);
   });
 
@@ -246,9 +252,17 @@ describe("updateTaskById", () => {
 });
 
 describe("moveTaskToColumn / deleteTaskById", () => {
+  beforeEach(() => {
+    appCollectors.tasksDeletedTotal.reset();
+    appCollectors.taskStatusChangesTotal.reset();
+  });
+
   it("moveTaskToColumn broadcasts task:moved", async () => {
+    mockDb.task.findUnique.mockResolvedValueOnce(task); // pre-move, status: TODO
+    mockDb.column.findUnique.mockResolvedValueOnce(null); // target column not found - no mapping
     const moved = buildTask({ columnId: "col-2", position: 1500 });
-    mockDb.task.update.mockResolvedValueOnce(moved);
+    mockDb.task.update.mockResolvedValueOnce(moved); // no status: undefined path
+    mockDb.task.findUniqueOrThrow.mockResolvedValueOnce(moved);
 
     await expect(
       moveTaskToColumn(db, mockIo, VALID_PROJECT_ID, VALID_USER.id, {
@@ -256,7 +270,7 @@ describe("moveTaskToColumn / deleteTaskById", () => {
         targetColumnId: "col-2",
         position: 1500,
       }),
-    ).resolves.toBe(moved);
+    ).resolves.toEqual(moved);
 
     expectEmittedToProject(
       VALID_PROJECT_ID,
@@ -264,6 +278,71 @@ describe("moveTaskToColumn / deleteTaskById", () => {
       { task: moved },
       VALID_USER.id,
     );
+  });
+
+  it("auto-sets status when moving into a column mapped to a status, and records the metric", async () => {
+    mockDb.task.findUnique.mockResolvedValueOnce(task); // pre-move, status: TODO
+    mockDb.column.findUnique.mockResolvedValueOnce({
+      id: "col-2",
+      mappedStatus: "DONE",
+    });
+    const moved = buildTask({ columnId: "col-2", position: 1500, status: "DONE" });
+    // status "DONE" differs from the row's real current status - the
+    // conditional updateMany (moveTask's statusChanged detection) matches it.
+    mockDb.task.updateMany.mockResolvedValueOnce({ count: 1 });
+    mockDb.task.findUniqueOrThrow.mockResolvedValueOnce(moved);
+
+    await moveTaskToColumn(db, mockIo, VALID_PROJECT_ID, VALID_USER.id, {
+      taskId: VALID_TASK_ID,
+      targetColumnId: "col-2",
+      position: 1500,
+    });
+
+    expect(mockDb.task.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: "DONE" }) as unknown }),
+    );
+    const values = (await appCollectors.taskStatusChangesTotal.get()).values;
+    expect(values).toEqual([expect.objectContaining({ labels: { to_status: "DONE" }, value: 1 })]);
+  });
+
+  it("leaves status untouched when moving into an unmapped column - only position/columnId change", async () => {
+    mockDb.task.findUnique.mockResolvedValueOnce(task); // pre-move, status: TODO
+    mockDb.column.findUnique.mockResolvedValueOnce({ id: "col-2", mappedStatus: null });
+    const moved = buildTask({ columnId: "col-2", position: 1500 });
+    mockDb.task.update.mockResolvedValueOnce(moved);
+    mockDb.task.findUniqueOrThrow.mockResolvedValueOnce(moved);
+
+    await moveTaskToColumn(db, mockIo, VALID_PROJECT_ID, VALID_USER.id, {
+      taskId: VALID_TASK_ID,
+      targetColumnId: "col-2",
+      position: 1500,
+    });
+
+    expect(mockDb.task.updateMany).not.toHaveBeenCalled();
+    expect(mockDb.task.update).toHaveBeenCalledWith({
+      where: { id: VALID_TASK_ID },
+      data: { columnId: "col-2", position: 1500 },
+    });
+    expect((await appCollectors.taskStatusChangesTotal.get()).values).toEqual([]);
+  });
+
+  it("does not record a status metric when the mapped status equals the task's current status", async () => {
+    mockDb.task.findUnique.mockResolvedValueOnce(task); // status: TODO
+    mockDb.column.findUnique.mockResolvedValueOnce({ id: "col-2", mappedStatus: "TODO" });
+    // Row's real current status already matches the target - the conditional
+    // updateMany's `status: { not: "TODO" }` matches zero rows.
+    mockDb.task.updateMany.mockResolvedValueOnce({ count: 0 });
+    const moved = buildTask({ columnId: "col-2", status: "TODO" });
+    mockDb.task.update.mockResolvedValueOnce(moved);
+    mockDb.task.findUniqueOrThrow.mockResolvedValueOnce(moved);
+
+    await moveTaskToColumn(db, mockIo, VALID_PROJECT_ID, VALID_USER.id, {
+      taskId: VALID_TASK_ID,
+      targetColumnId: "col-2",
+      position: 1500,
+    });
+
+    expect((await appCollectors.taskStatusChangesTotal.get()).values).toEqual([]);
   });
 
   it("deleteTaskById broadcasts task:deleted with just the id", async () => {
@@ -274,6 +353,7 @@ describe("moveTaskToColumn / deleteTaskById", () => {
     ).resolves.toEqual({
       success: true,
     });
+    expect((await appCollectors.tasksDeletedTotal.get()).values[0]?.value).toBe(1);
 
     expectEmittedToProject(
       VALID_PROJECT_ID,
@@ -294,6 +374,10 @@ describe("moveTaskToColumn / deleteTaskById", () => {
 });
 
 describe("addLabelToTaskById", () => {
+  beforeEach(() => {
+    appCollectors.taskLabelsAttachedTotal.reset();
+  });
+
   it("attaches and broadcasts the fresh label list", async () => {
     mockDb.task.findUnique.mockResolvedValueOnce(task);
     mockDb.label.findUnique.mockResolvedValueOnce({ orgId: VALID_ORG_ID });
@@ -304,6 +388,7 @@ describe("addLabelToTaskById", () => {
     ]);
 
     expect(mockDb.taskLabel.upsert).toHaveBeenCalledOnce();
+    expect((await appCollectors.taskLabelsAttachedTotal.get()).values[0]?.value).toBe(1);
     expectEmittedToProject(
       VALID_PROJECT_ID,
       SOCKET_EVENTS.TASK_LABELS_CHANGED,
@@ -335,6 +420,10 @@ describe("addLabelToTaskById", () => {
 });
 
 describe("removeLabelFromTaskById", () => {
+  beforeEach(() => {
+    appCollectors.taskLabelsDetachedTotal.reset();
+  });
+
   it("detaches and broadcasts the remaining labels", async () => {
     mockDb.label.findMany.mockResolvedValueOnce([]);
 
@@ -345,6 +434,7 @@ describe("removeLabelFromTaskById", () => {
     expect(mockDb.taskLabel.deleteMany).toHaveBeenCalledWith({
       where: { taskId: VALID_TASK_ID, labelId: VALID_LABEL_ID },
     });
+    expect((await appCollectors.taskLabelsDetachedTotal.get()).values[0]?.value).toBe(1);
     expectEmittedToProject(
       VALID_PROJECT_ID,
       SOCKET_EVENTS.TASK_LABELS_CHANGED,

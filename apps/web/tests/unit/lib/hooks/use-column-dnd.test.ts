@@ -6,6 +6,12 @@ import { VALID_COL_A_ID, VALID_COL_B_ID } from "@/tests/support/fixtures";
 
 const columnA = makeColumn({ id: VALID_COL_A_ID, position: 1000 });
 const columnB = makeColumn({ id: VALID_COL_B_ID, position: 2000 });
+// Stable reference across re-renders, matching production (react-query keeps
+// the same object reference until the cache entry actually changes) - an
+// inline array literal recreated on every renderHook callback invocation
+// would make the hook's reference-equality resync think a fresh prop
+// arrived on every render, looping forever.
+const twoColumns = [columnA, columnB];
 
 function dragEvent(activeId: string) {
   return { active: { id: activeId } } as unknown as Parameters<
@@ -22,7 +28,7 @@ function dragEndEvent(activeId: string, overId: string | null) {
 describe("useColumnDnD", () => {
   it("sets activeColumnId on drag start", () => {
     const { result } = renderHook(() =>
-      useColumnDnD({ initialColumns: [columnA, columnB], onColumnsReordered: vi.fn() }),
+      useColumnDnD({ initialColumns: twoColumns, onColumnsReordered: vi.fn() }),
     );
     act(() => {
       result.current.onColumnDragStart(dragEvent(columnA.id));
@@ -33,7 +39,7 @@ describe("useColumnDnD", () => {
   it("does nothing on drag end when over is null", () => {
     const onColumnsReordered = vi.fn();
     const { result } = renderHook(() =>
-      useColumnDnD({ initialColumns: [columnA, columnB], onColumnsReordered }),
+      useColumnDnD({ initialColumns: twoColumns, onColumnsReordered }),
     );
     act(() => {
       result.current.onColumnDragEnd(dragEndEvent(columnA.id, null));
@@ -45,7 +51,7 @@ describe("useColumnDnD", () => {
   it("does nothing when dropped on itself", () => {
     const onColumnsReordered = vi.fn();
     const { result } = renderHook(() =>
-      useColumnDnD({ initialColumns: [columnA, columnB], onColumnsReordered }),
+      useColumnDnD({ initialColumns: twoColumns, onColumnsReordered }),
     );
     act(() => {
       result.current.onColumnDragEnd(dragEndEvent(columnA.id, columnA.id));
@@ -56,7 +62,7 @@ describe("useColumnDnD", () => {
   it("reorders columns and reports the new position", () => {
     const onColumnsReordered = vi.fn();
     const { result } = renderHook(() =>
-      useColumnDnD({ initialColumns: [columnA, columnB], onColumnsReordered }),
+      useColumnDnD({ initialColumns: twoColumns, onColumnsReordered }),
     );
     act(() => {
       result.current.onColumnDragEnd(dragEndEvent(columnA.id, columnB.id));
@@ -70,7 +76,7 @@ describe("useColumnDnD", () => {
   it("bails out gracefully when active/over ids don't match any known column", () => {
     const onColumnsReordered = vi.fn();
     const { result } = renderHook(() =>
-      useColumnDnD({ initialColumns: [columnA, columnB], onColumnsReordered }),
+      useColumnDnD({ initialColumns: twoColumns, onColumnsReordered }),
     );
     act(() => {
       result.current.onColumnDragEnd(dragEndEvent("ghost-id", columnB.id));
@@ -84,8 +90,19 @@ describe("useColumnDnD", () => {
       { initialProps: { initialColumns: [columnA] } },
     );
     expect(result.current.columns).toHaveLength(1);
-    rerender({ initialColumns: [columnA, columnB] });
+    rerender({ initialColumns: twoColumns });
     expect(result.current.columns).toHaveLength(2);
+  });
+
+  it("re-syncs on a property-only change (same id set, e.g. rename or status mapping) - not just id-set changes", () => {
+    const renamed = [{ ...columnA, name: "Renamed" }, columnB];
+    const { result, rerender } = renderHook(
+      ({ initialColumns }) => useColumnDnD({ initialColumns, onColumnsReordered: vi.fn() }),
+      { initialProps: { initialColumns: twoColumns } },
+    );
+    expect(result.current.columns[0]?.name).toBe(columnA.name);
+    rerender({ initialColumns: renamed });
+    expect(result.current.columns[0]?.name).toBe("Renamed");
   });
 
   it("does not resync columns when a drag is active even if initialColumns changes", () => {
@@ -96,14 +113,14 @@ describe("useColumnDnD", () => {
     act(() => {
       result.current.onColumnDragStart(dragEvent(columnA.id));
     });
-    rerender({ initialColumns: [columnA, columnB] });
+    rerender({ initialColumns: twoColumns });
     expect(result.current.columns).toHaveLength(1);
   });
 
   it("computes a position with no previous column when dropped at the start", () => {
     const onColumnsReordered = vi.fn();
     const { result } = renderHook(() =>
-      useColumnDnD({ initialColumns: [columnA, columnB], onColumnsReordered }),
+      useColumnDnD({ initialColumns: twoColumns, onColumnsReordered }),
     );
     act(() => {
       result.current.onColumnDragEnd(dragEndEvent(columnB.id, columnA.id));
@@ -115,9 +132,10 @@ describe("useColumnDnD", () => {
 
   it("computes a position with no next column when dropped at the end", () => {
     const columnC = makeColumn({ id: "col-c", position: 3000 });
+    const threeColumns = [columnA, columnB, columnC];
     const onColumnsReordered = vi.fn();
     const { result } = renderHook(() =>
-      useColumnDnD({ initialColumns: [columnA, columnB, columnC], onColumnsReordered }),
+      useColumnDnD({ initialColumns: threeColumns, onColumnsReordered }),
     );
     act(() => {
       result.current.onColumnDragEnd(dragEndEvent(columnA.id, columnC.id));

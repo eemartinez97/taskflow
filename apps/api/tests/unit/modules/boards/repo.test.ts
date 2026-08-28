@@ -4,6 +4,7 @@ import {
   countBoards,
   createBoard,
   createColumn,
+  createDefaultColumns,
   deleteBoard,
   deleteColumn,
   findBoardsByProject,
@@ -12,6 +13,7 @@ import {
   getMaxColumnPosition,
   reorderColumns,
   updateBoard,
+  updateColumnMappedStatus,
   updateColumnName,
 } from "../../../../src/modules/boards/repo";
 import { buildBoard, buildBoardWithColumns, buildColumn } from "../../../factories";
@@ -72,6 +74,13 @@ describe("boards repo", () => {
       args: { where: { id: VALID_COLUMN_ID }, data: { name: "Done" } },
     },
     {
+      name: "updateColumnMappedStatus",
+      delegate: mockDb.column.update,
+      resolves: buildColumn({ mappedStatus: "DONE" }),
+      call: () => updateColumnMappedStatus(db, VALID_COLUMN_ID, "DONE"),
+      args: { where: { id: VALID_COLUMN_ID }, data: { mappedStatus: "DONE" } },
+    },
+    {
       name: "deleteColumn",
       delegate: mockDb.column.delete,
       resolves: buildColumn(),
@@ -112,6 +121,34 @@ describe("getMaxColumnPosition", () => {
       orderBy: { position: "desc" },
       select: { position: true },
     });
+  });
+});
+
+describe("createDefaultColumns", () => {
+  it("creates the four standard columns pre-mapped to their matching status", async () => {
+    await createDefaultColumns(db, VALID_BOARD_ID);
+
+    expect(mockDb.column.create.mock.calls.map(([arg]) => arg)).toEqual([
+      { data: { boardId: VALID_BOARD_ID, name: "To Do", position: 1000, mappedStatus: "TODO" } },
+      {
+        data: {
+          boardId: VALID_BOARD_ID,
+          name: "In Progress",
+          position: 2000,
+          mappedStatus: "IN_PROGRESS",
+        },
+      },
+      {
+        data: {
+          boardId: VALID_BOARD_ID,
+          name: "In Review",
+          position: 3000,
+          mappedStatus: "IN_REVIEW",
+        },
+      },
+      { data: { boardId: VALID_BOARD_ID, name: "Done", position: 4000, mappedStatus: "DONE" } },
+    ]);
+    expect(mockDb.$transaction).toHaveBeenCalledOnce();
   });
 });
 

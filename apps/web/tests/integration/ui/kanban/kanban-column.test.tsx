@@ -78,6 +78,7 @@ function buildProps(
     onTaskClick: vi.fn(),
     onRenameColumn: vi.fn(),
     onDeleteColumn: vi.fn(),
+    onSetColumnStatus: vi.fn(),
     assigneeById: new Map(),
     addingTaskId: null,
     labelsByTask: {},

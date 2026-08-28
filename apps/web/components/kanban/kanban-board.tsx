@@ -24,7 +24,7 @@ import type { Column, Label, Task } from "@taskflow/database";
 import type { SocketPresenceUser } from "@taskflow/shared";
 
 import { findColumnIdForTask, findTaskInMap, type TasksMap } from "@/lib/board/tasks-map";
-import { upsertTask } from "@/lib/socket/task-cache";
+import { applyTaskMove, upsertTask } from "@/lib/socket/task-cache";
 import { TaskDetailPanel } from "@/components/task/task-detail-panel";
 import { useAssigneeLookup } from "@/lib/hooks/use-assignee-lookup";
 import { useColumnDnD } from "@/lib/hooks/use-column-dnd";
@@ -237,6 +237,58 @@ export function KanbanBoard({
     },
   });
 
+  const setColumnStatusMutation = api.boards.setColumnStatus.useMutation({
+    onMutate: async ({ columnId, status }) => {
+      await utils.boards.get.cancel({ orgId, boardId });
+      const previous = utils.boards.get.getData({ orgId, boardId });
+      utils.boards.get.setData({ orgId, boardId }, (prev) =>
+        prev
+          ? {
+              ...prev,
+              columns: prev.columns.map((c) =>
+                c.id === columnId ? { ...c, mappedStatus: status } : c,
+              ),
+            }
+          : prev,
+      );
+
+      return { previous };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous !== undefined) {
+        utils.boards.get.setData({ orgId, boardId }, ctx.previous);
+      }
+    },
+    // Setting a real status bulk-syncs every task already in the column
+    // server-side (see boards/service.ts's setColumnStatus) - write that
+    // status straight into both tasks.list AND tasks.get so the actor's own
+    // board/detail-panel reflect it instantly. invalidate() alone isn't
+    // enough for tasks.get: TaskDetailPanel seeds it with `initialData`, but
+    // TanStack Query ignores initialData once a cache entry already exists
+    // (i.e. the task's panel was opened before) - reopening it kept showing
+    // the pre-sync status until a full page reload rebuilt the cache from
+    // scratch. Unmapping never touches existing tasks, so nothing to sync.
+    onSuccess: (column) => {
+      const { mappedStatus } = column;
+      if (mappedStatus === null) return;
+
+      const tasksInColumn = utils.tasks.list.getData({ orgId, columnId: column.id }) ?? [];
+      utils.tasks.list.setData(
+        { orgId, columnId: column.id },
+        tasksInColumn.map((t) => (t.status === mappedStatus ? t : { ...t, status: mappedStatus })),
+      );
+      for (const t of tasksInColumn) {
+        if (t.status === mappedStatus) continue;
+        utils.tasks.get.setData({ orgId, taskId: t.id }, (prev) =>
+          prev ? { ...prev, status: mappedStatus } : prev,
+        );
+      }
+    },
+    onSettled: () => {
+      void utils.boards.get.invalidate({ orgId, boardId });
+    },
+  });
+
   const deleteColumnMutation = api.boards.deleteColumn.useMutation({
     onSuccess: (_result, variables) => {
       toast.success("Column deleted.");
@@ -269,7 +321,28 @@ export function KanbanBoard({
 
   // -- Task DnD
 
+  // onSuccess mirrors use-board-realtime.ts's own TASK_MOVED socket handler
+  // exactly (same applyTaskMove helper) - without it, the actor's own
+  // tasks.list/tasks.get cache never picked up the server-derived status
+  // change from a column's mappedStatus (see tasks/service.ts's
+  // moveTaskToColumn), so re-opening the task's detail panel right after a
+  // drag showed the pre-move status until a full page reload. useBoardDnD's
+  // own optimistic `localTasks` state moves the card instantly for the
+  // drag itself, but never touches status - this closes that gap.
   const moveMutation = api.tasks.move.useMutation({
+    onSuccess: (task) => {
+      utils.tasks.get.setData({ orgId, taskId: task.id }, task);
+
+      const allColumnIds = columns.map((c) => c.id);
+      const snapshot: Record<string, Task[]> = {};
+      for (const colId of allColumnIds) {
+        snapshot[colId] = utils.tasks.list.getData({ orgId, columnId: colId }) ?? [];
+      }
+      const updated = applyTaskMove(snapshot, task, allColumnIds);
+      for (const colId of allColumnIds) {
+        utils.tasks.list.setData({ orgId, columnId: colId }, updated[colId]);
+      }
+    },
     onError: () => {
       void utils.tasks.list.invalidate();
     },
@@ -517,6 +590,9 @@ export function KanbanBoard({
                   }}
                   onDeleteColumn={(column) => {
                     setDeleteColumnTarget(column);
+                  }}
+                  onSetColumnStatus={(columnId, status) => {
+                    setColumnStatusMutation.mutate({ orgId, columnId, status });
                   }}
                 />
               ))}

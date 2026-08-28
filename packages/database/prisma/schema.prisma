@@ -275,6 +275,12 @@ model Column {
   name      String   @db.VarChar(100)
   // Fractional float for O(1) lexorank-style reordering
   position  Float
+  // Optional: when set, creating a task in this column, or moving a task
+  // into it, auto-sets Task.status to match. Nullable so purely
+  // organizational columns (e.g. "Blocked") can opt out of the mapping
+  // entirely - column identity (name/position) and task status are
+  // otherwise fully independent concepts.
+  mappedStatus TaskStatus?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

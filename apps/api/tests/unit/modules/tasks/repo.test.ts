@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   attachLabelToTask,
+  bulkSetTaskStatusForColumn,
   createTask,
   deleteTask,
   detachLabelFromTask,
@@ -77,13 +78,6 @@ describe("tasks repo", () => {
       args: { where: { id: VALID_TASK_ID }, data: { title: "New" } },
     },
     {
-      name: "moveTask writes column and position",
-      delegate: mockDb.task.update,
-      resolves: task,
-      call: () => moveTask(db, { taskId: VALID_TASK_ID, targetColumnId: "col-2", position: 1500 }),
-      args: { where: { id: VALID_TASK_ID }, data: { columnId: "col-2", position: 1500 } },
-    },
-    {
       name: "deleteTask",
       delegate: mockDb.task.delete,
       resolves: task,
@@ -119,6 +113,92 @@ describe("tasks repo", () => {
       returns: undefined,
     },
   ]);
+});
+
+describe("moveTask", () => {
+  it("writes only columnId/position when no status is given, and reports statusChanged: false", async () => {
+    mockDb.task.update.mockResolvedValueOnce(task);
+    mockDb.task.findUniqueOrThrow.mockResolvedValueOnce(task);
+
+    const result = await moveTask(db, {
+      taskId: VALID_TASK_ID,
+      targetColumnId: "col-2",
+      position: 1500,
+    });
+
+    expect(mockDb.task.updateMany).not.toHaveBeenCalled();
+    expect(mockDb.task.update).toHaveBeenCalledExactlyOnceWith({
+      where: { id: VALID_TASK_ID },
+      data: { columnId: "col-2", position: 1500 },
+    });
+    expect(result).toEqual({ task, statusChanged: false });
+  });
+
+  it("writes status via a conditional updateMany and reports statusChanged: true when it actually changed", async () => {
+    mockDb.task.updateMany.mockResolvedValueOnce({ count: 1 });
+    mockDb.task.findUniqueOrThrow.mockResolvedValueOnce({ ...task, status: "DONE" });
+
+    const result = await moveTask(db, {
+      taskId: VALID_TASK_ID,
+      targetColumnId: "col-2",
+      position: 1500,
+      status: "DONE",
+    });
+
+    expect(mockDb.task.updateMany).toHaveBeenCalledExactlyOnceWith({
+      where: { id: VALID_TASK_ID, status: { not: "DONE" } },
+      data: { columnId: "col-2", position: 1500, status: "DONE" },
+    });
+    expect(mockDb.task.update).not.toHaveBeenCalled();
+    expect(result).toEqual({ task: { ...task, status: "DONE" }, statusChanged: true });
+  });
+
+  it("falls back to a plain update when the task's status already matched the target", async () => {
+    mockDb.task.updateMany.mockResolvedValueOnce({ count: 0 });
+    mockDb.task.update.mockResolvedValueOnce(task);
+    mockDb.task.findUniqueOrThrow.mockResolvedValueOnce(task);
+
+    const result = await moveTask(db, {
+      taskId: VALID_TASK_ID,
+      targetColumnId: "col-2",
+      position: 1500,
+      status: "DONE",
+    });
+
+    expect(mockDb.task.update).toHaveBeenCalledExactlyOnceWith({
+      where: { id: VALID_TASK_ID },
+      data: { columnId: "col-2", position: 1500, status: "DONE" },
+    });
+    expect(result).toEqual({ task, statusChanged: false });
+  });
+});
+
+describe("bulkSetTaskStatusForColumn", () => {
+  it("returns [] and skips the write when every task already has the target status", async () => {
+    mockDb.task.findMany.mockResolvedValueOnce([]);
+
+    const result = await bulkSetTaskStatusForColumn(db, VALID_COLUMN_ID, "DONE");
+
+    expect(mockDb.task.findMany).toHaveBeenCalledExactlyOnceWith({
+      where: { columnId: VALID_COLUMN_ID, status: { not: "DONE" } },
+      select: { id: true },
+    });
+    expect(mockDb.task.updateMany).not.toHaveBeenCalled();
+    expect(result).toEqual([]);
+  });
+
+  it("returns the ids actually changed, and writes only those rows", async () => {
+    mockDb.task.findMany.mockResolvedValueOnce([{ id: "task-1" }, { id: "task-2" }]);
+    mockDb.task.updateMany.mockResolvedValueOnce({ count: 2 });
+
+    const result = await bulkSetTaskStatusForColumn(db, VALID_COLUMN_ID, "DONE");
+
+    expect(mockDb.task.updateMany).toHaveBeenCalledExactlyOnceWith({
+      where: { columnId: VALID_COLUMN_ID, status: { not: "DONE" } },
+      data: { status: "DONE" },
+    });
+    expect(result).toEqual(["task-1", "task-2"]);
+  });
 });
 
 describe("getMaxTaskPosition", () => {

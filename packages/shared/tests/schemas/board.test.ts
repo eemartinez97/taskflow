@@ -5,6 +5,7 @@ import {
   createBoardSchema,
   createColumnSchema,
   reorderColumnsSchema,
+  setColumnStatusSchema,
   updateBoardSchema,
   updateColumnSchema,
 } from "@taskflow/shared";
@@ -26,6 +27,15 @@ describe("columnSchema", () => {
   it("parses a valid column", () => {
     const result = columnSchema.parse(validColumnPayload);
     expect(result.position).toBe(validColumnPayload.position);
+  });
+
+  it("accepts a null mappedStatus (unmapped/organizational column)", () => {
+    const result = columnSchema.parse({ ...validColumnPayload, mappedStatus: null });
+    expect(result.mappedStatus).toBeNull();
+  });
+
+  it("rejects an invalid mappedStatus value", () => {
+    expect(() => columnSchema.parse({ ...validColumnPayload, mappedStatus: "BLOCKED" })).toThrow();
   });
 });
 
@@ -75,6 +85,28 @@ describe("updateColumnSchema", () => {
   it("accepts partial update with only name", () => {
     const result = updateColumnSchema.parse({ name: "Reviewed" });
     expect(result.name).toBe("Reviewed");
+  });
+});
+
+describe("setColumnStatusSchema", () => {
+  it("accepts a valid status", () => {
+    const result = setColumnStatusSchema.parse({ columnId: VALID_UUID, status: "IN_PROGRESS" });
+    expect(result.status).toBe("IN_PROGRESS");
+  });
+
+  it("accepts a null status (unmapping the column)", () => {
+    const result = setColumnStatusSchema.parse({ columnId: VALID_UUID, status: null });
+    expect(result.status).toBeNull();
+  });
+
+  it("rejects an invalid status", () => {
+    expect(() =>
+      setColumnStatusSchema.parse({ columnId: VALID_UUID, status: "BLOCKED" }),
+    ).toThrow();
+  });
+
+  it("rejects a missing columnId", () => {
+    expect(() => setColumnStatusSchema.parse({ status: "DONE" })).toThrow();
   });
 });
 

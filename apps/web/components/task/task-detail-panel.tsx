@@ -5,12 +5,7 @@ import { useEffect, useState, type JSX } from "react";
 import { useForm } from "react-hook-form";
 import { X, Trash2 } from "lucide-react";
 
-import {
-  updateTaskSchema,
-  type UpdateTask,
-  TASK_PRIORITIES,
-  TASK_STATUSES,
-} from "@taskflow/shared";
+import { updateTaskSchema, type UpdateTask, TASK_PRIORITIES } from "@taskflow/shared";
 import { Button, cn, FormField, Input, Select } from "@taskflow/ui";
 import type { Label, Task } from "@taskflow/database";
 
@@ -121,7 +116,6 @@ export function TaskDetailPanel({
       title: fullTask.title,
       description: fullTask.description ?? undefined,
       priority: fullTask.priority,
-      status: fullTask.status,
       assigneeId: fullTask.assigneeId ?? undefined,
     },
   });
@@ -140,7 +134,6 @@ export function TaskDetailPanel({
       title: fullTask.title,
       description: fullTask.description ?? undefined,
       priority: fullTask.priority,
-      status: fullTask.status,
       assigneeId: fullTask.assigneeId ?? undefined,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -153,7 +146,6 @@ export function TaskDetailPanel({
       data.title === fullTask.title &&
       (data.description ?? null) === (fullTask.description ?? null) &&
       data.priority === fullTask.priority &&
-      data.status === fullTask.status &&
       (data.assigneeId ?? null) === (fullTask.assigneeId ?? null);
 
     if (unchanged) return;
@@ -175,8 +167,20 @@ export function TaskDetailPanel({
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 shrink-0">
-          <div className="flex min-w-0 items-baseline gap-2 pr-4">
+          <div className="flex min-w-0 items-center gap-2 pr-4">
             <h2 className="text-base font-semibold text-gray-900 truncate">Task details</h2>
+            {/* Status is derived from the task's column (see apps/api's
+                tasks/service.ts createTaskInColumn/moveTaskToColumn) - drag
+                the task to a different column to change it. Shown here as a
+                compact pill instead of a full-height field in the form below
+                to keep the settings section short and leave more room for
+                comments. */}
+            <span
+              className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium
+                         text-gray-600"
+            >
+              {formatTaskStatus(fullTask.status)}
+            </span>
             <span aria-live="polite" className="shrink-0 text-xs text-gray-400">
               {updateMutation.isPending ? "Saving…" : updateMutation.isSuccess ? "Saved" : ""}
             </span>
@@ -258,40 +262,30 @@ export function TaskDetailPanel({
                   </Select>
                 </FormField>
 
-                <FormField label="Status" htmlFor="task-status">
-                  <Select id="task-status" disabled={!canEdit} {...register("status")}>
-                    {TASK_STATUSES.map((s) => (
-                      <option key={s} value={s}>
-                        {formatTaskStatus(s)}
-                      </option>
-                    ))}
-                  </Select>
+                <FormField label="Assignee" htmlFor="task-assignee">
+                  {assigneesPending ? (
+                    <p className="text-xs text-gray-400">Loading members…</p>
+                  ) : (
+                    <Select
+                      id="task-assignee"
+                      disabled={!canEdit}
+                      {...register("assigneeId", { setValueAs: selectValueToNull })}
+                    >
+                      <option value="">Unassigned</option>
+                      {assignedFormerMember && (
+                        <option value={assignedFormerMember.id} disabled>
+                          {displayName(assignedFormerMember)} · ex
+                        </option>
+                      )}
+                      {members.map((m) => (
+                        <option key={m.user.id} value={m.user.id}>
+                          {displayName(m.user)}
+                        </option>
+                      ))}
+                    </Select>
+                  )}
                 </FormField>
               </div>
-
-              <FormField label="Assignee" htmlFor="task-assignee">
-                {assigneesPending ? (
-                  <p className="text-xs text-gray-400">Loading members…</p>
-                ) : (
-                  <Select
-                    id="task-assignee"
-                    disabled={!canEdit}
-                    {...register("assigneeId", { setValueAs: selectValueToNull })}
-                  >
-                    <option value="">Unassigned</option>
-                    {assignedFormerMember && (
-                      <option value={assignedFormerMember.id} disabled>
-                        {displayName(assignedFormerMember)} · ex
-                      </option>
-                    )}
-                    {members.map((m) => (
-                      <option key={m.user.id} value={m.user.id}>
-                        {displayName(m.user)}
-                      </option>
-                    ))}
-                  </Select>
-                )}
-              </FormField>
             </form>
 
             <TaskLabels

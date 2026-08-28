@@ -60,6 +60,7 @@ export const buildColumn = (o: Partial<Column> = {}): Column => ({
   boardId: VALID_BOARD_ID,
   name: "To Do",
   position: 1000,
+  mappedStatus: null,
   ...stamps,
   ...o,
 });

@@ -9,6 +9,7 @@ export type MockFn = MockInstance<(...args: unknown[]) => unknown>;
 
 export interface ModelMock {
   findUnique: MockFn;
+  findUniqueOrThrow: MockFn;
   findFirst: MockFn;
   findMany: MockFn;
   create: MockFn;
@@ -50,6 +51,7 @@ export type MockOps = Record<ModelName, ModelMock> & {
 
 const makeModelMock = (): ModelMock => ({
   findUnique: vi.fn(),
+  findUniqueOrThrow: vi.fn(),
   findFirst: vi.fn(),
   findMany: vi.fn(),
   create: vi.fn(),
@@ -76,11 +78,18 @@ export const mockOps: MockOps = {
  * Called from tests/setup.ts on every `beforeEach` - see tests/support/reset.ts.
  *
  * `$transaction` gets a real implementation because repos await it directly
- * (createDefaultBoard, reorderColumns) and `await undefined` silently hides
- * the fact that the array of operations was never resolved.
+ * (createDefaultBoard, reorderColumns, setColumnStatus) and `await undefined`
+ * silently hides the fact that the operations were never resolved. Handles
+ * both call shapes Prisma supports: an array of pending queries (batched
+ * transaction), and a callback receiving a `tx` client (interactive
+ * transaction, e.g. boards/service.ts's setColumnStatus) - `tx` is just
+ * `mockOps` itself here, same delegates every other repo call already uses.
  */
 export function armDbMocks(): void {
-  mockOps.$transaction.mockImplementation(async (ops: unknown) =>
-    Array.isArray(ops) ? Promise.all(ops) : undefined,
-  );
+  mockOps.$transaction.mockImplementation(async (ops: unknown) => {
+    if (typeof ops === "function") {
+      return (ops as (tx: MockOps) => unknown)(mockOps);
+    }
+    return Array.isArray(ops) ? Promise.all(ops) : undefined;
+  });
 }

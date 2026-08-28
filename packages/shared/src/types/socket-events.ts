@@ -47,6 +47,12 @@ export interface ServerToClientEvents {
   [SOCKET_EVENTS.TASK_MOVED]: (payload: { task: SocketTask }) => void;
   [SOCKET_EVENTS.TASK_DELETED]: (payload: { taskId: string }) => void;
   [SOCKET_EVENTS.TASK_LABELS_CHANGED]: (payload: { taskId: string; labels: SocketLabel[] }) => void;
+  /** Sent when a column's status mapping change bulk-syncs its existing tasks - see boards/service.ts's setColumnStatus. */
+  [SOCKET_EVENTS.TASK_STATUS_BULK_UPDATED]: (payload: {
+    columnId: string;
+    status: SocketTask["status"];
+    taskIds: string[];
+  }) => void;
   [SOCKET_EVENTS.BOARD_UPDATED]: (payload: { board: SocketBoard }) => void;
   [SOCKET_EVENTS.TASK_TYPING]: (payload: { taskId: string; userId: string }) => void;
   [SOCKET_EVENTS.COMMENT_CREATED]: (payload: { comment: SocketComment }) => void;

@@ -3,6 +3,7 @@ import {
   SOCKET_EVENTS,
   type CreateBoard,
   type ReorderColumns,
+  type TaskStatus,
   type UpdateBoard,
 } from "@taskflow/shared";
 import {
@@ -19,8 +20,10 @@ import {
   getMaxColumnPosition,
   reorderColumns,
   updateBoard,
+  updateColumnMappedStatus,
   updateColumnName,
 } from "./repo";
+import { bulkSetTaskStatusForColumn } from "../tasks/repo";
 import { TRPCError } from "../../trpc/init";
 import type { AppServer } from "../../socket/events";
 import { emitToProject } from "../../socket/emit";
@@ -156,6 +159,58 @@ export async function renameColumn(
 
   const updated = await updateColumnName(db, columnId, name);
   broadcastBoardUpdated(db, io, column.boardId, actorId, "boards.renameColumn");
+
+  return updated;
+}
+
+/**
+ * Setting a mapping bulk-syncs every task ALREADY in the column too - not
+ * just future creates/moves - so a column's tasks never sit inconsistent
+ * with its own mapping just because they arrived before the mapping did.
+ * Clearing a mapping (status: null) deliberately does NOT touch existing
+ * tasks - same "no mapping -> don't derive a status" rule moveTaskToColumn
+ * already applies to a single move, just applied in bulk here. Resetting
+ * them to some default would silently blow away real progress (e.g. a
+ * "Done" column's tasks looking unstarted again the moment it's unmapped).
+ *
+ * The column write and the task bulk-sync run in one `$transaction` so a
+ * failure partway through (e.g. the bulk update) can never leave the column
+ * mapped to a status its own tasks don't reflect - the exact inconsistency
+ * this function exists to prevent.
+ */
+export async function setColumnStatus(
+  db: PrismaClient,
+  io: AppServer,
+  columnId: string,
+  actorId: string,
+  status: TaskStatus | null,
+): Promise<Column> {
+  const column = await findColumnById(db, columnId);
+
+  if (!column) throw new TRPCError({ code: "NOT_FOUND", message: "Column not found." });
+
+  const [updated, changedTaskIds] = await db.$transaction(async (tx) => {
+    const updatedColumn = await updateColumnMappedStatus(tx, columnId, status);
+    const taskIds = status !== null ? await bulkSetTaskStatusForColumn(tx, columnId, status) : [];
+    return [updatedColumn, taskIds] as const;
+  });
+
+  if (status !== null && changedTaskIds.length > 0) {
+    appCollectors.taskStatusChangesTotal.inc({ to_status: status }, changedTaskIds.length);
+
+    // getBoard (not findBoardById) - column.boardId is a foreign key, so the
+    // board is guaranteed to exist; no separate null-check branch needed.
+    const board = await getBoard(db, column.boardId);
+    emitToProject(
+      io,
+      board.projectId,
+      SOCKET_EVENTS.TASK_STATUS_BULK_UPDATED,
+      { columnId, status, taskIds: changedTaskIds },
+      actorId,
+    );
+  }
+
+  broadcastBoardUpdated(db, io, column.boardId, actorId, "boards.setColumnStatus");
 
   return updated;
 }

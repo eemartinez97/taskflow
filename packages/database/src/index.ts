@@ -41,6 +41,7 @@ export type {
   InvitationWithOrg,
   InvitationWithInviter,
   FormerAssignee,
+  DbClient,
 } from "./types";
 
 // Query fragments - consumed by repo files in apps/api

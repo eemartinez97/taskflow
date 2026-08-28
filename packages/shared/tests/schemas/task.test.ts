@@ -114,11 +114,6 @@ describe("updateTaskSchema", () => {
     expect(result.title).toBe("Updated title");
   });
 
-  it("accepts status update", () => {
-    const result = updateTaskSchema.parse({ status: "DONE" });
-    expect(result.status).toBe("DONE");
-  });
-
   it("accepts priority update", () => {
     const result = updateTaskSchema.parse({ priority: "URGENT" });
     expect(result.priority).toBe("URGENT");
@@ -153,8 +148,9 @@ describe("updateTaskSchema", () => {
     expect(() => updateTaskSchema.parse({ title: "" })).toThrow();
   });
 
-  it("rejects invalid status", () => {
-    expect(() => updateTaskSchema.parse({ status: "BLOCKED" })).toThrow();
+  it("silently strips status - it's not a recognized field (derived server-side, never client-settable)", () => {
+    const result = updateTaskSchema.parse({ status: "DONE" });
+    expect(result).not.toHaveProperty("status");
   });
 
   it("rejects invalid priority", () => {

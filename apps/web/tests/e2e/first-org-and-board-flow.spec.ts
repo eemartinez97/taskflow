@@ -50,7 +50,11 @@ test.describe("Project -> Board -> Task flow", () => {
     await page.getByRole("button", { name: "Add column" }).click();
     await page.getByLabel("New column name").fill("In Review");
     await page.getByRole("button", { name: "Confirm new column" }).click();
-    await expect(page.getByText("In Review")).toBeVisible();
+    // Not getByText("In Review"): every column's status-mapping <select>
+    // (kanban-column.tsx) renders an "IN REVIEW" <option>, and getByText's
+    // substring/case-insensitive match hits those too - scope to the
+    // column-name button, whose aria-label is unique per column.
+    await expect(page.getByRole("button", { name: "Edit column name (In Review)" })).toBeVisible();
 
     await createTaskInFirstColumn(page, "Design landing page");
 

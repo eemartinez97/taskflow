@@ -95,6 +95,7 @@ export const api = {
     delete: { useMutation: mutation() },
     addColumn: { useMutation: mutation() },
     renameColumn: { useMutation: mutation() },
+    setColumnStatus: { useMutation: mutation() },
     deleteColumn: { useMutation: mutation() },
     reorderColumns: { useMutation: mutation() },
   },

@@ -35,13 +35,15 @@ export const createTaskSchema = taskSchema
     dueDate: z.date().optional(),
   });
 
+// status is deliberately absent - it's fully derived server-side from the
+// task's column (Column.mappedStatus), never client-settable. See
+// tasks/service.ts's createTaskInColumn/moveTaskToColumn.
 export const updateTaskSchema = createTaskSchema
   .omit({ columnId: true })
   .extend({
     priority: taskPrioritySchema.optional(),
     assigneeId: idSchema.nullable().optional(),
     description: z.string().max(10_000).nullable().optional(),
-    status: taskStatusSchema.optional(),
     dueDate: z.date().nullable().optional(),
   })
   .partial();

@@ -332,6 +332,25 @@ describe("TaskDetailPanel", () => {
     });
   });
 
+  it("renders status as a read-only, non-interactive display - not an editable select", () => {
+    mockUseQuery(api.tasks.get, makeTask({ status: "IN_PROGRESS" }));
+    mockUseQuery(api.orgs.assigneeLookup, { members: [], formerAssignees: [] });
+    mockUseQuery(api.labels.list, []);
+    mockUseQuery(api.tasks.labels, []);
+    render(
+      <TaskDetailPanel
+        task={makeTask({ status: "IN_PROGRESS" })}
+        orgId={VALID_ORG_ID}
+        projectId={VALID_PROJECT_ID}
+        canEdit={true}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("IN PROGRESS")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/status/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: /status/i })).not.toBeInTheDocument();
+  });
+
   it("renders assignee options when org members are present", () => {
     mockUseQuery(api.tasks.get, makeTask());
     mockUseQuery(api.orgs.assigneeLookup, {
@@ -567,6 +586,5 @@ describe("TaskDetailPanel", () => {
     expect(screen.getByLabelText(/title/i)).toBeDisabled();
     expect(screen.getByLabelText(/description/i)).toBeDisabled();
     expect(screen.getByLabelText(/priority/i)).toBeDisabled();
-    expect(screen.getByLabelText(/status/i)).toBeDisabled();
   });
 });

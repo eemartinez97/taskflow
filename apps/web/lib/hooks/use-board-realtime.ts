@@ -95,6 +95,24 @@ export function useBoardRealtime({
       }
     };
 
+    // -- Handler: task:status_bulk_updated --
+    // A column's mapping changed and its existing tasks were bulk-synced to
+    // match server-side (see boards/service.ts's setColumnStatus) - patch
+    // every affected task's status in both caches so viewers other than the
+    // actor (who patches their own cache from the mutation's own response,
+    // see kanban-board.tsx's setColumnStatusMutation) see it without a
+    // manual reload.
+    const onTaskStatusBulkUpdated: ServerToClientEvents[typeof SOCKET_EVENTS.TASK_STATUS_BULK_UPDATED] =
+      ({ columnId, status, taskIds }) => {
+        const idSet = new Set(taskIds);
+        utils.tasks.list.setData(getCacheKey(columnId), (prev) =>
+          prev?.map((t) => (idSet.has(t.id) ? { ...t, status } : t)),
+        );
+        for (const taskId of taskIds) {
+          utils.tasks.get.setData({ orgId, taskId }, (prev) => (prev ? { ...prev, status } : prev));
+        }
+      };
+
     // -- Handler: task:labels_changed --
     // Replaces every (taskId, label) pair of that task with the fresh list
     const onTaskLabelsChanged: ServerToClientEvents[typeof SOCKET_EVENTS.TASK_LABELS_CHANGED] = ({
@@ -146,6 +164,7 @@ export function useBoardRealtime({
       [SOCKET_EVENTS.TASK_UPDATED, onTaskUpserted],
       [SOCKET_EVENTS.TASK_MOVED, onTaskMoved],
       [SOCKET_EVENTS.TASK_DELETED, onTaskDeleted],
+      [SOCKET_EVENTS.TASK_STATUS_BULK_UPDATED, onTaskStatusBulkUpdated],
       [SOCKET_EVENTS.COMMENT_DELETED, onCommentDeleted],
       [SOCKET_EVENTS.COMMENT_CREATED, onCommentCreated],
       [SOCKET_EVENTS.TASK_LABELS_CHANGED, onTaskLabelsChanged],

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SOCKET_EVENTS } from "@taskflow/shared";
 
 import {
@@ -10,8 +10,10 @@ import {
   listBoards,
   renameColumn,
   reorderBoardColumn,
+  setColumnStatus,
   updateBoardById,
 } from "../../../../src/modules/boards/service";
+import { appCollectors } from "../../../../src/metrics";
 import { buildBoard, buildBoardWithColumns, buildColumn } from "../../../factories";
 import {
   db,
@@ -21,7 +23,7 @@ import {
   VALID_USER,
 } from "../../../helpers";
 import { mockDb } from "../../../mocks/database-mock";
-import { mockIo } from "../../../mocks/socket";
+import { mockEmit, mockIo } from "../../../mocks/socket";
 import { expectEmittedToProject, expectNoEmit } from "../../../support/socket-assert";
 
 const board = buildBoard();
@@ -34,6 +36,10 @@ const arriveAtEmit = (value: unknown = boardWithCols): void => {
 };
 
 describe("read paths", () => {
+  beforeEach(() => {
+    appCollectors.boardsCreatedTotal.reset();
+  });
+
   it("listBoards", async () => {
     mockDb.board.findMany.mockResolvedValueOnce([board]);
 
@@ -46,6 +52,7 @@ describe("read paths", () => {
     await expect(
       createBoardInProject(db, { projectId: VALID_PROJECT_ID, name: "Sprint" }),
     ).resolves.toBe(board);
+    expect((await appCollectors.boardsCreatedTotal.get()).values[0]?.value).toBe(1);
   });
 });
 
@@ -83,6 +90,10 @@ describe("updateBoardById", () => {
 });
 
 describe("addColumn", () => {
+  beforeEach(() => {
+    appCollectors.columnsCreatedTotal.reset();
+  });
+
   it("appends at maxPosition + POSITION_STEP and broadcasts, excluding the actor", async () => {
     mockDb.column.findFirst.mockResolvedValueOnce({ position: 4000 });
     mockDb.column.create.mockResolvedValueOnce(buildColumn({ name: "QA", position: 5000 }));
@@ -97,6 +108,7 @@ describe("addColumn", () => {
     expect(mockDb.column.create).toHaveBeenCalledWith({
       data: { boardId: VALID_BOARD_ID, name: "QA", position: 5000 },
     });
+    expect((await appCollectors.columnsCreatedTotal.get()).values[0]?.value).toBe(1);
     await vi.waitFor(() => {
       expectEmittedToProject(
         VALID_PROJECT_ID,
@@ -156,9 +168,14 @@ describe("reorderBoardColumn", () => {
 });
 
 describe("renameColumn / deleteColumnById", () => {
+  beforeEach(() => {
+    appCollectors.columnsDeletedTotal.reset();
+  });
+
   it.each([
     ["renameColumn", () => renameColumn(db, mockIo, VALID_COLUMN_ID, VALID_USER.id, "Done")],
     ["deleteColumnById", () => deleteColumnById(db, mockIo, VALID_COLUMN_ID, VALID_USER.id)],
+    ["setColumnStatus", () => setColumnStatus(db, mockIo, VALID_COLUMN_ID, VALID_USER.id, "DONE")],
   ])("%s throws NOT_FOUND for a missing column", async (_name, call) => {
     mockDb.column.findUnique.mockResolvedValueOnce(null);
 
@@ -194,6 +211,90 @@ describe("renameColumn / deleteColumnById", () => {
     });
 
     expect(mockDb.column.delete).toHaveBeenCalledWith({ where: { id: VALID_COLUMN_ID } });
+    expect((await appCollectors.columnsDeletedTotal.get()).values[0]?.value).toBe(1);
+  });
+});
+
+describe("setColumnStatus", () => {
+  beforeEach(() => {
+    appCollectors.taskStatusChangesTotal.reset();
+  });
+
+  it("maps the column to a status, bulk-syncs existing tasks, and broadcasts both the tasks and the board excluding the actor", async () => {
+    mockDb.column.findUnique.mockResolvedValueOnce(column);
+    mockDb.column.update.mockResolvedValueOnce(buildColumn({ mappedStatus: "DONE" }));
+    mockDb.task.findMany.mockResolvedValueOnce([{ id: "t1" }, { id: "t2" }, { id: "t3" }]);
+    mockDb.task.updateMany.mockResolvedValueOnce({ count: 3 });
+    arriveAtEmit();
+
+    await expect(
+      setColumnStatus(db, mockIo, VALID_COLUMN_ID, VALID_USER.id, "DONE"),
+    ).resolves.toMatchObject({ mappedStatus: "DONE" });
+
+    expect(mockDb.column.update).toHaveBeenCalledWith({
+      where: { id: VALID_COLUMN_ID },
+      data: { mappedStatus: "DONE" },
+    });
+    expect(mockDb.task.findMany).toHaveBeenCalledWith({
+      where: { columnId: VALID_COLUMN_ID, status: { not: "DONE" } },
+      select: { id: true },
+    });
+    expect(mockDb.task.updateMany).toHaveBeenCalledWith({
+      where: { columnId: VALID_COLUMN_ID, status: { not: "DONE" } },
+      data: { status: "DONE" },
+    });
+    const values = (await appCollectors.taskStatusChangesTotal.get()).values;
+    expect(values).toEqual([expect.objectContaining({ labels: { to_status: "DONE" }, value: 3 })]);
+
+    // Other viewers' tasks.list/tasks.get caches need this to reflect the
+    // bulk sync - see use-board-realtime.ts's onTaskStatusBulkUpdated.
+    expectEmittedToProject(
+      VALID_PROJECT_ID,
+      SOCKET_EVENTS.TASK_STATUS_BULK_UPDATED,
+      { columnId: VALID_COLUMN_ID, status: "DONE", taskIds: ["t1", "t2", "t3"] },
+      VALID_USER.id,
+    );
+    await vi.waitFor(() => {
+      expectEmittedToProject(
+        VALID_PROJECT_ID,
+        SOCKET_EVENTS.BOARD_UPDATED,
+        { board: boardWithCols },
+        VALID_USER.id,
+      );
+    });
+  });
+
+  it("does not record a metric or broadcast task changes when no tasks were sitting in the column", async () => {
+    mockDb.column.findUnique.mockResolvedValueOnce(column);
+    mockDb.column.update.mockResolvedValueOnce(buildColumn({ mappedStatus: "DONE" }));
+    mockDb.task.findMany.mockResolvedValueOnce([]);
+    arriveAtEmit();
+
+    await setColumnStatus(db, mockIo, VALID_COLUMN_ID, VALID_USER.id, "DONE");
+
+    expect(mockDb.task.updateMany).not.toHaveBeenCalled();
+    expect((await appCollectors.taskStatusChangesTotal.get()).values).toEqual([]);
+    expect(mockEmit).not.toHaveBeenCalledWith(
+      SOCKET_EVENTS.TASK_STATUS_BULK_UPDATED,
+      expect.anything(),
+    );
+  });
+
+  it("clears the mapping with a null status and does NOT touch existing tasks", async () => {
+    mockDb.column.findUnique.mockResolvedValueOnce(buildColumn({ mappedStatus: "DONE" }));
+    mockDb.column.update.mockResolvedValueOnce(buildColumn({ mappedStatus: null }));
+    arriveAtEmit();
+
+    await expect(
+      setColumnStatus(db, mockIo, VALID_COLUMN_ID, VALID_USER.id, null),
+    ).resolves.toMatchObject({ mappedStatus: null });
+
+    expect(mockDb.column.update).toHaveBeenCalledWith({
+      where: { id: VALID_COLUMN_ID },
+      data: { mappedStatus: null },
+    });
+    expect(mockDb.task.findMany).not.toHaveBeenCalled();
+    expect(mockDb.task.updateMany).not.toHaveBeenCalled();
   });
 });
 

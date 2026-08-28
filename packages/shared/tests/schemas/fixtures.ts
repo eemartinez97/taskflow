@@ -82,6 +82,7 @@ export const validColumnPayload = {
   boardId: ANOTHER_UUID,
   name: "To Do",
   position: 1000,
+  mappedStatus: "TODO",
   createdAt: FIXED_DATE,
   updatedAt: FIXED_DATE,
 };

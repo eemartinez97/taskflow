@@ -1,4 +1,4 @@
-import { type Prisma } from "./generated";
+import { type Prisma, type PrismaClient } from "./generated";
 import type {
   boardWithColumns,
   commentWithAuthor,
@@ -48,3 +48,12 @@ export type InvitationWithOrg = Prisma.InvitationGetPayload<{
 export type InvitationWithInviter = Prisma.InvitationGetPayload<{
   include: typeof invitationWithInviter;
 }>;
+
+/**
+ * A repo function that must run either standalone or inside a
+ * `db.$transaction(async (tx) => ...)` block accepts this instead of the
+ * bare `PrismaClient` - `Prisma.TransactionClient` (the `tx` callback param)
+ * omits a few top-level methods (`$transaction` itself, `$connect`, etc.)
+ * that no repo function needs, so it's always safe to accept the union.
+ */
+export type DbClient = PrismaClient | Prisma.TransactionClient;

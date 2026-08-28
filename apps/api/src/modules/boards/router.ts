@@ -9,12 +9,14 @@ import {
   listBoards,
   renameColumn,
   reorderBoardColumn,
+  setColumnStatus,
   updateBoardById,
 } from "./service";
 import {
   createBoardSchema,
   idSchema,
   reorderColumnsSchema,
+  setColumnStatusSchema,
   updateBoardSchema,
 } from "@taskflow/shared";
 import {
@@ -63,6 +65,12 @@ const _buildBoardsRouter = (io: AppServer) =>
       .input(z.object({ orgId: idSchema, columnId: idSchema, name: nameField(1, 100) }))
       .mutation(async ({ ctx, input }) =>
         renameColumn(ctx.db, io, input.columnId, ctx.user.id, input.name),
+      ),
+
+    setColumnStatus: memberProcedure
+      .input(z.object({ orgId: idSchema, ...setColumnStatusSchema.shape }))
+      .mutation(async ({ ctx, input }) =>
+        setColumnStatus(ctx.db, io, input.columnId, ctx.user.id, input.status),
       ),
 
     deleteColumn: memberProcedure

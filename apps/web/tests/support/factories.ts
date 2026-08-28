@@ -31,6 +31,7 @@ export function makeColumn(overrides: Partial<Column> = {}): Column {
     boardId: VALID_BOARD_ID,
     name: "To Do",
     position: 1000,
+    mappedStatus: null,
     createdAt: new Date("2026-01-01"),
     updatedAt: new Date("2026-01-01"),
     ...overrides,

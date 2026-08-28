@@ -45,12 +45,16 @@ export function useColumnDnD({
   const [columns, setColumns] = useState<Column[]>(initialColumns);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
 
-  const columnsKey = initialColumns.map((c) => c.id).join(",");
-  const [prevKey, setPrevKey] = useState(columnsKey);
-
-  // Sync when parent re-renders with fresh columns (e.g. after addColumn)
-  if (prevKey !== columnsKey && activeColumnId === null) {
-    setPrevKey(columnsKey);
+  // Sync when the TanStack Query cache changes externally (rename,
+  // setColumnStatus, addColumn, deleteColumn, reorderColumns, or a
+  // board:updated socket event) and no drag is in progress. Reference
+  // equality, not an id-derived key - a key built from just the id set
+  // (the previous approach) misses property-only changes like a rename or
+  // a status-mapping change, since those never touch which ids exist. See
+  // use-board-dnd.ts's identical pattern for the task-DnD equivalent.
+  const [prevInitialColumns, setPrevInitialColumns] = useState<Column[]>(initialColumns);
+  if (prevInitialColumns !== initialColumns && activeColumnId === null) {
+    setPrevInitialColumns(initialColumns);
     setColumns(initialColumns);
   }
 

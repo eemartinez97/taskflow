@@ -62,6 +62,10 @@ export const SOCKET_EVENTS = {
   TASK_MOVED: "task:moved",
   TASK_DELETED: "task:deleted",
   TASK_LABELS_CHANGED: "task:labels_changed",
+  // Bulk status sync when a column's status mapping changes - see
+  // boards/service.ts's setColumnStatus. Distinct from TASK_UPDATED since one
+  // mapping change can affect many tasks at once; carries ids, not full rows.
+  TASK_STATUS_BULK_UPDATED: "task:status_bulk_updated",
   // Board events (server -> client): any board/column change
   BOARD_UPDATED: "board:updated",
   // Comment events (server -> client)

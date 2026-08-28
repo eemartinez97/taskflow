@@ -15,6 +15,7 @@ import {
   updateTask,
   type TaskWithProject,
 } from "./repo";
+import { findColumnById } from "../boards/repo";
 import { TRPCError } from "../../trpc/init";
 import { notifyTaskAssigned } from "../notifications/service";
 import type { AppServer } from "../../socket/events";
@@ -66,8 +67,15 @@ export async function createTaskInColumn(
   actorId: string,
   data: CreateTask,
 ): Promise<Task> {
-  const position = await getMaxTaskPosition(db, data.columnId);
-  const task = await createTask(db, { ...data, position, creatorId: actorId });
+  const [position, column] = await Promise.all([
+    getMaxTaskPosition(db, data.columnId),
+    findColumnById(db, data.columnId),
+  ]);
+  // Undefined (not null) when the column has no mapping, so stripUndefined
+  // in repo.ts's createTask leaves Task.status at its Prisma default (TODO)
+  // instead of writing an explicit null into a non-nullable column.
+  const status = column?.mappedStatus ?? undefined;
+  const task = await createTask(db, { ...data, position, creatorId: actorId, status });
   appCollectors.tasksCreatedTotal.inc();
 
   emitToProject(io, projectId, SOCKET_EVENTS.TASK_CREATED, { task }, actorId);
@@ -119,7 +127,25 @@ export async function moveTaskToColumn(
   actorId: string,
   payload: MoveTask,
 ): Promise<Task> {
-  const task = await moveTask(db, payload);
+  const [, targetColumn] = await Promise.all([
+    getTask(db, payload.taskId),
+    findColumnById(db, payload.targetColumnId),
+  ]);
+
+  // Undefined (not null) when the target column has no mapping, so the
+  // existing status is left untouched instead of being explicitly cleared -
+  // moving into an unmapped/organizational column (e.g. "Blocked") only
+  // changes position, never status. See repo.ts's moveTask/stripUndefined.
+  const status = targetColumn?.mappedStatus ?? undefined;
+  const { task, statusChanged } = await moveTask(db, { ...payload, status });
+
+  // Labeled by resulting status, not old->new - TaskStatus is a small fixed
+  // enum (5 members) so this stays well within safe cardinality. statusChanged
+  // comes from moveTask's own atomic conditional update, not a pre-fetched
+  // snapshot - see its docblock for why that avoids a concurrent-edit race.
+  if (statusChanged) {
+    appCollectors.taskStatusChangesTotal.inc({ to_status: task.status });
+  }
 
   emitToProject(io, projectId, SOCKET_EVENTS.TASK_MOVED, { task }, actorId);
 

@@ -5,6 +5,7 @@ import { notifyCommentCreated } from "../notifications/service";
 import { emitToProject } from "../../socket/emit";
 import { SOCKET_EVENTS } from "@taskflow/shared";
 import type { AppServer } from "../../socket/events";
+import { appCollectors } from "../../metrics";
 import { fireAndForget } from "../../utils/fire-and-forget";
 
 /**
@@ -40,6 +41,7 @@ export async function createCommentOnTask(
   if (!task) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found." });
 
   const comment = await createComment(db, taskId, authorId, body);
+  appCollectors.commentsCreatedTotal.inc();
 
   emitToProject(io, projectId, SOCKET_EVENTS.COMMENT_CREATED, { comment }, authorId);
 

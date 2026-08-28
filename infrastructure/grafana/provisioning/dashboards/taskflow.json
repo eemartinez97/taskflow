@@ -1,0 +1,266 @@
+{
+  "title": "TaskFlow",
+  "uid": "taskflow-overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "timezone": "browser",
+  "time": { "from": "now-24h", "to": "now" },
+  "refresh": "30s",
+  "tags": ["taskflow"],
+  "panels": [
+    {
+      "id": 100,
+      "type": "row",
+      "title": "HTTP",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Request rate by route",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (route) (rate(taskflow_http_requests_total[5m]))",
+          "legendFormat": "{{route}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "5xx error rate",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0 }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(taskflow_http_requests_total{status_code=~\"5..\"}[5m])) / sum(rate(taskflow_http_requests_total[5m]))",
+          "legendFormat": "5xx ratio"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Latency p95 by route",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(taskflow_http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{route}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Requests in progress",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (method) (taskflow_http_requests_in_progress)",
+          "legendFormat": "{{method}}"
+        }
+      ]
+    },
+    {
+      "id": 200,
+      "type": "row",
+      "title": "Realtime & current totals",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Connected (live)",
+      "gridPos": { "h": 6, "w": 4, "x": 0, "y": 18 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [{ "refId": "A", "expr": "taskflow_socket_connected_clients" }]
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Active users (24h)",
+      "gridPos": { "h": 6, "w": 4, "x": 4, "y": 18 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [{ "refId": "A", "expr": "taskflow_active_users_total" }]
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "Users total",
+      "gridPos": { "h": 6, "w": 4, "x": 8, "y": 18 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [{ "refId": "A", "expr": "taskflow_users_total" }]
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "Orgs total",
+      "gridPos": { "h": 6, "w": 4, "x": 12, "y": 18 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [{ "refId": "A", "expr": "taskflow_orgs_total" }]
+    },
+    {
+      "id": 14,
+      "type": "stat",
+      "title": "Tasks total",
+      "gridPos": { "h": 6, "w": 4, "x": 16, "y": 18 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [{ "refId": "A", "expr": "sum(taskflow_tasks_total)" }]
+    },
+    {
+      "id": 15,
+      "type": "stat",
+      "title": "Invitations pending",
+      "gridPos": { "h": 6, "w": 4, "x": 20, "y": 18 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [{ "refId": "A", "expr": "taskflow_invitations_pending_total" }]
+    },
+    {
+      "id": 16,
+      "type": "bargauge",
+      "title": "Tasks by status",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "taskflow_tasks_total",
+          "legendFormat": "{{status}}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "type": "stat",
+      "title": "Projects / Boards / Comments / Labels total",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "taskflow_projects_total", "legendFormat": "projects" },
+        { "refId": "B", "expr": "taskflow_boards_total", "legendFormat": "boards" },
+        { "refId": "C", "expr": "taskflow_comments_total", "legendFormat": "comments" },
+        { "refId": "D", "expr": "taskflow_labels_total", "legendFormat": "labels" }
+      ]
+    },
+    {
+      "id": 300,
+      "type": "row",
+      "title": "Business events",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 20,
+      "type": "timeseries",
+      "title": "New user registrations / verifications",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 33 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "increase(taskflow_users_registered_total[1h])",
+          "legendFormat": "registered / 1h"
+        },
+        {
+          "refId": "B",
+          "expr": "increase(taskflow_users_verified_total[1h])",
+          "legendFormat": "verified / 1h"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "Login attempts by outcome",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 33 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (outcome) (increase(taskflow_login_attempts_total[1h]))",
+          "legendFormat": "{{outcome}} / 1h"
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "Tasks created / deleted",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 33 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "increase(taskflow_tasks_created_total[1h])",
+          "legendFormat": "created / 1h"
+        },
+        {
+          "refId": "B",
+          "expr": "increase(taskflow_tasks_deleted_total[1h])",
+          "legendFormat": "deleted / 1h"
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "type": "timeseries",
+      "title": "Invitations resolved by status",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 41 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (status) (increase(taskflow_invitations_resolved_total[1h]))",
+          "legendFormat": "{{status}} / 1h"
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "type": "timeseries",
+      "title": "Task status changes (resulting status)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 41 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (to_status) (increase(taskflow_task_status_changes_total[1h]))",
+          "legendFormat": "{{to_status}} / 1h"
+        }
+      ]
+    }
+  ]
+}

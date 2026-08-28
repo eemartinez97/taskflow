@@ -44,7 +44,7 @@ describe("envSchema", () => {
     ).toBe(2000);
   });
 
-  it("treats METRICS_TOKEN: '' the same as unset (docker-compose.yml's ${VAR:-} always sets the key)", () => {
+  it("treats METRICS_TOKEN: '' the same as unset (e.g. explicitly cleared in .env to disable /metrics)", () => {
     expect(envSchema.parse({ ...REQUIRED, METRICS_TOKEN: "" }).METRICS_TOKEN).toBeUndefined();
   });
 

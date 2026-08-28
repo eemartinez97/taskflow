@@ -294,10 +294,15 @@ rediscovered the hard way in production.
 
 ## Observability
 
-- [ ] `docker-compose.yml` exposes `/metrics` (Prometheus format, see
-      `apps/api/src/metrics/`) but nothing scrapes or displays it. Add
-      `prometheus` + `grafana` services to the compose stack for an actual
-      dashboard instead of raw `curl`.
+- [ ] `infrastructure/alertmanager/alertmanager.yml`'s `default-receiver` has
+      no real notification integration configured (no Slack/email/PagerDuty
+      credentials exist in this repo to wire one up for real) - alerts from
+      `infrastructure/prometheus/alert-rules.yml` (API down, high 5xx rate,
+      high p95 latency, high event-loop lag) fire and are visible at
+      `/alertmanager/`, but nothing actually pages/messages anyone yet. Add a
+      `slack_configs:`/`email_configs:`/`webhook_configs:` block to that
+      receiver once real credentials exist - see the commented example in
+      that file.
 
 ## Product features
 

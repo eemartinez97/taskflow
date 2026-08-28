@@ -1,0 +1,14 @@
+[
+  {
+    "path": "/socket.io",
+    "service": "Engine.IO, attached to apps/api's HTTP server outside Express (see apps/api/src/socket/server.ts) - never registered as an Express route."
+  },
+  {
+    "path": "/grafana",
+    "service": "Grafana (infrastructure/grafana) - its own container, reached directly through this nginx location."
+  },
+  {
+    "path": "/alertmanager",
+    "service": "Alertmanager (infrastructure/alertmanager) - its own container, reached directly through this nginx location, gated by HTTP Basic auth (see nginx.conf)."
+  }
+]

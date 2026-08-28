@@ -41,7 +41,10 @@ export function buildInternalSecretHeaders(): Record<string, string> {
 export const apiHttpClient = createTRPCClient<AppRouter>({
   links: [
     httpBatchLink({
-      url: `${publicEnv.NEXT_PUBLIC_API_URL}/trpc`,
+      // serverEnv.INTERNAL_API_URL, not publicEnv.NEXT_PUBLIC_API_URL - see
+      // INTERNAL_API_URL's docblock in env.ts for why a server-to-server
+      // call can't reuse the browser-facing origin.
+      url: `${serverEnv.INTERNAL_API_URL ?? publicEnv.NEXT_PUBLIC_API_URL}/trpc`,
       transformer: superjson,
       headers: buildInternalSecretHeaders,
     }),

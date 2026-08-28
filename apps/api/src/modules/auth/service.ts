@@ -34,6 +34,7 @@ import {
 } from "./rate-limit";
 import { TRPCError } from "../../trpc/init";
 import { env } from "../../config/env";
+import { appCollectors } from "../../metrics";
 import { getEmailSender } from "../../mail/sender";
 import { withMinimumLatency } from "../../utils/with-minimum-latency";
 import { fireAndForget } from "../../utils/fire-and-forget";
@@ -129,6 +130,19 @@ export async function registerUser(
         hashedPassword: await hashPassword(input.password),
       }));
 
+    // Only a genuinely new row counts as a registration - a resend for an
+    // already-pending unverified account reuses `existing` above and must
+    // not inflate this counter.
+    /* v8 ignore next -- both outcomes are exercised (service.test.ts's "new
+     * signup" vs "resend for an unverified account" describe blocks - the
+     * false branch is confirmed at runtime by the resend tests' assertions
+     * that mockDb.user.create/hashPassword were never called), but v8's
+     * branch mapping conflates this with the nullish-coalescing expression
+     * on `existing` a few lines up and reports the false arm as a phantom
+     * gap - same class of issue as resolveInvitationForRef's identical
+     * comment in invitations/service.ts. */
+    if (!existing) appCollectors.usersRegisteredTotal.inc();
+
     const { rawToken } = await issueAuthToken(db, user.id, "EMAIL_VERIFICATION");
     const verifyUrl = `${env.WEB_ORIGIN}/verify-email?token=${rawToken}`;
 
@@ -211,6 +225,8 @@ export async function verifyEmail(
   if (!result.verified) return { verified: false };
 
   if (result.freshlyActivated) {
+    appCollectors.usersVerifiedTotal.inc();
+
     fireAndForget(
       notifyAccountActivated(db, result.userId),
       "auth.verifyEmail: failed to send account-activated email",
@@ -282,6 +298,7 @@ export async function requestPasswordReset(
         // Only invalidate the previous link now that the new one is
         // confirmed delivered - see issueAuthToken's docblock.
         await invalidateOtherAuthTokens(db, user.id, "PASSWORD_RESET", rawToken);
+        appCollectors.passwordResetsRequestedTotal.inc();
       } else if (user) {
         // Unverified account - guide them back to confirm their email instead.
         const { rawToken } = await issueAuthToken(db, user.id, "EMAIL_VERIFICATION");
@@ -337,6 +354,7 @@ export async function resetPassword(
   try {
     const hashed = await hashPassword(input.password);
     await consumeTokenAndResetPassword(db, validToken.id, validToken.userId, hashed);
+    appCollectors.passwordResetsCompletedTotal.inc();
     return { message: "Password updated." };
   } catch (error) {
     if (error instanceof TokenAlreadyConsumedError) {
@@ -397,6 +415,10 @@ export async function verifyCredentials(
       checkLoginEmailRateLimit(db, input.email, e2eSecretHeader),
       input.clientIp ? checkLoginIpRateLimit(db, input.clientIp, e2eSecretHeader) : null,
     ]);
+    // Rate-limited attempts are excluded from this counter - they're not a
+    // real credentials check, and would otherwise silently inflate the
+    // "failure" rate during e.g. a brute-force burst rather than being
+    // visible as what they are (the rate limiter doing its job).
     if (emailCheck.limited || ipCheck?.limited) return null;
 
     const user = await findUserForCredentials(db, input.email);
@@ -407,12 +429,17 @@ export async function verifyCredentials(
     // another path (e.g. a future OAuth provider) without one.
     if (!user?.password || !user.emailVerified) {
       await verifyPassword(input.password, DUMMY_PASSWORD_HASH);
+      appCollectors.loginAttemptsTotal.inc({ outcome: "failure" });
       return null;
     }
 
     const valid = await verifyPassword(input.password, user.password);
-    if (!valid) return null;
+    if (!valid) {
+      appCollectors.loginAttemptsTotal.inc({ outcome: "failure" });
+      return null;
+    }
 
+    appCollectors.loginAttemptsTotal.inc({ outcome: "success" });
     return { id: user.id, email: user.email, name: user.name, image: user.image };
   } catch {
     // Surface DB errors as null to prevent information leakage.

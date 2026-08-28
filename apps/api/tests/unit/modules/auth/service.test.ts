@@ -36,6 +36,7 @@ import {
   releaseAuthRateLimit,
 } from "../../../../src/modules/auth/rate-limit";
 import { getEmailSender } from "../../../../src/mail/sender";
+import { appCollectors } from "../../../../src/metrics";
 import { claimInvitationsForUser } from "../../../../src/modules/invitations/service";
 import { TRPCError } from "../../../../src/trpc/init";
 import { db, VALID_USER } from "../../../helpers";
@@ -139,6 +140,7 @@ describe("registerUser", () => {
     mockIssueAuthToken.mockResolvedValue({ rawToken: RAW_TOKEN, expiresAt: new Date() });
     mockInvalidateOtherAuthTokens.mockResolvedValue(undefined);
     mockEnforceAuthRateLimit.mockResolvedValue(NOT_LIMITED_STATE);
+    appCollectors.usersRegisteredTotal.reset();
   });
 
   describe("new signup", () => {
@@ -146,6 +148,12 @@ describe("registerUser", () => {
       await expect(registerUser(db, VALID_REGISTER_INPUT, CLIENT_IP, null)).resolves.toMatchObject({
         message: expect.stringMatching(/check your email/i) as string,
       });
+    });
+
+    it("records a usersRegisteredTotal metric for a genuinely new account", async () => {
+      await registerUser(db, VALID_REGISTER_INPUT, CLIENT_IP, null);
+
+      expect((await appCollectors.usersRegisteredTotal.get()).values[0]?.value).toBe(1);
     });
 
     it("creates the user with a hashed password (unverified account)", async () => {
@@ -230,6 +238,12 @@ describe("registerUser", () => {
 
       expect(mockDb.user.create).not.toHaveBeenCalled();
       expect(mockHashPassword).not.toHaveBeenCalled();
+    });
+
+    it("does not record usersRegisteredTotal for a resend (no new row created)", async () => {
+      await registerUser(db, VALID_REGISTER_INPUT, CLIENT_IP, null);
+
+      expect((await appCollectors.usersRegisteredTotal.get()).values[0]?.value).toBe(0);
     });
 
     it("still issues a fresh token and resends the verification email", async () => {
@@ -375,6 +389,7 @@ describe("verifyEmail", () => {
     mockGetEmailSender.mockReturnValue(FAKE_SENDER);
     mockSendAccountActivatedEmail.mockResolvedValue(undefined);
     mockClaimInvitationsForUser.mockResolvedValue(undefined);
+    appCollectors.usersVerifiedTotal.reset();
   });
 
   it("returns not-verified for an invalid/expired token", async () => {
@@ -383,6 +398,7 @@ describe("verifyEmail", () => {
     await expect(verifyEmail(db, mockIo, "bad-token")).resolves.toEqual({ verified: false });
     expect(mockSendAccountActivatedEmail).not.toHaveBeenCalled();
     expect(mockClaimInvitationsForUser).not.toHaveBeenCalled();
+    expect((await appCollectors.usersVerifiedTotal.get()).values[0]?.value).toBe(0);
   });
 
   it("returns verified without sending a notice for a repeat visit (not freshly activated)", async () => {
@@ -397,6 +413,8 @@ describe("verifyEmail", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(mockSendAccountActivatedEmail).not.toHaveBeenCalled();
     expect(mockClaimInvitationsForUser).not.toHaveBeenCalled();
+    // Not freshly activated - a repeat visit must not double-count.
+    expect((await appCollectors.usersVerifiedTotal.get()).values[0]?.value).toBe(0);
   });
 
   it("sends the activation notice exactly once for a freshly activated account, without blocking the response", async () => {
@@ -410,6 +428,7 @@ describe("verifyEmail", () => {
     const result = await verifyEmail(db, mockIo, "token");
 
     expect(result).toEqual({ verified: true });
+    expect((await appCollectors.usersVerifiedTotal.get()).values[0]?.value).toBe(1);
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(mockSendAccountActivatedEmail).toHaveBeenCalledWith(FAKE_SENDER, {
       to: VALID_USER.email,
@@ -501,6 +520,7 @@ describe("requestPasswordReset", () => {
     mockIssueAuthToken.mockResolvedValue({ rawToken: RAW_TOKEN, expiresAt: new Date() });
     mockInvalidateOtherAuthTokens.mockResolvedValue(undefined);
     mockEnforceAuthRateLimit.mockResolvedValue(NOT_LIMITED_STATE);
+    appCollectors.passwordResetsRequestedTotal.reset();
   });
 
   it("returns the generic message when the account is verified", async () => {
@@ -522,6 +542,7 @@ describe("requestPasswordReset", () => {
       "PASSWORD_RESET",
       RAW_TOKEN,
     );
+    expect((await appCollectors.passwordResetsRequestedTotal.get()).values[0]?.value).toBe(1);
   });
 
   it("sends a verification email instead when the account is unverified", async () => {
@@ -538,6 +559,8 @@ describe("requestPasswordReset", () => {
       "EMAIL_VERIFICATION",
       RAW_TOKEN,
     );
+    // Not a real password reset send - must not count toward the metric.
+    expect((await appCollectors.passwordResetsRequestedTotal.get()).values[0]?.value).toBe(0);
   });
 
   it("falls back to 'there' when a verified user has no name set", async () => {
@@ -658,6 +681,7 @@ describe("resetPassword", () => {
     mockHashPassword.mockResolvedValue("hashed_new_password");
     mockFindValidAuthToken.mockResolvedValue({ id: "token-1", userId: "user-1" });
     mockConsumeTokenAndResetPassword.mockResolvedValue(undefined);
+    appCollectors.passwordResetsCompletedTotal.reset();
   });
 
   it("consumes the token and updates the password on a valid reset", async () => {
@@ -672,6 +696,7 @@ describe("resetPassword", () => {
       "user-1",
       "hashed_new_password",
     );
+    expect((await appCollectors.passwordResetsCompletedTotal.get()).values[0]?.value).toBe(1);
   });
 
   it("throws NOT_FOUND when the token is invalid or expired", async () => {
@@ -726,6 +751,7 @@ describe("verifyCredentials", () => {
     });
     mockDb.user.findUnique.mockResolvedValue(CREDENTIALS_USER);
     mockVerifyPassword.mockResolvedValue(true);
+    appCollectors.loginAttemptsTotal.reset();
   });
 
   it("returns the session user for correct credentials", async () => {
@@ -735,12 +761,18 @@ describe("verifyCredentials", () => {
       name: "Ada",
       image: null,
     });
+    expect((await appCollectors.loginAttemptsTotal.get()).values).toEqual([
+      expect.objectContaining({ labels: { outcome: "success" }, value: 1 }),
+    ]);
   });
 
   it("returns null for a wrong password", async () => {
     mockVerifyPassword.mockResolvedValue(false);
 
     await expect(verifyCredentials(db, VALID_CREDENTIALS_INPUT, null)).resolves.toBeNull();
+    expect((await appCollectors.loginAttemptsTotal.get()).values).toEqual([
+      expect.objectContaining({ labels: { outcome: "failure" }, value: 1 }),
+    ]);
   });
 
   it("returns null (and still runs a dummy bcrypt compare) for an unknown email", async () => {
@@ -787,6 +819,8 @@ describe("verifyCredentials", () => {
 
     await expect(verifyCredentials(db, VALID_CREDENTIALS_INPUT, null)).resolves.toBeNull();
     expect(mockDb.user.findUnique).not.toHaveBeenCalled();
+    // Rate-limited, not a real credentials check - must not count either way.
+    expect((await appCollectors.loginAttemptsTotal.get()).values).toEqual([]);
   });
 
   it("returns null without querying the database when rate limited by IP", async () => {

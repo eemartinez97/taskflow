@@ -60,6 +60,23 @@ export const serverEnvSchema = z
     // superRefine below) - login genuinely needs this working end to end,
     // unlike RESEND_API_KEY there was never a reason to exempt it.
     INTERNAL_API_SECRET: z.string().min(32).optional(),
+    // Base URL lib/trpc/http-server.ts's apiHttpClient actually connects
+    // to - deliberately separate from NEXT_PUBLIC_API_URL (the BROWSER-
+    // facing origin). The two differ under docker-compose: the browser
+    // reaches apps/api through nginx at NEXT_PUBLIC_API_URL
+    // (http://localhost), but a server-to-server call made from INSIDE the
+    // `web` container has no reason to route back out through nginx - and
+    // "http://localhost" from inside that container means the web
+    // container itself (nothing listens on its port 80), not nginx, so
+    // every authorize()/verify-email call would silently fail to connect.
+    // Falls back to NEXT_PUBLIC_API_URL for `pnpm dev` (both processes on
+    // the bare host, where the two really are the same origin) - only
+    // docker-compose.yml needs to set this explicitly, to apps/api's
+    // internal docker network address (http://api:8000).
+    INTERNAL_API_URL: z
+      .url()
+      .regex(/^https?:\/\//, "INTERNAL_API_URL must start with http:// or https://")
+      .optional(),
     // Only ever set by playwright.config.ts's webServer env (both apps/api
     // and apps/web get the SAME value). Forwarded as `x-e2e-secret` by
     // lib/trpc/http-server.ts's apiHttpClient so auth.ts's authorize() ->

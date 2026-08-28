@@ -11,6 +11,29 @@ const NGINX_CONF_PATH = path.resolve(
   "../../../../../infrastructure/nginx/nginx.conf",
 );
 
+const NON_EXPRESS_ROUTES_PATH = path.resolve(
+  import.meta.dirname,
+  "../../../../../infrastructure/nginx/non-express-routes.json",
+);
+
+/**
+ * Declares nginx locations that are genuinely third-party infra (Grafana,
+ * Alertmanager, Engine.IO) rather than an apps/api route apps/api forgot to
+ * register - see non-express-routes.json's own entries for why each one is
+ * exempt. A structured `{ path, service }` record, not a bare string array,
+ * so adding a future exemption has to name the real service it maps to
+ * instead of just appending a path with no explanation of what it's for.
+ */
+interface NonExpressRoute {
+  path: string;
+  service: string;
+}
+
+function readNonExpressRoutePaths(): string[] {
+  const routes = JSON.parse(readFileSync(NON_EXPRESS_ROUTES_PATH, "utf-8")) as NonExpressRoute[];
+  return routes.map((route) => route.path);
+}
+
 /**
  * Extracts the path each nginx `location` block proxies, normalized without
  * a trailing slash (nginx.conf uses prefix matches like `/trpc/` for
@@ -128,9 +151,9 @@ describe("infrastructure/nginx/nginx.conf and PROXIED_API_PATHS stay in sync wit
   });
 
   it("has no api location that app.ts doesn't actually register", () => {
-    // /socket.io is Engine.IO, attached outside Express (see server.ts) -
-    // it's intentionally not part of PROXIED_API_PATHS.
-    const knownNonExpressPaths = ["/socket.io"];
+    // Declared in non-express-routes.json, not hardcoded here - see that
+    // file and readNonExpressRoutePaths above for why each one is exempt.
+    const knownNonExpressPaths = readNonExpressRoutePaths();
 
     for (const nginxPath of nginxApiLocations) {
       if (knownNonExpressPaths.includes(nginxPath)) continue;

@@ -18,6 +18,7 @@ import {
 } from "../../../../src/modules/invitations/service";
 import { generateRawToken, hashToken } from "../../../../src/modules/auth/tokens";
 import { getEmailSender } from "../../../../src/mail/sender";
+import { appCollectors } from "../../../../src/metrics";
 import {
   buildInvitation,
   buildInvitationWithInviter,
@@ -63,6 +64,9 @@ beforeEach(() => {
   mockHashToken.mockReturnValue(TOKEN_HASH);
   mockGetEmailSender.mockReturnValue(FAKE_SENDER);
   mockSendOrgInviteEmail.mockResolvedValue(undefined);
+  appCollectors.invitationsSentTotal.reset();
+  appCollectors.invitationsResentTotal.reset();
+  appCollectors.invitationsResolvedTotal.reset();
 });
 
 describe("assertInvitationRecipient", () => {
@@ -196,6 +200,7 @@ describe("createInvitation", () => {
       expiresInHours: expect.any(Number) as number,
       isNewUser: true,
     });
+    expect((await appCollectors.invitationsSentTotal.get()).values[0]?.value).toBe(1);
     expectNoEmit();
   });
 
@@ -336,6 +341,9 @@ describe("revokeInvitation", () => {
     ).resolves.toEqual({
       success: true,
     });
+    expect((await appCollectors.invitationsResolvedTotal.get()).values).toEqual([
+      expect.objectContaining({ labels: { status: "REVOKED" }, value: 1 }),
+    ]);
     expectEmittedToOrg(
       VALID_ORG_ID,
       SOCKET_EVENTS.INVITATION_RESOLVED,
@@ -411,6 +419,7 @@ describe("resendInvitation", () => {
         isNewUser: true,
       }),
     );
+    expect((await appCollectors.invitationsResentTotal.get()).values[0]?.value).toBe(1);
   });
 
   it("falls back to an empty org name and 'Someone' when they vanish", async () => {
@@ -568,6 +577,9 @@ describe("acceptInvitation / declineInvitation", () => {
     await expect(
       acceptInvitation(db, mockIo, sessionUser, { invitationId: invitation.id }),
     ).resolves.toEqual({ orgId: invitation.orgId, membership });
+    expect((await appCollectors.invitationsResolvedTotal.get()).values).toEqual([
+      expect.objectContaining({ labels: { status: "ACCEPTED" }, value: 1 }),
+    ]);
 
     // Clears any stale MEMBER_INVITED notification from an earlier
     // invite/decline cycle to this same org before notifying the inviter -
@@ -682,6 +694,9 @@ describe("acceptInvitation / declineInvitation", () => {
     await expect(
       declineInvitation(db, mockIo, sessionUser, { invitationId: invitation.id }),
     ).resolves.toEqual({ success: true });
+    expect((await appCollectors.invitationsResolvedTotal.get()).values).toEqual([
+      expect.objectContaining({ labels: { status: "DECLINED" }, value: 1 }),
+    ]);
 
     expect(mockDb.notification.deleteMany).toHaveBeenCalledWith({
       where: {

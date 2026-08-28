@@ -49,6 +49,7 @@ import type { AppServer } from "../../socket/events";
 import type { CtxUser } from "../../trpc/init";
 import { TRPCError } from "../../trpc/init";
 import { env } from "../../config/env";
+import { appCollectors } from "../../metrics";
 import { getEmailSender } from "../../mail/sender";
 
 /**
@@ -194,6 +195,7 @@ export async function createInvitation(
     expiresAt,
     invitedById: actorId,
   });
+  appCollectors.invitationsSentTotal.inc();
 
   if (existingUser?.emailVerified) {
     await notifyMemberInvited(db, io, {
@@ -230,6 +232,8 @@ export async function revokeInvitation(
   if (count === 0) {
     throw new TRPCError({ code: "CONFLICT", message: "This invitation is no longer pending." });
   }
+
+  appCollectors.invitationsResolvedTotal.inc({ status: "REVOKED" });
 
   emitToOrg(
     io,
@@ -290,6 +294,7 @@ export async function resendInvitation(
   });
 
   await rotateInvitationToken(db, invitationId, tokenHash, expiresAt);
+  appCollectors.invitationsResentTotal.inc();
 
   return { success: true };
 }
@@ -416,6 +421,8 @@ export async function acceptInvitation(
     throw error;
   }
 
+  appCollectors.invitationsResolvedTotal.inc({ status: "ACCEPTED" });
+
   // Neither depends on the other - same pattern as createInvitation's own
   // Promise.all([findOrgById, getActorName]) above.
   const [org] = await Promise.all([
@@ -461,6 +468,8 @@ export async function declineInvitation(
     }
     throw error;
   }
+
+  appCollectors.invitationsResolvedTotal.inc({ status: "DECLINED" });
 
   // Neither depends on the other - same pattern as createInvitation's own
   // Promise.all([findOrgById, getActorName]) above.

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Registry } from "prom-client";
 
 import { appCollectors, createCollectors } from "../../../src/metrics/collectors";
-import { METRIC_NAMES } from "../../../src/metrics/constants";
+import { COLLECTOR_METRIC_NAMES as METRIC_NAMES } from "../../../src/metrics/constants";
 import { appRegistry } from "../../../src/metrics/registry";
 import { makeTestCollectors } from "../../helpers";
 

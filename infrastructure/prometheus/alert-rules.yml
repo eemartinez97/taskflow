@@ -1,0 +1,48 @@
+# Baseline alert rules for the TaskFlow API. Fires into Alertmanager
+# (infrastructure/alertmanager/alertmanager.yml), which by default routes
+# everything to a receiver with NO notification integration configured -
+# alerts are visible in Alertmanager's own UI/API but nothing pages anyone
+# yet. See that file's docblock for how to wire a real channel (Slack,
+# email, PagerDuty, ...) - genuinely needs credentials this repo doesn't
+# have, so it's left as a documented extension point rather than guessed at.
+groups:
+  - name: taskflow-api
+    rules:
+      - alert: TaskFlowAPIDown
+        expr: up{job="taskflow-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "apps/api is not responding to Prometheus scrapes"
+          description: "The taskflow-api target has been down for over a minute."
+
+      - alert: TaskFlowHighErrorRate
+        expr: |
+          sum(rate(taskflow_http_requests_total{status_code=~"5.."}[5m]))
+          / sum(rate(taskflow_http_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "5xx error rate above 5%"
+          description: "More than 5% of HTTP responses over the last 5m were 5xx."
+
+      - alert: TaskFlowHighLatencyP95
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(taskflow_http_request_duration_seconds_bucket[5m]))) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 request latency above 1s"
+          description: "95th percentile HTTP request latency has been over 1s for 5m."
+
+      - alert: TaskFlowHighEventLoopLag
+        expr: taskflow_nodejs_eventloop_lag_p99_seconds > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Node.js event loop lag p99 above 100ms"
+          description: "The API process may be blocked by slow synchronous work."

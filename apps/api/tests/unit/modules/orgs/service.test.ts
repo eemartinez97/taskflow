@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   createOrgForUser,
@@ -14,6 +14,7 @@ import {
   updateOrgById,
 } from "../../../../src/modules/orgs/service";
 import { SOCKET_EVENTS } from "@taskflow/shared";
+import { appCollectors } from "../../../../src/metrics";
 import { buildMembership, buildNotificationWithActor, buildOrg } from "../../../factories";
 import { ANOTHER_UUID, db, VALID_ORG_ID, VALID_USER } from "../../../helpers";
 import { mockDb } from "../../../mocks/database-mock";
@@ -21,6 +22,11 @@ import { mockIo } from "../../../mocks/socket";
 import { expectEmittedToUser } from "../../../support/socket-assert";
 
 const org = buildOrg();
+
+beforeEach(() => {
+  appCollectors.orgsCreatedTotal.reset();
+  appCollectors.orgMembersRemovedTotal.reset();
+});
 
 /** Satisfies removeMembershipAndNotify's Promise.all - org/task-count/admin lookups. */
 function mockDepartureLookups(): void {
@@ -48,6 +54,7 @@ describe("read paths", () => {
     await expect(createOrgForUser(db, VALID_USER.id, { name: "Acme", slug: "acme" })).resolves.toBe(
       org,
     );
+    expect((await appCollectors.orgsCreatedTotal.get()).values[0]?.value).toBe(1);
   });
 });
 
@@ -112,6 +119,9 @@ describe("removeMemberFromOrg", () => {
     expect(mockDb.membership.delete).toHaveBeenCalledWith({
       where: { orgId_userId: { orgId: VALID_ORG_ID, userId: ANOTHER_UUID } },
     });
+    expect((await appCollectors.orgMembersRemovedTotal.get()).values).toEqual([
+      expect.objectContaining({ labels: { reason: "removed" }, value: 1 }),
+    ]);
   });
 
   it("also notifies the removed member themselves, with a distinct message from a voluntary leave", async () => {
@@ -172,6 +182,9 @@ describe("leaveOrg", () => {
     expect(mockDb.membership.delete).toHaveBeenCalledWith({
       where: { orgId_userId: { orgId: VALID_ORG_ID, userId: VALID_USER.id } },
     });
+    expect((await appCollectors.orgMembersRemovedTotal.get()).values).toEqual([
+      expect.objectContaining({ labels: { reason: "left" }, value: 1 }),
+    ]);
   });
 
   it("notifies a remaining OWNER/ADMIN when there are stranded tasks", async () => {

@@ -59,3 +59,48 @@ describe("buildInternalSecretHeaders", () => {
     expect(buildInternalSecretHeaders()).toEqual({});
   });
 });
+
+describe("apiHttpClient's base URL", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.doUnmock("@/lib/env.server");
+    vi.doUnmock("@trpc/client");
+  });
+
+  it("uses INTERNAL_API_URL when set (docker-compose: apps/api's internal address, not the browser-facing origin)", async () => {
+    const httpBatchLink = vi.fn(() => vi.fn());
+    vi.doMock("@trpc/client", () => ({
+      createTRPCClient: vi.fn(),
+      httpBatchLink,
+    }));
+    vi.doMock("@/lib/env.server", () => ({
+      serverEnv: { INTERNAL_API_URL: "http://api:8000" },
+    }));
+
+    await import("@/lib/trpc/http-server");
+
+    expect(httpBatchLink).toHaveBeenCalledWith(
+      expect.objectContaining({ url: "http://api:8000/trpc" }) as unknown,
+    );
+  });
+
+  it("falls back to NEXT_PUBLIC_API_URL when INTERNAL_API_URL is unset (pnpm dev: same origin either way)", async () => {
+    const httpBatchLink = vi.fn(() => vi.fn());
+    vi.doMock("@trpc/client", () => ({
+      createTRPCClient: vi.fn(),
+      httpBatchLink,
+    }));
+    vi.doMock("@/lib/env.server", () => ({
+      serverEnv: { INTERNAL_API_URL: undefined },
+    }));
+
+    await import("@/lib/trpc/http-server");
+
+    expect(httpBatchLink).toHaveBeenCalledWith(
+      expect.objectContaining({ url: "http://localhost:8000/trpc" }) as unknown,
+    );
+  });
+});

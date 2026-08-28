@@ -2,6 +2,7 @@ import type { Label, PrismaClient } from "@taskflow/database";
 import { type CreateLabel } from "@taskflow/shared";
 import { createLabel, deleteLabel, findLabelsByOrg, findLabelById } from "./repo";
 import { TRPCError } from "../../trpc/init";
+import { appCollectors } from "../../metrics";
 
 export async function listLabels(db: PrismaClient, orgId: string): Promise<Label[]> {
   return findLabelsByOrg(db, orgId);
@@ -20,7 +21,9 @@ export async function createLabelInOrg(
   orgId: string,
   data: CreateLabel,
 ): Promise<Label> {
-  return createLabel(db, orgId, data);
+  const label = await createLabel(db, orgId, data);
+  appCollectors.labelsCreatedTotal.inc();
+  return label;
 }
 
 export async function deleteLabelById(

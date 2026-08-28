@@ -11,10 +11,11 @@ import { vi } from "vitest";
 interface UserModelMock {
   findUnique: ReturnType<typeof vi.fn>;
   create: ReturnType<typeof vi.fn>;
+  update: ReturnType<typeof vi.fn>;
 }
 
 export const mockDb: { user: UserModelMock } = {
-  user: { findUnique: vi.fn(), create: vi.fn() },
+  user: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
 };
 
 /** Matches `import { prisma } from "@taskflow/database"` */

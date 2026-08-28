@@ -5,3 +5,5 @@ export type { RateLimiter, RateLimitOptions } from "./rate-limit";
 export { createPasswordChangedAtCache } from "./password-changed-at-cache";
 export type { PasswordChangedAtCache } from "./password-changed-at-cache";
 export { isResendSandboxAddress } from "./resend-sandbox";
+export { createLastSeenThrottle } from "./last-seen-throttle";
+export type { LastSeenThrottle } from "./last-seen-throttle";

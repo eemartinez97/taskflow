@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Browser, BrowserContext, Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 import { fieldByLabel } from "./field";
@@ -6,6 +7,26 @@ interface NewUserPayload {
   name: string;
   email: string;
   password: string;
+}
+
+/**
+ * Generates a unique, disposable user identity - a plain function (not a
+ * fixture) so one test can mint more than one identity, e.g. its OWN admin
+ * plus a separately-fixtured invitee. Use for any role that would otherwise
+ * default to the shared seed admin (playwright.config.ts's storageState):
+ * a fresh admin per test means that test's invite/accept/decline realtime
+ * toasts land in ITS OWN `user:` room instead of piling up in the seed
+ * admin's notification stack alongside every other concurrently-running
+ * test - see invitations.spec.ts, whose admin-directed toast volume was
+ * flaking the shared-admin revoke test by covering its button.
+ */
+export function randomTestUser(role = "user"): NewUserPayload {
+  const uniqueId = randomUUID().slice(0, 8);
+  return {
+    email: `e2e-${role}-${uniqueId}@taskflow.dev`,
+    password: "Str0ng!Passw0rd",
+    name: `E2E ${role} ${uniqueId}`,
+  };
 }
 
 /**

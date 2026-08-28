@@ -32,5 +32,11 @@ export async function createProject(
 }
 
 export async function navigateToProject(page: Page, projectName: string): Promise<void> {
-  await clickAndExpectUrl(page.getByText(projectName), /\/projects\//);
+  // Scoped to the "Projects list" <ul> (project-list.tsx), not a page-wide
+  // getByText: mid-navigation, Next.js can briefly keep the OLD /projects
+  // list mounted (with the project's card title) at the same instant the
+  // NEW project page has already rendered its own heading with the same
+  // name - an unscoped locator matches both and clickAndExpectUrl's retry
+  // hits it as a strict-mode violation, not a soft timeout.
+  await clickAndExpectUrl(page.getByLabel("Projects list").getByText(projectName), /\/projects\//);
 }

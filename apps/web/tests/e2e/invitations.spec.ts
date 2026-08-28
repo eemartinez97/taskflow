@@ -1,9 +1,19 @@
 import { randomUUID } from "node:crypto";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
-import { createIsolatedOrg, goToTeam, uniqueOrgName } from "./helpers/org";
+import {
+  createFirstOrgFromEmptyState,
+  createIsolatedOrg,
+  goToTeam,
+  uniqueOrgName,
+} from "./helpers/org";
 import { dialogFieldByLabel, fieldByLabel } from "./helpers/field";
-import { getEmailedToken, newAuthenticatedSession } from "./helpers/auth";
+import {
+  getEmailedToken,
+  newAuthenticatedSession,
+  randomTestUser,
+  registerNewUser,
+} from "./helpers/auth";
 
 /**
  * Full invitation lifecycle, end to end. Because the auth-consolidation
@@ -225,45 +235,63 @@ test.describe("Invitation lifecycle", () => {
     }
   });
 
-  test("admin revokes a pending invite; the row flips to REVOKED and the invitee's pending list empties", async ({
-    page,
-    browser,
-    registeredUser,
-  }) => {
-    const org = uniqueOrgName("Revoke Org");
-    await createIsolatedOrg(page, org.name);
+  // Isolated in its own describe, NOT file-wide: registering a fresh admin
+  // for all 8 tests in this file (tried first) traded one flake for worse -
+  // that many extra register+verify+login cycles (bcrypt-heavy) running
+  // fullyParallel alongside the rest of the suite blew past the 15s login
+  // timeout for REAL under load, turning "flaky" into hard failures on
+  // other tests in this file. Only this one test actually needed its own
+  // admin: it's the one whose revoke button sits where the shared seed
+  // admin's toast stack (packages/ui/src/toast.tsx, fixed bottom-right,
+  // grows upward) piles up from every OTHER concurrently-running
+  // invitation test's invite/accept/decline traffic on that same shared
+  // `user:<seedId>` room, occasionally covering the button. Every other
+  // test in this file stays on the shared seed admin (createIsolatedOrg) -
+  // cheap, and not observed to flake.
+  test.describe("admin revokes a pending invite (isolated admin)", () => {
+    test.use({ storageState: { cookies: [], origins: [] } });
 
-    const { context: inviteeContext, page: inviteePage } = await newAuthenticatedSession(
+    test("admin revokes a pending invite; the row flips to REVOKED and the invitee's pending list empties", async ({
+      page,
       browser,
       registeredUser,
-    );
+    }) => {
+      const org = uniqueOrgName("Revoke Org");
+      await registerNewUser(page, randomTestUser("admin"));
+      await createFirstOrgFromEmptyState(page, org.name);
 
-    try {
-      await goToTeam(page, org.name);
-      await sendInvite(page, registeredUser.email);
+      const { context: inviteeContext, page: inviteePage } = await newAuthenticatedSession(
+        browser,
+        registeredUser,
+      );
 
-      await inviteePage.goto("/projects");
-      await expect(inviteePage.getByText(org.name)).toBeVisible({ timeout: 15_000 });
+      try {
+        await goToTeam(page, org.name);
+        await sendInvite(page, registeredUser.email);
 
-      await page
-        .getByRole("button", {
-          name: new RegExp(`revoke invitation to ${registeredUser.email}`, "i"),
-        })
-        .click();
-      await page.getByRole("dialog").getByRole("button", { name: "Revoke", exact: true }).click();
-      // exact: true - a loose match also catches the "Invitation revoked."
-      // toast (getByText is case-insensitive by default).
-      await expect(page.getByText("REVOKED", { exact: true })).toBeVisible();
+        await inviteePage.goto("/projects");
+        await expect(inviteePage.getByText(org.name)).toBeVisible({ timeout: 15_000 });
 
-      // The invitee's pending-invitations card has no realtime subscription
-      // of its own (REVOKED only broadcasts to the org: room, which a
-      // pending invitee - not yet a member - never joins) - force a fresh
-      // server fetch instead, same rationale as createIsolatedOrg's reload.
-      await inviteePage.reload();
-      await expect(inviteePage.getByText(org.name)).not.toBeVisible({ timeout: 15_000 });
-    } finally {
-      await inviteeContext.close();
-    }
+        await page
+          .getByRole("button", {
+            name: new RegExp(`revoke invitation to ${registeredUser.email}`, "i"),
+          })
+          .click();
+        await page.getByRole("dialog").getByRole("button", { name: "Revoke", exact: true }).click();
+        // exact: true - a loose match also catches the "Invitation revoked."
+        // toast (getByText is case-insensitive by default).
+        await expect(page.getByText("REVOKED", { exact: true })).toBeVisible();
+
+        // The invitee's pending-invitations card has no realtime subscription
+        // of its own (REVOKED only broadcasts to the org: room, which a
+        // pending invitee - not yet a member - never joins) - force a fresh
+        // server fetch instead, same rationale as createIsolatedOrg's reload.
+        await inviteePage.reload();
+        await expect(inviteePage.getByText(org.name)).not.toBeVisible({ timeout: 15_000 });
+      } finally {
+        await inviteeContext.close();
+      }
+    });
   });
 
   test("emailed deep link: the invitee accepts via /invitations/<token>; a different signed-in user sees WRONG_ACCOUNT", async ({

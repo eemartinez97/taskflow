@@ -38,6 +38,8 @@ import {
 import { getEmailSender } from "../../../../src/mail/sender";
 import { appCollectors } from "../../../../src/metrics";
 import { claimInvitationsForUser } from "../../../../src/modules/invitations/service";
+import { broadcastProfileNameUpdate } from "../../../../src/socket/presence";
+import type * as presenceModule from "../../../../src/socket/presence";
 import { TRPCError } from "../../../../src/trpc/init";
 import { db, VALID_USER } from "../../../helpers";
 import { mockDb } from "../../../mocks/database-mock";
@@ -49,6 +51,13 @@ vi.mock("../../../../src/modules/auth/rate-limit");
 vi.mock("../../../../src/mail/sender");
 vi.mock("../../../../src/config/env");
 vi.mock("../../../../src/modules/invitations/service");
+// Only the broadcast side-effect is asserted here (called with the right
+// args) - broadcastProfileNameUpdate's own room-fanout logic has its own
+// tests in tests/unit/socket/presence.test.ts.
+vi.mock("../../../../src/socket/presence", async (importOriginal) => ({
+  ...(await importOriginal<typeof presenceModule>()),
+  broadcastProfileNameUpdate: vi.fn(),
+}));
 vi.mock("@taskflow/mail", async (importOriginal) => {
   const actual = await importOriginal<typeof TaskflowMail>();
   return {
@@ -75,6 +84,7 @@ const mockSendVerificationEmail = vi.mocked(sendVerificationEmail);
 const mockSendAccountActivatedEmail = vi.mocked(sendAccountActivatedEmail);
 const mockSendPasswordResetEmail = vi.mocked(sendPasswordResetEmail);
 const mockClaimInvitationsForUser = vi.mocked(claimInvitationsForUser);
+const mockBroadcastProfileNameUpdate = vi.mocked(broadcastProfileNameUpdate);
 const FAKE_SENDER = {} as EmailSender;
 
 const VALID_REGISTER_INPUT = { name: "Ada Lovelace", email: "ada@example.com", password: "pw" };
@@ -111,22 +121,47 @@ describe("signOutUser", () => {
 });
 
 describe("updateMyProfile", () => {
-  it("checks existence before updating", async () => {
+  beforeEach(() => {
+    // fireAndForget() calls .catch() on the return value synchronously -
+    // an unarmed vi.fn() returns undefined, not a Promise, which would
+    // throw inside updateMyProfile itself rather than just going unasserted.
+    mockBroadcastProfileNameUpdate.mockResolvedValue(undefined);
+  });
+
+  it("checks existence before updating, and broadcasts the new name to live sockets", async () => {
     mockDb.user.findUnique.mockResolvedValueOnce(user);
     mockDb.user.update.mockResolvedValueOnce({ ...user, name: "Bob" });
 
-    await expect(updateMyProfile(db, VALID_USER.id, { name: "Bob" })).resolves.toMatchObject({
+    await expect(
+      updateMyProfile(db, mockIo, VALID_USER.id, { name: "Bob" }),
+    ).resolves.toMatchObject({
       name: "Bob",
+    });
+
+    await vi.waitFor(() => {
+      expect(mockBroadcastProfileNameUpdate).toHaveBeenCalledWith(mockIo, db, VALID_USER.id, "Bob");
     });
   });
 
-  it("throws NOT_FOUND without touching update", async () => {
+  it("does not broadcast when the name is unchanged (avatar-only edit)", async () => {
+    mockDb.user.findUnique.mockResolvedValueOnce(user);
+    mockDb.user.update.mockResolvedValueOnce({ ...user, image: "https://example.com/a.png" });
+
+    await expect(
+      updateMyProfile(db, mockIo, VALID_USER.id, { image: "https://example.com/a.png" }),
+    ).resolves.toMatchObject({ name: user.name });
+
+    expect(mockBroadcastProfileNameUpdate).not.toHaveBeenCalled();
+  });
+
+  it("throws NOT_FOUND without touching update or broadcasting", async () => {
     mockDb.user.findUnique.mockResolvedValueOnce(null);
 
-    await expect(updateMyProfile(db, VALID_USER.id, { name: "Bob" })).rejects.toMatchObject({
-      code: "NOT_FOUND",
-    });
+    await expect(updateMyProfile(db, mockIo, VALID_USER.id, { name: "Bob" })).rejects.toMatchObject(
+      { code: "NOT_FOUND" },
+    );
     expect(mockDb.user.update).not.toHaveBeenCalled();
+    expect(mockBroadcastProfileNameUpdate).not.toHaveBeenCalled();
   });
 });
 

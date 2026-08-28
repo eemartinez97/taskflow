@@ -66,6 +66,8 @@ export interface ServerToClientEvents {
   [SOCKET_EVENTS.PRESENCE_ONLINE]: (payload: { userId: string }) => void;
   [SOCKET_EVENTS.PRESENCE_OFFLINE]: (payload: { userId: string }) => void;
   [SOCKET_EVENTS.PRESENCE_ONLINE_SYNC]: (payload: { userIds: string[] }) => void;
+  /** Sent org-wide (see PRESENCE_USER_UPDATED) so peers correct an already-cached name. */
+  [SOCKET_EVENTS.PRESENCE_USER_UPDATED]: (payload: { userId: string; name: string | null }) => void;
   /** Sent to the invitee's personal user: room - they aren't an org member yet, so no org room applies. */
   [SOCKET_EVENTS.INVITATION_RECEIVED]: (payload: { invitation: SocketMyInvitation }) => void;
   /** Sent to the org: room so the admin's invitations table updates live on accept/decline/revoke. */

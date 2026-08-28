@@ -255,6 +255,7 @@ interface UtilsInvalidate {
 /** Typed shape matching the api.useUtils() implementation in tests/mocks/trpc-api.tsx. */
 export interface MockApiUtils {
   invalidate: MockFn;
+  auth: { me: UtilsInvalidate };
   orgs: {
     list: UtilsInvalidate;
     members: UtilsInvalidate;
@@ -406,6 +407,7 @@ function makeUtilsInvalidate(overrides: Partial<UtilsInvalidate> = {}): UtilsInv
 
 /** Deep-partial override shape accepted by mockApiUtils(). */
 export interface MockApiUtilsOverrides {
+  auth?: { me?: Partial<UtilsInvalidate> };
   orgs?: {
     list?: Partial<UtilsInvalidate>;
     members?: Partial<UtilsInvalidate>;
@@ -444,6 +446,7 @@ export interface MockApiUtilsOverrides {
 export function mockApiUtils(overrides: MockApiUtilsOverrides = {}): MockApiUtils {
   const result: MockApiUtils = {
     invalidate: overrides.invalidate ?? vi.fn(),
+    auth: { me: makeUtilsInvalidate(overrides.auth?.me) },
     orgs: {
       list: makeUtilsInvalidate(overrides.orgs?.list),
       members: makeUtilsInvalidate(overrides.orgs?.members),

@@ -12,19 +12,23 @@ import {
   mockAppServer,
   mockEmit,
   mockExcept,
+  mockFetchSockets,
+  mockIn,
   mockTo,
   setRoomPeers,
 } from "../../mocks/socket";
 import {
   announceOfflineIfLast,
   announceOnlineIfFirst,
+  broadcastProfileNameUpdate,
   buildOnlineSync,
   createPresenceHelpers,
   PRESENCE_COLORS,
   registerPresenceHandlers,
   resolveColor,
 } from "../../../src/socket/presence";
-import { ANOTHER_UUID, VALID_ORG_ID, VALID_PROJECT_ID, VALID_USER } from "../../helpers";
+import { ANOTHER_UUID, db, VALID_ORG_ID, VALID_PROJECT_ID, VALID_USER } from "../../helpers";
+import { mockDb } from "../../mocks/database-mock";
 import { shouldDropPresencePacket } from "../../../src/socket/rate-limit";
 import type * as sharedModule from "@taskflow/shared";
 import { mockLogger } from "../../mocks/logger";
@@ -295,5 +299,44 @@ describe("createPresenceHelpers", () => {
 
     expect(broadcastToMock).not.toHaveBeenCalled();
     expect(emitMock).not.toHaveBeenCalledWith(SOCKET_EVENTS.PRESENCE_SYNC, expect.anything());
+  });
+});
+
+describe("broadcastProfileNameUpdate", () => {
+  it("updates socket.data.userName on every live socket in the user's personal room", async () => {
+    const staleSocket = makePeer({ id: "tab-1", userId: VALID_USER.id, userName: "Old Name" });
+    mockFetchSockets.mockResolvedValueOnce([staleSocket]);
+    mockDb.membership.findMany.mockResolvedValueOnce([]);
+
+    await broadcastProfileNameUpdate(mockAppServer, db, VALID_USER.id, "New Name");
+
+    expect(mockIn).toHaveBeenCalledWith(`user:${VALID_USER.id}`);
+    expect(staleSocket.data.userName).toBe("New Name");
+  });
+
+  it("broadcasts presence:user-updated to every org the user belongs to", async () => {
+    mockFetchSockets.mockResolvedValueOnce([]);
+    mockDb.membership.findMany.mockResolvedValueOnce([
+      { orgId: VALID_ORG_ID },
+      { orgId: ANOTHER_UUID },
+    ]);
+
+    await broadcastProfileNameUpdate(mockAppServer, db, VALID_USER.id, "New Name");
+
+    expect(mockTo).toHaveBeenCalledWith(`org:${VALID_ORG_ID}`);
+    expect(mockTo).toHaveBeenCalledWith(`org:${ANOTHER_UUID}`);
+    expect(mockEmit).toHaveBeenCalledWith(SOCKET_EVENTS.PRESENCE_USER_UPDATED, {
+      userId: VALID_USER.id,
+      name: "New Name",
+    });
+  });
+
+  it("emits nothing when the user belongs to no orgs", async () => {
+    mockFetchSockets.mockResolvedValueOnce([]);
+    mockDb.membership.findMany.mockResolvedValueOnce([]);
+
+    await broadcastProfileNameUpdate(mockAppServer, db, VALID_USER.id, "New Name");
+
+    expect(mockTo).not.toHaveBeenCalled();
   });
 });

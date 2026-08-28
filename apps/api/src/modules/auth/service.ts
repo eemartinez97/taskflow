@@ -39,6 +39,7 @@ import { getEmailSender } from "../../mail/sender";
 import { withMinimumLatency } from "../../utils/with-minimum-latency";
 import { fireAndForget } from "../../utils/fire-and-forget";
 import { claimInvitationsForUser } from "../invitations/service";
+import { broadcastProfileNameUpdate } from "../../socket/presence";
 import type { AppServer } from "../../socket/events";
 
 export async function getMe(db: PrismaClient, userId: string): Promise<SessionUser> {
@@ -54,11 +55,25 @@ export async function signOutUser(db: PrismaClient, userId: string): Promise<{ s
 
 export async function updateMyProfile(
   db: PrismaClient,
+  io: AppServer,
   userId: string,
   data: UpdateUser,
 ): Promise<SessionUser> {
-  await getMe(db, userId); // NOT_FOUND if the account was deleted
-  return updateUser(db, userId, data);
+  const before = await getMe(db, userId); // NOT_FOUND if the account was deleted
+  const updated = await updateUser(db, userId, data);
+
+  // Fire-and-forget, same pattern as notifyAccountActivated/claimInvitationsForUser
+  // below - a broadcast failure must never turn an already-successful profile
+  // update into an error response. Only broadcast when the name actually
+  // changed - an avatar-only edit has nothing for peers' rosters to react to.
+  if (updated.name !== before.name) {
+    fireAndForget(
+      broadcastProfileNameUpdate(io, db, userId, updated.name),
+      "auth.updateMyProfile: failed to broadcast updated name to live sockets",
+    );
+  }
+
+  return updated;
 }
 
 // -- Public (unauthenticated) auth procedures --

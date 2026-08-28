@@ -9,7 +9,12 @@ vi.mock("@/components/common/user-avatar", () => ({
 import { api } from "@/lib/trpc/client";
 import { useSession } from "next-auth/react";
 import { ProfileForm } from "@/app/(dashboard)/settings/_components/profile-form";
-import { mockUseMutationResult, mockUseQuery, setupMutationMock } from "@/tests/support/trpc";
+import {
+  mockApiUtils,
+  mockUseMutationResult,
+  mockUseQuery,
+  setupMutationMock,
+} from "@/tests/support/trpc";
 import { mockAuthorizedUser } from "@/tests/support/fixtures";
 
 describe("ProfileForm", () => {
@@ -19,7 +24,7 @@ describe("ProfileForm", () => {
     expect(screen.getByText("…")).toBeInTheDocument();
   });
 
-  it("submits updated profile and calls session.update on success", async () => {
+  it("submits updated profile, calls session.update, and invalidates every cached display of the user's name/avatar", async () => {
     const updateMock = vi.fn().mockResolvedValue(undefined);
     vi.mocked(useSession).mockReturnValue({
       data: { user: mockAuthorizedUser },
@@ -29,6 +34,7 @@ describe("ProfileForm", () => {
 
     mockUseQuery(api.auth.me, mockAuthorizedUser);
     const { mutateMock, triggerSuccess } = setupMutationMock(api.auth.updateProfile);
+    const utils = mockApiUtils();
 
     render(<ProfileForm />);
     const user = userEvent.setup();
@@ -46,6 +52,12 @@ describe("ProfileForm", () => {
     });
 
     expect(updateMock).toHaveBeenCalledWith({ name: "Alice Updated", image: null });
+    await waitFor(() => {
+      expect(utils.auth.me.invalidate).toHaveBeenCalled();
+    });
+    expect(utils.orgs.members.invalidate).toHaveBeenCalled();
+    expect(utils.orgs.assigneeLookup.invalidate).toHaveBeenCalled();
+    expect(utils.comments.list.invalidate).toHaveBeenCalled();
   });
 
   it("falls back to an empty object and empty email when auth.me has no data", () => {

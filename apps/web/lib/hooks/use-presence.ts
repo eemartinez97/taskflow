@@ -38,14 +38,27 @@ export function usePresence(socketRef: RefObject<AppSocket | null>): SocketPrese
       setUsers((prev) => prev.filter((u) => u.userId !== userId));
     };
 
+    // A peer changed their own name in Settings - patch the cached roster
+    // entry in place instead of waiting for their socket to reconnect (see
+    // apps/api's broadcastProfileNameUpdate). Also fixes cursor labels,
+    // which read the same roster via kanban-board.tsx's presenceById.
+    const onUserUpdated: ServerToClientEvents[typeof SOCKET_EVENTS.PRESENCE_USER_UPDATED] = ({
+      userId,
+      name,
+    }) => {
+      setUsers((prev) => prev.map((u) => (u.userId === userId ? { ...u, name } : u)));
+    };
+
     socket.on(SOCKET_EVENTS.PRESENCE_SYNC, onSync);
     socket.on(SOCKET_EVENTS.PRESENCE_JOIN, onJoin);
     socket.on(SOCKET_EVENTS.PRESENCE_LEAVE, onLeave);
+    socket.on(SOCKET_EVENTS.PRESENCE_USER_UPDATED, onUserUpdated);
 
     return () => {
       socket.off(SOCKET_EVENTS.PRESENCE_SYNC, onSync);
       socket.off(SOCKET_EVENTS.PRESENCE_JOIN, onJoin);
       socket.off(SOCKET_EVENTS.PRESENCE_LEAVE, onLeave);
+      socket.off(SOCKET_EVENTS.PRESENCE_USER_UPDATED, onUserUpdated);
       setUsers([]);
     };
   }, [socketRef]);

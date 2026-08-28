@@ -169,6 +169,26 @@ services:
         condition: service_healthy
       web:
         condition: service_healthy
+    # Without this, nothing waits for the entrypoint's htpasswd step (and
+    # nginx itself) to actually finish starting - a plain `depends_on`
+    # with no healthcheck only waits for the container to be CREATED, not
+    # ready to accept connections. Harmless before this file added the
+    # htpasswd step (the stock image had nothing to wait for and was
+    # effectively instant), but CI's compose-smoke.yml wait loop only
+    # polls services that report a Docker health status - nginx reporting
+    # none meant the loop could declare "all healthy" and curl could hit
+    # nginx before `exec nginx` had even run, intermittently getting
+    # "Connection reset by peer" instead of a real response.
+    # 127.0.0.1, not localhost: nginx.conf only has `listen 80;` (IPv4), but
+    # the container's /etc/hosts resolves `localhost` to ::1 first too -
+    # wget then tries the IPv6 loopback, where nothing is listening, and
+    # fails with "Connection refused" instead of falling back to IPv4.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     restart: unless-stopped
 
   # Scrapes apps/api's /metrics (see apps/api/src/metrics/) every 15s - see

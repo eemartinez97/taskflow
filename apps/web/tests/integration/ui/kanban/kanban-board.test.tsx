@@ -11,7 +11,7 @@ import { mockSession } from "@/tests/mocks/next-auth";
 import { renderUI } from "../../helpers/render";
 import { wireCapturableMutation } from "../../helpers/mutation";
 import { mockApiUtils, mockUseQuery } from "@/tests/support/trpc";
-import { makeColumn, makeLabel, makeTask } from "@/tests/support/factories";
+import { makeBoard, makeColumn, makeLabel, makeTask } from "@/tests/support/factories";
 
 // -- Module mocks --
 
@@ -163,12 +163,15 @@ function buildProps(
     projectId: "proj-1",
     boardId: "board-1",
     boardName: "Main Board",
+    projectName: "Demo Project",
+    initialBoards: [makeBoard({ id: "board-1", name: "Main Board" })],
     columns: [COL_A, COL_B],
     initialTasks: BASE_INITIAL_TASKS,
     labelsByTask: {},
     presence: [],
     cursors: [],
     canEdit: true,
+    canManageBoards: true,
     ...overrides,
   };
 }
@@ -185,6 +188,7 @@ describe("KanbanBoard", () => {
     mockUseQuery(api.labels.list, []);
     mockUseQuery(api.orgs.assigneeLookup, { members: [], formerAssignees: [] });
     mockUseQuery(api.tasks.labelsByProject, []);
+    mockUseQuery(api.boards.list, [makeBoard({ id: "board-1", name: "Main Board" })]);
     setBoardsGetData = vi.fn();
     setTasksListData = vi.fn();
     mockApiUtils({
@@ -421,10 +425,11 @@ describe("KanbanBoard", () => {
 
   // -- Label filter --
 
-  it("renders a filter pill for each org label", () => {
+  it("renders a filter pill for each org label behind the Filter menu", () => {
     mockUseQuery(api.labels.list, [LABEL_BUG]);
 
     renderUI(<KanbanBoard {...buildProps()} />);
+    fireEvent.click(screen.getByRole("button", { name: /^filter$/i }));
 
     expect(screen.getByRole("button", { name: "Bug" })).toBeInTheDocument();
   });
@@ -433,6 +438,7 @@ describe("KanbanBoard", () => {
     mockUseQuery(api.labels.list, [LABEL_BUG]);
 
     renderUI(<KanbanBoard {...buildProps()} />);
+    fireEvent.click(screen.getByRole("button", { name: /^filter$/i }));
     fireEvent.click(screen.getByRole("button", { name: "Bug" }));
 
     expect(screen.getByRole("button", { name: "Bug" })).toHaveAttribute("aria-pressed", "true");
@@ -442,6 +448,7 @@ describe("KanbanBoard", () => {
     mockUseQuery(api.labels.list, [LABEL_BUG]);
 
     renderUI(<KanbanBoard {...buildProps()} />);
+    fireEvent.click(screen.getByRole("button", { name: /^filter$/i }));
     fireEvent.click(screen.getByRole("button", { name: "Bug" }));
 
     await waitFor(() => {
@@ -453,6 +460,7 @@ describe("KanbanBoard", () => {
     mockUseQuery(api.labels.list, [LABEL_BUG]);
 
     renderUI(<KanbanBoard {...buildProps()} />);
+    fireEvent.click(screen.getByRole("button", { name: /^filter$/i }));
     fireEvent.click(screen.getByRole("button", { name: "Bug" }));
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /clear/i })).toBeInTheDocument();

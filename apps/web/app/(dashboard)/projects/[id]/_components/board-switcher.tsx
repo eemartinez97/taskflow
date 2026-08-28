@@ -1,14 +1,15 @@
 "use client";
 
-import { type JSX, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { type JSX, useEffect, useRef, useState } from "react";
+import { Check, ChevronDown, Plus, Trash2 } from "lucide-react";
 
 import type { Board } from "@taskflow/database";
-import { Button, Select } from "@taskflow/ui";
+import { Button, cn } from "@taskflow/ui";
 
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { useAppRouter } from "@/lib/hooks/use-app-router";
 import { useDisclosure } from "@/lib/hooks/use-disclosure";
+import { useOutsideClick } from "@/lib/hooks/use-outside-click";
 import { toast } from "@/lib/toast/store";
 import { api } from "@/lib/trpc/client";
 import { CreateBoardDialog } from "./create-board-dialog";
@@ -23,13 +24,15 @@ interface BoardSwitcherProps {
 }
 
 /**
- * Board selector for a project.
+ * Board switcher for a project - a single chevron-triggered popover
+ * (list of boards, "New board", "Delete board") instead of three
+ * always-visible controls (a <Select>, a "New board" button, a delete
+ * icon). The active board's NAME is rendered and renamed separately, right
+ * next to this trigger (see kanban-board.tsx's InlineEditText) - this
+ * component only ever switches/creates/deletes, never edits the current
+ * board's name, so a click here never collides with a click-to-rename.
  *
- * The Select is ALWAYS rendered (even with a single board) so the active board
- * is visible and switchable. "New board" opens the create dialog; the delete
- * control appears only for managers and only when more than one board exists
- * (a project must keep at least one). Controls are `shrink-0` so the button
- * never wraps onto a second line.
+ * Closes on outside-click and Escape, same convention as DropdownMenu.
  */
 export function BoardSwitcher({
   orgId,
@@ -40,6 +43,8 @@ export function BoardSwitcher({
 }: BoardSwitcherProps): JSX.Element {
   const router = useAppRouter();
   const utils = api.useUtils();
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const createDialog = useDisclosure();
   const deleteDialog = useDisclosure();
   const [pendingDeleteName, setPendingDeleteName] = useState("");
@@ -51,6 +56,20 @@ export function BoardSwitcher({
 
   const activeBoard = boards.find((b) => b.id === activeBoardId) ?? null;
   const canDelete = canManage && boards.length > 1;
+
+  useOutsideClick(containerRef, open, () => {
+    setOpen(false);
+  });
+
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent): void {
+      if (e.key === "Escape") setOpen(false);
+    }
+    if (open) document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [open]);
 
   const deleteMutation = api.boards.delete.useMutation({
     onSuccess: () => {
@@ -65,46 +84,91 @@ export function BoardSwitcher({
   });
 
   return (
-    <div className="flex items-center gap-2">
-      <Select
-        aria-label="Select board"
-        value={activeBoardId}
-        onChange={(e) => {
-          router.push(`/projects/${projectId}?board=${e.target.value}`);
-        }}
-        className="h-9 text-xs w-48 shrink-0"
-      >
-        {boards.map((b) => (
-          <option key={b.id} value={b.id}>
-            {b.name}
-          </option>
-        ))}
-      </Select>
-
+    <div ref={containerRef} className="relative inline-block">
       <Button
-        size="sm"
-        variant="secondary"
-        onClick={createDialog.open}
-        aria-label="Create board"
-        className="h-9 text-xs shrink-0 whitespace-nowrap"
+        variant="ghost"
+        size="icon"
+        aria-label="Switch board"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => {
+          setOpen((p) => !p);
+        }}
+        className="text-gray-400 hover:bg-gray-100 hover:text-gray-700"
       >
-        <Plus className="mr-1 h-3.5 w-3.5" />
-        New board
+        <ChevronDown className="h-4 w-4" />
       </Button>
 
-      {canDelete && (
-        <Button
-          size="icon"
-          variant="ghost"
-          aria-label="Delete current board"
-          onClick={() => {
-            setPendingDeleteName(activeBoard?.name ?? "");
-            deleteDialog.open();
-          }}
-          className="shrink-0 text-gray-400 hover:bg-red-50 hover:text-red-600"
+      {open && (
+        <div
+          role="menu"
+          className="absolute left-0 z-50 mt-1 min-w-[220px] rounded-lg border border-gray-200
+                     bg-white py-1 shadow-lg"
         >
-          <Trash2 className="h-4 w-4" />
-        </Button>
+          <div className="px-3 pt-1 pb-1.5 text-[11px] font-semibold tracking-wide text-gray-400 uppercase">
+            Boards
+          </div>
+
+          {boards.map((board) => {
+            const active = board.id === activeBoardId;
+            return (
+              <button
+                key={board.id}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  if (!active) router.push(`/projects/${projectId}?board=${board.id}`);
+                }}
+                className={cn(
+                  "flex w-full items-center justify-between px-3 py-1.5 text-left text-sm",
+                  active
+                    ? "bg-brand-50 font-medium text-brand-700"
+                    : "text-gray-700 hover:bg-gray-50",
+                )}
+              >
+                {board.name}
+                {active && <Check className="h-3.5 w-3.5" />}
+              </button>
+            );
+          })}
+
+          <div className="my-1 border-t border-gray-100" />
+
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              createDialog.open();
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm font-medium
+                       text-brand-600 hover:bg-brand-50"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            New board
+          </button>
+
+          {canDelete && (
+            <>
+              <div className="my-1 border-t border-gray-100" />
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  setPendingDeleteName(activeBoard?.name ?? "");
+                  deleteDialog.open();
+                }}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm font-medium
+                           text-red-600 hover:bg-red-50"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete &quot;{activeBoard?.name}&quot;
+              </button>
+            </>
+          )}
+        </div>
       )}
 
       <CreateBoardDialog

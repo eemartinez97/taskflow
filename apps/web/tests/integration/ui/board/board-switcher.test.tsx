@@ -68,6 +68,10 @@ function buildProps(overrides: Partial<Parameters<typeof BoardSwitcher>[0]> = {}
   };
 }
 
+function openMenu(): void {
+  fireEvent.click(screen.getByRole("button", { name: /switch board/i }));
+}
+
 // -- Tests --
 describe("BoardSwitcher", () => {
   const { router: mockRouter } = setupRouterMock();
@@ -81,68 +85,81 @@ describe("BoardSwitcher", () => {
 
   // -- Rendering --
 
-  it("renders all board names as select options", () => {
+  it("lists every board name as a menu item once the menu is opened", () => {
     renderUI(<BoardSwitcher {...buildProps()} />);
 
-    expect(screen.getByRole("option", { name: "Sprint 1" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Sprint 2" })).toBeInTheDocument();
+    openMenu();
+
+    expect(screen.getByRole("menuitem", { name: /^Sprint 1/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Sprint 2" })).toBeInTheDocument();
   });
 
-  it("selects the activeBoardId in the select", () => {
+  it("marks the active board with a checkmark", () => {
     renderUI(<BoardSwitcher {...buildProps()} />);
 
-    expect(screen.getByRole("combobox")).toHaveValue(BOARD_A.id);
+    openMenu();
+
+    expect(screen.getByRole("menuitem", { name: /^Sprint 1/ }).querySelector("svg")).not.toBeNull();
   });
 
-  it("renders the 'New board' button", () => {
+  it("does not render a menu until opened", () => {
     renderUI(<BoardSwitcher {...buildProps()} />);
 
-    expect(screen.getByRole("button", { name: "Create board" })).toBeInTheDocument();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
   // -- Board switching --
 
-  it("navigates to the selected board URL when the select changes", () => {
+  it("navigates to the clicked board's URL", () => {
     renderUI(<BoardSwitcher {...buildProps()} />);
 
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: BOARD_B.id } });
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Sprint 2" }));
 
     expect(mockRouter.push).toHaveBeenCalledWith(`/projects/${PROJECT_ID}?board=${BOARD_B.id}`);
   });
 
-  // -- Delete button visibility --
+  // -- Delete visibility --
 
-  it("shows the Delete button when canManage=true and more than one board exists", () => {
+  it("shows the delete item when canManage=true and more than one board exists", () => {
     renderUI(<BoardSwitcher {...buildProps({ canManage: true })} />);
 
-    expect(screen.getByRole("button", { name: /delete current board/i })).toBeInTheDocument();
+    openMenu();
+
+    expect(screen.getByRole("menuitem", { name: /delete/i })).toBeInTheDocument();
   });
 
-  it("hides the Delete button when canManage=false", () => {
+  it("hides the delete item when canManage=false", () => {
     renderUI(<BoardSwitcher {...buildProps({ canManage: false })} />);
 
-    expect(screen.queryByRole("button", { name: /delete current board/i })).not.toBeInTheDocument();
+    openMenu();
+
+    expect(screen.queryByRole("menuitem", { name: /delete/i })).not.toBeInTheDocument();
   });
 
-  it("hides the Delete button when only one board exists", () => {
+  it("hides the delete item when only one board exists", () => {
     setupBoardsQuery([BOARD_A]);
     renderUI(<BoardSwitcher {...buildProps({ initialBoards: [BOARD_A] })} />);
 
-    expect(screen.queryByRole("button", { name: /delete current board/i })).not.toBeInTheDocument();
+    openMenu();
+
+    expect(screen.queryByRole("menuitem", { name: /delete/i })).not.toBeInTheDocument();
   });
 
   // -- Create board dialog --
 
   it("opens CreateBoardDialog when 'New board' is clicked", () => {
     renderUI(<BoardSwitcher {...buildProps()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Create board" }));
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: /new board/i }));
 
     expect(screen.getByTestId("create-board-dialog")).toBeInTheDocument();
   });
 
   it("closes CreateBoardDialog when its close handler fires", () => {
     renderUI(<BoardSwitcher {...buildProps()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Create board" }));
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: /new board/i }));
     fireEvent.click(screen.getByRole("button", { name: "Close create" }));
 
     expect(screen.queryByTestId("create-board-dialog")).not.toBeInTheDocument();
@@ -150,9 +167,10 @@ describe("BoardSwitcher", () => {
 
   // -- Delete flow --
 
-  it("opens ConfirmDialog with the active board name when Delete is clicked", () => {
+  it("opens ConfirmDialog with the active board name when the delete item is clicked", () => {
     renderUI(<BoardSwitcher {...buildProps()} />);
-    fireEvent.click(screen.getByRole("button", { name: /delete current board/i }));
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: /delete/i }));
 
     expect(screen.getByTestId("confirm-dialog")).toBeInTheDocument();
     expect(screen.getByText("Delete board")).toBeInTheDocument();
@@ -160,7 +178,8 @@ describe("BoardSwitcher", () => {
 
   it("calls deleteMutation.mutate with orgId and activeBoardId when confirmed", () => {
     renderUI(<BoardSwitcher {...buildProps()} />);
-    fireEvent.click(screen.getByRole("button", { name: /delete current board/i }));
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: /delete/i }));
     fireEvent.click(screen.getByRole("button", { name: "Confirm delete" }));
 
     expect(deleteMutation.mutate).toHaveBeenCalledWith({
@@ -171,7 +190,8 @@ describe("BoardSwitcher", () => {
 
   it("closes ConfirmDialog without calling mutate when Cancel is clicked", () => {
     renderUI(<BoardSwitcher {...buildProps()} />);
-    fireEvent.click(screen.getByRole("button", { name: /delete current board/i }));
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: /delete/i }));
     fireEvent.click(screen.getByRole("button", { name: "Cancel delete" }));
 
     expect(screen.queryByTestId("confirm-dialog")).not.toBeInTheDocument();
@@ -181,7 +201,8 @@ describe("BoardSwitcher", () => {
 
   it("shows a success toast after a successful board deletion", () => {
     renderUI(<BoardSwitcher {...buildProps()} />);
-    fireEvent.click(screen.getByRole("button", { name: /delete current board/i }));
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: /delete/i }));
     fireEvent.click(screen.getByRole("button", { name: "Confirm delete" }));
 
     act(() => {
@@ -193,7 +214,8 @@ describe("BoardSwitcher", () => {
 
   it("invalidates boards.list after a successful deletion", () => {
     renderUI(<BoardSwitcher {...buildProps()} />);
-    fireEvent.click(screen.getByRole("button", { name: /delete current board/i }));
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: /delete/i }));
     fireEvent.click(screen.getByRole("button", { name: "Confirm delete" }));
 
     act(() => {
@@ -208,7 +230,8 @@ describe("BoardSwitcher", () => {
 
   it("navigates to the next remaining board after a successful deletion", () => {
     renderUI(<BoardSwitcher {...buildProps()} />);
-    fireEvent.click(screen.getByRole("button", { name: /delete current board/i }));
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: /delete/i }));
     fireEvent.click(screen.getByRole("button", { name: "Confirm delete" }));
 
     act(() => {

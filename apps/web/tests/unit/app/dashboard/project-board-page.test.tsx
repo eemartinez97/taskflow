@@ -7,11 +7,6 @@ vi.mock("@/lib/utils/org-utils", () => ({ getOrgOrNull: vi.fn() }));
 vi.mock("@/app/(dashboard)/projects/[id]/board", () => ({
   BoardPageClient: ({ boardId }: { boardId: string }) => <p>BoardPageClient: {boardId}</p>,
 }));
-vi.mock("@/app/(dashboard)/projects/[id]/_components/board-switcher", () => ({
-  BoardSwitcher: ({ activeBoardId }: { activeBoardId: string }) => (
-    <p>BoardSwitcher: {activeBoardId}</p>
-  ),
-}));
 
 import { notFound } from "next/navigation";
 import { getServerTRPC } from "@/lib/trpc/server";
@@ -136,7 +131,7 @@ describe("ProjectBoardPage", () => {
         searchParams: searchParams({ board: "does-not-exist" }),
       }),
     );
-    expect(screen.getByText(`BoardSwitcher: ${board.id}`)).toBeInTheDocument();
+    expect(screen.getByText(`BoardPageClient: ${board.id}`)).toBeInTheDocument();
   });
 
   it("renders the full page when the requested board matches", async () => {
@@ -166,6 +161,6 @@ describe("ProjectBoardPage", () => {
     });
     vi.mocked(getOrgOrNull).mockResolvedValue(makeOrg({ memberships: [] }));
     render(await ProjectBoardPage({ params: params(), searchParams: searchParams() }));
-    expect(screen.getByText(`BoardSwitcher: ${board.id}`)).toBeInTheDocument();
+    expect(screen.getByText(`BoardPageClient: ${board.id}`)).toBeInTheDocument();
   });
 });

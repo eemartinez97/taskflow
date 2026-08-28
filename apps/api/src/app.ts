@@ -12,6 +12,7 @@ import { createTRPCContext, TRPCError } from "./trpc/init";
 import { appCollectors, appRegistry, createMetricsMiddleware } from "./metrics";
 import { env, isProduction } from "./config/env";
 import { testRouter } from "./routes/test";
+import { timingSafeEqualStrings } from "./utils/e2e";
 import type { AppServer } from "./socket/events";
 
 export function isHealthCheckUrl(url: string | undefined): boolean {
@@ -97,11 +98,19 @@ export function createApp(io: AppServer): Express {
 
   // Prometheus scrape endpoint
   app.get("/metrics", async (req, res) => {
-    // Scrapes come from the custer; never expose route topology publicly.
-    if (
-      isProduction() &&
-      (!env.METRICS_TOKEN || req.headers.authorization !== `Bearer ${env.METRICS_TOKEN}`)
-    ) {
+    // Scrapes come from the cluster; never expose route topology publicly.
+    // Bearer token compared with timingSafeEqualStrings (same helper as
+    // trpc/procedures.ts's x-internal-secret check) so a byte-by-byte
+    // early-exit comparison can't leak how much of the token a guess got
+    // right via response timing.
+    const providedAuth = req.headers.authorization;
+    const expectedAuth = env.METRICS_TOKEN ? `Bearer ${env.METRICS_TOKEN}` : null;
+    const isValid =
+      expectedAuth !== null &&
+      typeof providedAuth === "string" &&
+      timingSafeEqualStrings(expectedAuth, providedAuth);
+
+    if (isProduction() && !isValid) {
       res.status(404).end();
       return;
     }

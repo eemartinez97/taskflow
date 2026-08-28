@@ -26,6 +26,7 @@ import {
 } from "./repo";
 import { TRPCError } from "../../trpc/init";
 import type { AppServer } from "../../socket/events";
+import { appCollectors } from "../../metrics";
 import { notifyMemberLeft } from "../notifications/service";
 import { fireAndForget } from "../../utils/fire-and-forget";
 
@@ -38,7 +39,9 @@ export async function createOrgForUser(
   userId: string,
   data: CreateOrg,
 ): Promise<Org> {
-  return createOrg(db, userId, data);
+  const org = await createOrg(db, userId, data);
+  appCollectors.orgsCreatedTotal.inc();
+  return org;
 }
 
 export async function updateOrgById(
@@ -109,6 +112,8 @@ async function removeMembershipAndNotify(
     findAdminUserIds(db, orgId),
     removeMember(db, orgId, userId),
   ]);
+
+  appCollectors.orgMembersRemovedTotal.inc({ reason: actorId === userId ? "left" : "removed" });
 
   fireAndForget(
     notifyMemberLeft(db, io, {

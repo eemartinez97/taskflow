@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 
 import { createApp, handleTRPCError, isHealthCheckUrl } from "../../src/app";
-import { isProduction } from "../../src/config/env";
+import { env, isProduction } from "../../src/config/env";
 import { getMe } from "../../src/modules/auth/service";
 import { TRPCError } from "../../src/trpc/init";
 import { getSessionUser } from "../../src/utils/auth";
@@ -109,11 +109,22 @@ describe("HTTP surface", () => {
     expect(res.status).toBe(404);
   });
 
+  it("returns 404 on /metrics in production with the wrong token", async () => {
+    vi.mocked(isProduction).mockReturnValue(true);
+    const res = await request(app()).get("/metrics").set("Authorization", "Bearer wrong-secret");
+    expect(res.status).toBe(404);
+  });
+
   it("returns 404 on /metrics in production when METRICS_TOKEN is unset", async () => {
     vi.mocked(isProduction).mockReturnValue(true);
-    // env.METRICS_TOKEN undefined in this suite's env mock
-    const res = await request(app()).get("/metrics").set("Authorization", "Bearer undefined");
-    expect(res.status).toBe(404);
+    const original = env.METRICS_TOKEN;
+    env.METRICS_TOKEN = "";
+    try {
+      const res = await request(app()).get("/metrics").set("Authorization", "Bearer test-secret");
+      expect(res.status).toBe(404);
+    } finally {
+      env.METRICS_TOKEN = original;
+    }
   });
 
   it("returns metrics in production with a valid Bearer token", async () => {

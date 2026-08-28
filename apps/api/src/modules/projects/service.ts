@@ -8,6 +8,7 @@ import {
   updateProject,
 } from "./repo";
 import { TRPCError } from "../../trpc/init";
+import { appCollectors } from "../../metrics";
 import { createBoardInProject } from "../boards/service";
 
 export async function listProjects(db: PrismaClient, orgId: string): Promise<Project[]> {
@@ -28,7 +29,9 @@ export async function createProjectInOrg(
   data: CreateProject,
 ): Promise<Project> {
   const project = await createProject(db, orgId, data);
+  appCollectors.projectsCreatedTotal.inc();
   // Auto-create board + default columns so the board page is never empty
+  // (createBoardInProject increments boardsCreatedTotal itself).
   await createBoardInProject(db, { projectId: project.id, name: "Main Board" });
   return project;
 }

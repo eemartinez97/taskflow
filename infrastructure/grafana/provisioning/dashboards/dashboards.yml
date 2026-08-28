@@ -1,0 +1,20 @@
+# Auto-provisions every dashboard JSON in this same directory on Grafana
+# startup - no manual import needed for `docker compose up` to show a
+# working dashboard out of the box.
+#
+# `path` deliberately points at this file's OWN directory rather than a
+# nested subfolder: docker-compose.yml bind-mounts the whole
+# infrastructure/grafana/provisioning/ tree read-only as a single volume, and
+# a second bind mounted at a path *inside* that read-only mount fails
+# ("read-only file system" - Docker can't create the nested mountpoint).
+apiVersion: 1
+
+providers:
+  - name: TaskFlow
+    orgId: 1
+    folder: ""
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/provisioning/dashboards

@@ -19,6 +19,7 @@ import { TRPCError } from "../../trpc/init";
 import { notifyTaskAssigned } from "../notifications/service";
 import type { AppServer } from "../../socket/events";
 import { emitToProject } from "../../socket/emit";
+import { appCollectors } from "../../metrics";
 import { fireAndForget } from "../../utils/fire-and-forget";
 
 /**
@@ -67,6 +68,7 @@ export async function createTaskInColumn(
 ): Promise<Task> {
   const position = await getMaxTaskPosition(db, data.columnId);
   const task = await createTask(db, { ...data, position, creatorId: actorId });
+  appCollectors.tasksCreatedTotal.inc();
 
   emitToProject(io, projectId, SOCKET_EVENTS.TASK_CREATED, { task }, actorId);
 
@@ -133,6 +135,7 @@ export async function deleteTaskById(
 ): Promise<{ success: true }> {
   await getTask(db, taskId);
   await deleteTask(db, taskId);
+  appCollectors.tasksDeletedTotal.inc();
 
   emitToProject(io, projectId, SOCKET_EVENTS.TASK_DELETED, { taskId }, actorId);
 
@@ -188,6 +191,7 @@ export async function addLabelToTaskById(
   }
 
   await attachLabelToTask(db, input.taskId, input.labelId);
+  appCollectors.taskLabelsAttachedTotal.inc();
   return emitLabelsChanged(db, io, input.projectId, input.taskId, actorId);
 }
 
@@ -198,6 +202,7 @@ export async function removeLabelFromTaskById(
   input: TaskLabelInput,
 ): Promise<Label[]> {
   await detachLabelFromTask(db, input.taskId, input.labelId);
+  appCollectors.taskLabelsDetachedTotal.inc();
 
   return emitLabelsChanged(db, io, input.projectId, input.taskId, actorId);
 }

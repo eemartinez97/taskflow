@@ -24,6 +24,7 @@ import {
 import { TRPCError } from "../../trpc/init";
 import type { AppServer } from "../../socket/events";
 import { emitToProject } from "../../socket/emit";
+import { appCollectors } from "../../metrics";
 import { fireAndForget } from "../../utils/fire-and-forget";
 
 /**
@@ -93,6 +94,7 @@ export async function getBoardWithColumns(
 
 export async function createBoardInProject(db: PrismaClient, data: CreateBoard): Promise<Board> {
   const board = await createBoard(db, data);
+  appCollectors.boardsCreatedTotal.inc();
   // Reuse the same defaults as project bootstrap so a new board is never empty.
   await createDefaultColumns(db, board.id);
   return board;
@@ -122,6 +124,7 @@ export async function addColumn(
 ): Promise<Column> {
   const position = await getMaxColumnPosition(db, boardId);
   const column = await createColumn(db, { boardId, name, position });
+  appCollectors.columnsCreatedTotal.inc();
 
   broadcastBoardUpdated(db, io, boardId, actorId, "boards.addColumn");
 
@@ -169,6 +172,7 @@ export async function deleteColumnById(
 
   // Cascades to the column's tasks (schema: Task.column onDelete: Cascade)
   await deleteColumn(db, columnId);
+  appCollectors.columnsDeletedTotal.inc();
   broadcastBoardUpdated(db, io, column.boardId, actorId, "boards.deleteColumnById");
 
   return { success: true };

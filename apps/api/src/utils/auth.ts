@@ -1,9 +1,14 @@
 import { hkdfSync } from "node:crypto";
 import { jwtDecrypt } from "jose";
 
-import { createPasswordChangedAtCache, parseCookieToken } from "@taskflow/shared";
+import {
+  createLastSeenThrottle,
+  createPasswordChangedAtCache,
+  parseCookieToken,
+} from "@taskflow/shared";
 import { prisma } from "@taskflow/database";
 import { env } from "../config/env";
+import { fireAndForget } from "./fire-and-forget";
 
 export interface AuthSession {
   id: string;
@@ -52,6 +57,54 @@ export function __resetPasswordChangedAtCacheForTest(): void {
 }
 
 /**
+ * Throttle window for touchLastSeen below - keeps a chatty client (a
+ * realtime board with cursors/presence, or a burst of tRPC calls) from
+ * writing User.lastSeenAt on every single request. Own instance here (own
+ * process, own Prisma client) of packages/shared's createLastSeenThrottle -
+ * unlike passwordChangedAt, apps/web's own RSC session path never needs to
+ * share this cache - only apps/api's own tRPC context and Socket.IO
+ * handshake call getSessionUser (see socket/server.ts and trpc/init.ts).
+ * apps/web's lib/auth/session.ts owns an identical, independent instance for
+ * its own RSC page-view path - keep both configured with the same TTL.
+ */
+const ACTIVE_USER_LASTSEEN_THROTTLE_MS = 5 * 60 * 1000;
+const lastSeenThrottle = createLastSeenThrottle(ACTIVE_USER_LASTSEEN_THROTTLE_MS);
+
+/** Test-only: clears the throttle so each test starts from a clean state. */
+export function __resetLastSeenThrottleForTest(): void {
+  lastSeenThrottle.reset();
+}
+
+/**
+ * Best-effort, throttled write backing the activeUsersTotal Prometheus
+ * gauge (metrics/db-gauges.ts). Fire-and-forget: a failed write must never
+ * turn an otherwise-valid session into a rejected one, and the caller
+ * (every authenticated request) shouldn't wait behind it.
+ *
+ * Known gap: apps/web's own RSC page-view path (lib/auth/session.ts) never
+ * calls getSessionUser - it's driven by socket handshakes and apps/api's
+ * own tRPC context, both of which typically fire close to page load (the
+ * dashboard shell connects its socket on mount), so an authenticated
+ * session is captured here shortly after it's opened. A user who somehow
+ * never triggers either (no realtime connection, no tRPC mutation) in a
+ * given visit won't be counted for that visit.
+ */
+function touchLastSeen(userId: string): void {
+  if (!lastSeenThrottle.shouldWrite(userId)) return;
+
+  // Promise.resolve(...) wrapper: makes this robust even if the update call
+  // itself is a mock returning a non-Promise value (see auth.test.ts) - the
+  // real Prisma client always returns a genuine Promise anyway.
+  fireAndForget(
+    Promise.resolve(
+      prisma.user.update({ where: { id: userId }, data: { lastSeenAt: new Date() } }),
+    ).then(() => undefined),
+    "getSessionUser: failed to update lastSeenAt",
+    { userId },
+  );
+}
+
+/**
  * NextAuth v4 derives its JWE encryption key as:
  *   HKDF(sha256, secret, salt = "", info = "NextAuth.js Generated Encryption Key", 32)
  *
@@ -93,6 +146,8 @@ export async function getSessionUser(cookieHeader?: string | null): Promise<Auth
     if (lookup.passwordChangedAtMs !== null && lookup.passwordChangedAtMs > payload.iat * 1000) {
       return null;
     }
+
+    touchLastSeen(payload.sub);
 
     return {
       id: payload.sub,

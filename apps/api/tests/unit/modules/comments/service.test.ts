@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SOCKET_EVENTS } from "@taskflow/shared";
 
 import {
@@ -6,6 +6,7 @@ import {
   deleteCommentById,
   listComments,
 } from "../../../../src/modules/comments/service";
+import { appCollectors } from "../../../../src/metrics";
 import { buildComment, buildCommentWithAuthor } from "../../../factories";
 import {
   ANOTHER_UUID,
@@ -30,6 +31,10 @@ describe("listComments", () => {
 });
 
 describe("createCommentOnTask", () => {
+  beforeEach(() => {
+    appCollectors.commentsCreatedTotal.reset();
+  });
+
   it("creates, broadcasts and notifies the assignee", async () => {
     mockDb.task.findUnique.mockResolvedValueOnce({
       assigneeId: ANOTHER_UUID,
@@ -42,6 +47,7 @@ describe("createCommentOnTask", () => {
     await expect(
       createCommentOnTask(db, mockIo, VALID_PROJECT_ID, VALID_TASK_ID, VALID_USER.id, "LGTM"),
     ).resolves.toBe(comment);
+    expect((await appCollectors.commentsCreatedTotal.get()).values[0]?.value).toBe(1);
 
     expectEmittedToProject(
       VALID_PROJECT_ID,

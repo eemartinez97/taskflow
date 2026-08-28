@@ -1,7 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { EncryptJWT } from "jose";
 
-import { __resetPasswordChangedAtCacheForTest, getSessionUser } from "../../../src/utils/auth";
+import {
+  __resetLastSeenThrottleForTest,
+  __resetPasswordChangedAtCacheForTest,
+  getSessionUser,
+} from "../../../src/utils/auth";
 import { mockDb } from "../../mocks/database-mock";
 import {
   deriveTestKey,
@@ -14,7 +18,9 @@ import {
 describe("getSessionUser", () => {
   beforeEach(() => {
     __resetPasswordChangedAtCacheForTest();
+    __resetLastSeenThrottleForTest();
     mockDb.user.findUnique.mockResolvedValue({ passwordChangedAt: null });
+    mockDb.user.update.mockResolvedValue({});
   });
 
   it.each([
@@ -189,6 +195,47 @@ describe("getSessionUser", () => {
 
       const token = await makeSessionToken();
       await expect(getSessionUser(makeCookieHeader(token))).resolves.toBeNull();
+    });
+  });
+
+  describe("lastSeenAt tracking", () => {
+    it("touches lastSeenAt on a valid session, without blocking the response", async () => {
+      const token = await makeSessionToken();
+
+      await getSessionUser(makeCookieHeader(token));
+      await vi.waitFor(() => {
+        expect(mockDb.user.update).toHaveBeenCalledWith({
+          where: { id: VALID_USER.id },
+          data: { lastSeenAt: expect.any(Date) as Date },
+        });
+      });
+    });
+
+    it("does not touch lastSeenAt for an invalid session", async () => {
+      await getSessionUser("garbage");
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(mockDb.user.update).not.toHaveBeenCalled();
+    });
+
+    it("throttles: a second call within the window does not write again", async () => {
+      const token = await makeSessionToken();
+
+      await getSessionUser(makeCookieHeader(token));
+      await getSessionUser(makeCookieHeader(token));
+      await vi.waitFor(() => {
+        expect(mockDb.user.update).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    it("logs (does not throw, does not affect the returned session) when the update fails", async () => {
+      mockDb.user.update.mockRejectedValueOnce(new Error("DB unavailable"));
+      const token = await makeSessionToken();
+
+      await expect(getSessionUser(makeCookieHeader(token))).resolves.toMatchObject({
+        id: VALID_USER.id,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
   });
 });

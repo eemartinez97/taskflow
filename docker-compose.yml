@@ -9,6 +9,18 @@ x-nextauth-secret: &nextauth-secret ${NEXTAUTH_SECRET:-changeme}
 # (which sends it as a header) so a value edited on only one service's block
 # can't leave them disagreeing.
 x-internal-api-secret: &internal-api-secret ${INTERNAL_API_SECRET:-changeme-internal-api-secret-32-chars-min}
+# Gates apps/api's /metrics scrape endpoint (see app.ts) - shared between
+# api (which validates the bearer token) and prometheus (which sends it).
+# infrastructure/prometheus/prometheus.yml can't read this env var (no
+# templating support in the official image), so its bearer_token is a
+# literal that must match this default - update both together if you ever
+# change METRICS_TOKEN.
+x-metrics-token: &metrics-token ${METRICS_TOKEN:-changeme-metrics-token-32-chars-min}
+# Gates nginx's /alertmanager/ location (see nginx.conf) - Alertmanager has
+# no login of its own, unlike Grafana, so nginx enforces HTTP Basic auth in
+# front of it. Username is fixed ("admin", same posture as Grafana's own
+# non-configurable admin username) - only the password is configurable.
+x-alertmanager-admin-password: &alertmanager-admin-password ${ALERTMANAGER_ADMIN_PASSWORD:-changeme}
 
 services:
   postgres:
@@ -66,7 +78,7 @@ services:
       # same-origin once everything is behind one host.
       WEB_ORIGIN: http://localhost:${NGINX_PORT:-80}
       API_LOG_LEVEL: ${API_LOG_LEVEL:-info}
-      METRICS_TOKEN: ${METRICS_TOKEN:-}
+      METRICS_TOKEN: *metrics-token
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       # See web's own EMAIL_FROM comment below - same non-sandbox
       # placeholder, same reason (NODE_ENV=production above rejects
@@ -112,6 +124,15 @@ services:
       # Sent as `x-internal-secret` by lib/trpc/http-server.ts to reach
       # apps/api's auth.verifyCredentials - must match api's copy exactly.
       INTERNAL_API_SECRET: *internal-api-secret
+      # apps/api's address on the internal docker network, direct to its
+      # own port (bypassing nginx entirely) - see INTERNAL_API_URL's
+      # docblock in lib/env.ts for why lib/trpc/http-server.ts's
+      # server-to-server calls (login, verify-email) can't reuse
+      # NEXT_PUBLIC_API_URL (http://localhost) here: that's the BROWSER's
+      # route to apps/api through nginx, and "localhost" from inside this
+      # container means this container, not nginx - nothing listens on its
+      # port 80, so every login would otherwise fail to connect.
+      INTERNAL_API_URL: http://api:8000
       # Deliberately NOT set: ENABLE_TEST_ROUTES would expose
       # apps/web/app/api/test/* - see lib/http/test-route-guard.ts.
     depends_on:
@@ -121,7 +142,24 @@ services:
     # No ports: - only reachable through the nginx service below.
 
   nginx:
-    image: nginx:1.27-alpine
+    build:
+      context: ./infrastructure/nginx
+      dockerfile: Dockerfile
+    # entrypoint/command overridden to generate /etc/nginx/.htpasswd from
+    # ALERTMANAGER_ADMIN_PASSWORD before nginx starts - see nginx.conf's
+    # /alertmanager/ location. apache2-utils (the `htpasswd` binary; the
+    # nginx:alpine base ships neither it nor `openssl`) is baked into the
+    # image at BUILD time via infrastructure/nginx/Dockerfile - it used to be
+    # `apk add`-ed here at container startup instead, which meant
+    # `docker compose up` couldn't bring the stack up at all without network
+    # access to the Alpine package mirror.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        htpasswd -cb /etc/nginx/.htpasswd admin "$$ALERTMANAGER_ADMIN_PASSWORD" &&
+        exec nginx -g 'daemon off;'
+    environment:
+      ALERTMANAGER_ADMIN_PASSWORD: *alertmanager-admin-password
     ports:
       - "${NGINX_PORT:-80}:80"
     volumes:
@@ -133,5 +171,97 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Scrapes apps/api's /metrics (see apps/api/src/metrics/) every 15s - see
+  # infrastructure/prometheus/prometheus.yml.template. No host port
+  # published; only grafana/alertmanager below (and anyone else on the
+  # docker network) need to reach it.
+  #
+  # entrypoint/command are overridden (instead of just mounting
+  # prometheus.yml directly like every other static config in this file) to
+  # render prometheus.yml.template into a real config first, substituting
+  # METRICS_TOKEN in - see that template's own docblock for why.
+  #
+  # The substitution escapes METRICS_TOKEN before handing it to sed, and uses
+  # `#` as the sed delimiter instead of `/` - this project's documented
+  # secret-rotation convention (`openssl rand -base64 32`, see .env.example)
+  # can produce a value containing `/`, which would otherwise break sed's
+  # delimiter, or `&`, which sed's replacement text treats as "insert the
+  # whole match" and would silently corrupt the token baked into
+  # prometheus.yml.
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        ESCAPED_METRICS_TOKEN=$$(printf '%s' "$$METRICS_TOKEN" | sed -e 's/[&#\\]/\\&/g') &&
+        sed "s#__METRICS_TOKEN__#$$ESCAPED_METRICS_TOKEN#" /etc/prometheus/prometheus.yml.template > /etc/prometheus/prometheus.yml &&
+        exec /bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus
+    environment:
+      METRICS_TOKEN: *metrics-token
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml.template:/etc/prometheus/prometheus.yml.template:ro
+      - ./infrastructure/prometheus/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Routes alert-rules.yml's firing alerts to a receiver - see
+  # infrastructure/alertmanager/alertmanager.yml's docblock: no real
+  # notification channel (Slack/email/PagerDuty) is configured, since that
+  # needs credentials this repo doesn't have. Alerts are still visible at
+  # /alertmanager/ (routed through nginx, same posture as grafana below).
+  alertmanager:
+    image: prom/alertmanager:v0.28.0
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --web.external-url=${ALERTMANAGER_EXTERNAL_URL:-http://localhost/alertmanager/}
+    volumes:
+      - ./infrastructure/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    restart: unless-stopped
+
+  # Pre-provisioned with the Prometheus datasource + the TaskFlow dashboard
+  # (infrastructure/grafana/provisioning/) - `docker compose up` brings up a
+  # working dashboard, no manual setup. No port published directly - reached
+  # through nginx's /grafana/ location instead (see nginx.conf), the same
+  # posture as api/web, rather than being its own directly-exposed edge.
+  grafana:
+    image: grafana/grafana:11.4.0
+    environment:
+      # Local/demo only - change before any real deployment. Grafana's own
+      # admin login, unrelated to METRICS_TOKEN/NEXTAUTH_SECRET above.
+      # Only seeds the admin user on Grafana's FIRST boot against the
+      # grafana_data volume below - once that volume exists, Grafana ignores
+      # this var on every later restart (its own DB already has an admin
+      # row). Editing .env and restarting does NOT rotate an existing
+      # password - see GRAFANA_ADMIN_PASSWORD's docblock in .env.example for
+      # the actual rotation path (`grafana-cli admin reset-admin-password`).
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-changeme}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      # Required for Grafana to generate correct links/redirects/cookies
+      # when served under nginx's /grafana/ prefix instead of its own
+      # origin. Override GRAFANA_ROOT_URL for a real domain deployment.
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost/grafana/}
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      # root_url alone isn't enough for Grafana's CSRF origin check (POST
+      # /api/ds/query, the Grafana Live websocket) when served through a
+      # reverse proxy - it needs the request's Host explicitly listed here
+      # too, or every panel query gets rejected with "origin not allowed"
+      # even though login (exempt from this check) works fine. Override for
+      # a real domain deployment the same way as GRAFANA_ROOT_URL.
+      GF_SECURITY_CSRF_TRUSTED_ORIGINS: ${GRAFANA_CSRF_TRUSTED_ORIGINS:-localhost}
+    volumes:
+      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
 volumes:
   postgres_data:
+  prometheus_data:
+  grafana_data:
+  alertmanager_data:

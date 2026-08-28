@@ -1,0 +1,15 @@
+# Auto-provisions the Prometheus datasource on Grafana startup - no manual
+# "Add data source" click needed for `docker compose up` to show a working
+# dashboard out of the box.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    # Pinned (not auto-generated) so infrastructure/grafana/dashboards/*.json
+    # can reference it by a stable uid instead of a name lookup.
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true

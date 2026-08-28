@@ -94,6 +94,13 @@ model User {
   // reset - so a stolen session cookie doesn't survive its own victim's
   // reset indefinitely.
   passwordChangedAt DateTime?
+  // Throttled write (see getSessionUser in apps/api/src/utils/auth.ts) -
+  // updated at most once per ACTIVE_USER_LASTSEEN_THROTTLE_MS per user, not
+  // on every request. Backs the activeUsersTotal Prometheus gauge
+  // (apps/api/src/metrics/db-gauges.ts) - a DAU-style "seen in the last
+  // 24h" count, distinct from socketConnectedClients' concurrently-online
+  // count.
+  lastSeenAt    DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

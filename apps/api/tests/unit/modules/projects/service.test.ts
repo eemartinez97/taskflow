@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   createProjectInOrg,
@@ -7,6 +7,7 @@ import {
   listProjects,
   updateProjectById,
 } from "../../../../src/modules/projects/service";
+import { appCollectors } from "../../../../src/metrics";
 import { buildBoard, buildProject } from "../../../factories";
 import { db, VALID_ORG_ID, VALID_PROJECT_ID } from "../../../helpers";
 import { mockDb } from "../../../mocks/database-mock";
@@ -14,6 +15,11 @@ import { mockDb } from "../../../mocks/database-mock";
 const project = buildProject();
 
 describe("projects service", () => {
+  beforeEach(() => {
+    appCollectors.projectsCreatedTotal.reset();
+    appCollectors.boardsCreatedTotal.reset();
+  });
+
   it("listProjects returns the org's projects", async () => {
     mockDb.project.findMany.mockResolvedValueOnce([project]);
 
@@ -48,6 +54,8 @@ describe("projects service", () => {
       data: { projectId: VALID_PROJECT_ID, name: "Main Board" },
     });
     expect(mockDb.column.create).toHaveBeenCalledTimes(4);
+    expect((await appCollectors.projectsCreatedTotal.get()).values[0]?.value).toBe(1);
+    expect((await appCollectors.boardsCreatedTotal.get()).values[0]?.value).toBe(1);
   });
 
   it("updateProjectById updates an existing project", async () => {

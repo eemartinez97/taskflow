@@ -38,14 +38,25 @@ describe("isHealthCheckUrl", () => {
 });
 
 describe("handleTRPCError", () => {
-  it("logs internal server errors with the procedure path", () => {
-    handleTRPCError({
-      path: "tasks.create",
-      error: new TRPCError({ code: "INTERNAL_SERVER_ERROR" }),
-    });
+  it("logs internal server errors with the procedure path and the error itself when there's no cause", () => {
+    const error = new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+    handleTRPCError({ path: "tasks.create", error });
 
     expect(mockLogger.error).toHaveBeenCalledWith(
-      { path: "tasks.create" },
+      { path: "tasks.create", err: error },
+      "tRPC internal server error",
+    );
+  });
+
+  it("logs the ORIGINAL thrown error (cause), not the wrapping TRPCError - tRPC auto-wraps any non-TRPCError throw into an INTERNAL_SERVER_ERROR with cause set to what actually failed", () => {
+    const original = new Error("Resend API request failed with status 401");
+    const error = new TRPCError({ code: "INTERNAL_SERVER_ERROR", cause: original });
+
+    handleTRPCError({ path: "auth.register", error });
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      { path: "auth.register", err: original },
       "tRPC internal server error",
     );
   });
@@ -190,13 +201,14 @@ describe("tRPC adapter", () => {
   });
 
   it("routes internal errors through the onError hook", async () => {
+    const error = new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
     vi.mocked(getSessionUser).mockResolvedValue(makeSessionUser());
-    vi.mocked(getMe).mockRejectedValue(new TRPCError({ code: "INTERNAL_SERVER_ERROR" }));
+    vi.mocked(getMe).mockRejectedValue(error);
 
     await request(app()).get("/trpc/auth.me");
 
     expect(mockLogger.error).toHaveBeenCalledWith(
-      { path: "auth.me" },
+      { path: "auth.me", err: error },
       "tRPC internal server error",
     );
   });

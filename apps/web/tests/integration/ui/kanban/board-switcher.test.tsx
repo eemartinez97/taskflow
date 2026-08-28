@@ -63,6 +63,7 @@ function buildProps(overrides: Partial<Parameters<typeof BoardSwitcher>[0]> = {}
     projectId: PROJECT_ID,
     activeBoardId: BOARD_A.id,
     initialBoards: [BOARD_A, BOARD_B],
+    canCreate: true,
     canManage: true,
     ...overrides,
   };

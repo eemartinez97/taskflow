@@ -26,6 +26,7 @@ describe("BoardSwitcher", () => {
         projectId={VALID_PROJECT_ID}
         activeBoardId={boardA.id}
         initialBoards={[boardA, boardB]}
+        canCreate
         canManage
       />,
     );
@@ -43,12 +44,30 @@ describe("BoardSwitcher", () => {
         projectId={VALID_PROJECT_ID}
         activeBoardId={boardA.id}
         initialBoards={[boardA, boardB]}
+        canCreate
         canManage
       />,
     );
     await openMenu();
     await userEvent.setup().click(screen.getByRole("menuitem", { name: /^Board A/ }));
     expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("hides new board when canCreate is false (VIEWER)", async () => {
+    mockUseQuery(api.boards.list, [boardA, boardB]);
+    setupRouterMock();
+    render(
+      <BoardSwitcher
+        orgId={VALID_ORG_ID}
+        projectId={VALID_PROJECT_ID}
+        activeBoardId={boardA.id}
+        initialBoards={[boardA, boardB]}
+        canCreate={false}
+        canManage={false}
+      />,
+    );
+    await openMenu();
+    expect(screen.queryByRole("menuitem", { name: /new board/i })).not.toBeInTheDocument();
   });
 
   it("hides delete when canManage is false", async () => {
@@ -60,6 +79,7 @@ describe("BoardSwitcher", () => {
         projectId={VALID_PROJECT_ID}
         activeBoardId={boardA.id}
         initialBoards={[boardA, boardB]}
+        canCreate
         canManage={false}
       />,
     );
@@ -76,6 +96,7 @@ describe("BoardSwitcher", () => {
         projectId={VALID_PROJECT_ID}
         activeBoardId={boardA.id}
         initialBoards={[boardA]}
+        canCreate
         canManage
       />,
     );
@@ -92,6 +113,7 @@ describe("BoardSwitcher", () => {
         projectId={VALID_PROJECT_ID}
         activeBoardId={boardA.id}
         initialBoards={[boardA]}
+        canCreate
         canManage
       />,
     );
@@ -110,6 +132,7 @@ describe("BoardSwitcher", () => {
         projectId={VALID_PROJECT_ID}
         activeBoardId={boardA.id}
         initialBoards={[boardA, boardB]}
+        canCreate
         canManage
       />,
     );
@@ -139,6 +162,7 @@ describe("BoardSwitcher", () => {
         projectId={VALID_PROJECT_ID}
         activeBoardId={boardA.id}
         initialBoards={[boardA]}
+        canCreate
         canManage
       />,
     );
@@ -156,6 +180,7 @@ describe("BoardSwitcher", () => {
         projectId={VALID_PROJECT_ID}
         activeBoardId="non-existent-board"
         initialBoards={[boardA, boardB]}
+        canCreate
         canManage
       />,
     );
@@ -174,6 +199,7 @@ describe("BoardSwitcher", () => {
           projectId={VALID_PROJECT_ID}
           activeBoardId={boardA.id}
           initialBoards={[boardA, boardB]}
+          canCreate
           canManage
         />
         <button type="button">outside</button>
@@ -200,6 +226,7 @@ describe("BoardSwitcher", () => {
         projectId={VALID_PROJECT_ID}
         activeBoardId={boardA.id}
         initialBoards={[boardA, boardB]}
+        canCreate
         canManage
       />,
     );

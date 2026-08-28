@@ -20,6 +20,8 @@ interface BoardSwitcherProps {
   projectId: string;
   activeBoardId: string;
   initialBoards: Board[];
+  /** MEMBER and above may create a board (server: boards.create = memberProcedure); VIEWER may not. */
+  canCreate: boolean;
   /** Only OWNER/ADMIN may delete a board; the server enforces it too. */
   canManage: boolean;
 }
@@ -40,6 +42,7 @@ export function BoardSwitcher({
   projectId,
   activeBoardId,
   initialBoards,
+  canCreate,
   canManage,
 }: BoardSwitcherProps): JSX.Element {
   const router = useAppRouter();
@@ -128,21 +131,24 @@ export function BoardSwitcher({
             );
           })}
 
-          <div className="my-1 border-t border-gray-100" />
-
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              createDialog.open();
-            }}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm font-medium
-                       text-brand-600 hover:bg-brand-50"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            New board
-          </button>
+          {canCreate && (
+            <>
+              <div className="my-1 border-t border-gray-100" />
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  createDialog.open();
+                }}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm font-medium
+                           text-brand-600 hover:bg-brand-50"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                New board
+              </button>
+            </>
+          )}
 
           {canDelete && (
             <>

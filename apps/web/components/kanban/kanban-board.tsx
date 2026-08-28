@@ -88,9 +88,9 @@ interface KanbanBoardProps {
   labelsByTask: Record<string, Label[]>;
   presence: SocketPresenceUser[];
   cursors: LiveCursor[];
-  /** False for VIEWER - hides/disables every write control (rename, add/delete column, add task, drag-and-drop). */
+  /** False for VIEWER - hides/disables every write control (rename, add/delete column, add task, drag-and-drop). Also gates board *creation* (MEMBER+) via BoardSwitcher's canCreate prop. */
   canEdit: boolean;
-  /** Only OWNER/ADMIN may create/delete boards; the server enforces it too. */
+  /** Only OWNER/ADMIN may *delete* boards; the server enforces it too. Board creation is gated by canEdit above, not this. */
   canManageBoards: boolean;
 }
 
@@ -499,9 +499,9 @@ export function KanbanBoard({
           projectId={projectId}
           activeBoardId={boardId}
           initialBoards={initialBoards}
+          canCreate={canEdit}
           canManage={canManageBoards}
         />
-
         <div className="ml-auto flex items-center gap-3">
           {/* Mouse-pointer icon (not an eye) - this toggles live CURSORS,
               not who's viewing (that's the avatar stack right next to it,

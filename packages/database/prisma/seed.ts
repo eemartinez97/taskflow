@@ -100,17 +100,35 @@ async function main(): Promise<void> {
     },
   });
 
+  // Pre-mapped to the matching TaskStatus, same as boards/repo.ts's
+  // DEFAULT_COLUMNS - dragging a task into "Done" here sets status DONE
+  // immediately, with zero setup needed.
   const columns = [
-    { id: SEED_IDS.columns.todo, name: "To Do", position: 1000 },
-    { id: SEED_IDS.columns.inProgress, name: "In Progress", position: 2000 },
-    { id: SEED_IDS.columns.inReview, name: "In Review", position: 3000 },
-    { id: SEED_IDS.columns.done, name: "Done", position: 4000 },
-  ];
+    { id: SEED_IDS.columns.todo, name: "To Do", position: 1000, mappedStatus: "TODO" },
+    {
+      id: SEED_IDS.columns.inProgress,
+      name: "In Progress",
+      position: 2000,
+      mappedStatus: "IN_PROGRESS",
+    },
+    {
+      id: SEED_IDS.columns.inReview,
+      name: "In Review",
+      position: 3000,
+      mappedStatus: "IN_REVIEW",
+    },
+    { id: SEED_IDS.columns.done, name: "Done", position: 4000, mappedStatus: "DONE" },
+  ] as const;
 
   for (const col of columns) {
     await prisma.column.upsert({
       where: { id: col.id },
-      update: {},
+      // Unlike org/user/board above, DOES backfill on an existing row -
+      // mappedStatus is a field added after this seed script already
+      // existed; re-running against an already-seeded dev database should
+      // pick it up instead of leaving every previously-seeded column stuck
+      // at null forever.
+      update: { mappedStatus: col.mappedStatus },
       create: {
         ...col,
         boardId: board.id,

@@ -34,6 +34,16 @@ export const PROXIED_API_PATHS = ["/metrics", "/healthz", "/readyz", "/trpc", "/
 /**
  * Extracted so it can be unit-tested independently
  * Called by the tRPC Express adapter's `onError` hook
+ *
+ * Logs the ORIGINAL thrown error (error.cause - tRPC wraps any non-TRPCError
+ * throw into a TRPCError with code INTERNAL_SERVER_ERROR and sets cause to
+ * whatever was actually thrown), not just the path. Without this, every
+ * unexpected failure - a downstream API call rejecting, a bug - showed up
+ * in the logs as nothing more than "tRPC internal server error", with the
+ * real reason (and stack trace) nowhere to be found. The client-facing
+ * message stays generic on purpose (see trpc/init.ts's errorFormatter,
+ * which strips `cause` in production) - this only widens what apps/api
+ * itself logs server-side, never what a browser can see.
  */
 export function handleTRPCError({
   path,
@@ -43,7 +53,7 @@ export function handleTRPCError({
   error: unknown;
 }): void {
   if (error instanceof TRPCError && error.code === "INTERNAL_SERVER_ERROR") {
-    logger.error({ path }, "tRPC internal server error");
+    logger.error({ path, err: error.cause ?? error }, "tRPC internal server error");
   }
 }
 

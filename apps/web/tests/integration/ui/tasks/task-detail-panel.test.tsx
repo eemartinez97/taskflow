@@ -18,9 +18,6 @@ vi.mock("@/lib/utils/navigation-guard", () => ({
   hasUnsavedChanges: vi.fn(() => false),
 }));
 
-vi.mock("@/components/task/task-comments", () => ({
-  TaskComments: () => <div data-testid="task-comments" />,
-}));
 vi.mock("@/components/task/task-labels", () => ({
   TaskLabels: () => <div data-testid="task-labels" />,
 }));
@@ -137,10 +134,11 @@ describe("TaskDetailPanel", () => {
     expect(screen.getByRole("button", { name: "Close panel" })).toBeInTheDocument();
   });
 
-  it("renders the TaskComments and TaskLabels sub-components", () => {
+  it("renders the comments feature (list + pinned composer) and TaskLabels sub-component", () => {
     renderUI(<TaskDetailPanel {...buildProps()} />);
 
-    expect(screen.getByTestId("task-comments")).toBeInTheDocument();
+    expect(screen.getByText("Comments")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/add a comment/i)).toBeInTheDocument();
     expect(screen.getByTestId("task-labels")).toBeInTheDocument();
   });
 

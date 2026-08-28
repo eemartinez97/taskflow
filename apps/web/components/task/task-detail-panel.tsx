@@ -12,7 +12,9 @@ import type { Label, Task } from "@taskflow/database";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { useAssigneeLookup } from "@/lib/hooks/use-assignee-lookup";
 import { useDisclosure } from "@/lib/hooks/use-disclosure";
-import { TaskComments } from "./task-comments";
+import { useTaskComments } from "@/lib/hooks/use-task-comments";
+import { TaskCommentsList } from "./task-comments-list";
+import { TaskCommentComposer } from "./task-comment-composer";
 import { displayName } from "@/lib/utils/user";
 import { TaskLabels } from "./task-labels";
 import { toast } from "@/lib/toast/store";
@@ -86,6 +88,11 @@ export function TaskDetailPanel({
 
   const addLabelMutation = api.tasks.addLabel.useMutation({ onSuccess: syncLabels });
   const removeLabelMutation = api.tasks.removeLabel.useMutation({ onSuccess: syncLabels });
+
+  // Comments feature state - shared between TaskCommentsList (scrollable,
+  // rendered inline below) and TaskCommentComposer (pinned in the fixed
+  // footer, always visible - see use-task-comments.ts's docblock).
+  const comments = useTaskComments({ orgId, projectId, taskId: task.id });
 
   const updateMutation = api.tasks.update.useMutation({
     onSuccess: (updated) => {
@@ -166,7 +173,7 @@ export function TaskDetailPanel({
                    border-l border-gray-200 bg-white shadow-xl overflow-y-auto"
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 shrink-0">
+        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3 shrink-0">
           <div className="flex min-w-0 items-center gap-2 pr-4">
             <h2 className="text-base font-semibold text-gray-900 truncate">Task details</h2>
             {/* Status is derived from the task's column (see apps/api's
@@ -209,9 +216,11 @@ export function TaskDetailPanel({
           </div>
         </div>
 
-        {/* Body */}
-        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-5">
-          <div className={cn("flex flex-col gap-6", commentsExpanded && "hidden")}>
+        {/* Settings - fixed in place, never scrolls. Hidden entirely (not
+            just visually) while comments are expanded, so the comments
+            section below gets the full body instead. */}
+        <div className={cn("shrink-0 px-5 py-4", commentsExpanded && "hidden")}>
+          <div className="flex flex-col gap-5">
             <form
               onSubmit={handleSubmit(onSubmit)}
               onChange={(e) => {
@@ -231,20 +240,20 @@ export function TaskDetailPanel({
                   void handleSubmit(onSubmit)();
                 }
               }}
-              className="flex flex-col gap-4"
+              className="flex flex-col gap-3.5"
             >
               <FormField label="Title" htmlFor="task-title">
-                <Input id="task-title" disabled={!canEdit} {...register("title")} />
+                <Input id="task-title" className="h-8" disabled={!canEdit} {...register("title")} />
               </FormField>
 
               <FormField label="Description" htmlFor="task-description">
                 <textarea
                   id="task-description"
-                  rows={4}
+                  rows={3}
                   disabled={!canEdit}
                   {...register("description", { setValueAs: emptyStringToNull })}
 
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm
+                  className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm
                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500
                 resize-none disabled:cursor-not-allowed disabled:opacity-50"
                   placeholder="Add a description…"
@@ -253,7 +262,12 @@ export function TaskDetailPanel({
 
               <div className="grid grid-cols-2 gap-3">
                 <FormField label="Priority" htmlFor="task-priority">
-                  <Select id="task-priority" disabled={!canEdit} {...register("priority")}>
+                  <Select
+                    id="task-priority"
+                    className="h-8 py-1"
+                    disabled={!canEdit}
+                    {...register("priority")}
+                  >
                     {TASK_PRIORITIES.map((p) => (
                       <option key={p} value={p}>
                         {p}
@@ -268,6 +282,7 @@ export function TaskDetailPanel({
                   ) : (
                     <Select
                       id="task-assignee"
+                      className="h-8 py-1"
                       disabled={!canEdit}
                       {...register("assigneeId", { setValueAs: selectValueToNull })}
                     >
@@ -300,24 +315,44 @@ export function TaskDetailPanel({
               }}
             />
           </div>
+        </div>
 
-          {/* Comments */}
-          <div
-            className={
-              commentsExpanded ? "flex min-h-0 flex-1 flex-col" : "flex h-96 min-h-0 flex-col"
-            }
-          >
-            <TaskComments
-              orgId={orgId}
-              projectId={projectId}
-              taskId={task.id}
-              isExpanded={commentsExpanded}
-              canEdit={canEdit}
-              onToggleExpand={() => {
-                setCommentsExpanded((prev) => !prev);
-              }}
-            />
-          </div>
+        {/* Comments - the Slack/Linear "message pane" pattern: this region
+            always fills whatever vertical space is left below settings (or
+            below the header alone, once settings are hidden via expand -
+            the toggle exists to give a long thread more room to read, not
+            to change how the sizing works). The list is the only thing
+            that scrolls (task-comments-list.tsx's own min-h-0 flex-1 +
+            overflow-y-auto); the composer is a shrink-0 sibling pinned
+            right below it, always reachable without scrolling. Settings
+            above are a separate, ordinary block and never scroll at all -
+            each region owns exactly the scroll behavior it needs, instead
+            of one shared scroll container for everything. */}
+        <div className="flex min-h-0 flex-1 flex-col px-5 pb-5 pt-3">
+          <TaskCommentsList
+            comments={comments.comments}
+            isPending={comments.isPending}
+            sessionUserId={comments.sessionUserId}
+            isExpanded={commentsExpanded}
+            canEdit={canEdit}
+            onToggleExpand={() => {
+              setCommentsExpanded((prev) => !prev);
+            }}
+            onDelete={comments.deleteComment}
+          />
+
+          {canEdit && (
+            <div className="shrink-0 border-t border-gray-200">
+              <TaskCommentComposer
+                body={comments.body}
+                setBody={comments.setBody}
+                submit={comments.submit}
+                notifyTyping={comments.notifyTyping}
+                typingUserIds={comments.typingUserIds}
+                isPosting={comments.isPosting}
+              />
+            </div>
+          )}
         </div>
       </aside>
 

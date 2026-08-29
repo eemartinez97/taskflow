@@ -304,6 +304,40 @@ rediscovered the hard way in production.
       receiver once real credentials exist - see the commented example in
       that file.
 
+## Production performance
+
+- [ ] **`apps/web`'s Prisma queries to Neon cross the Pacific on every RSC
+      render - migrate `packages/database` from `@prisma/adapter-pg` to
+      `@prisma/adapter-neon`.** Confirmed live on `taskflow.eosmin.dev`:
+      `curl`'ing `/api/health` (uncached) returned
+      `x-vercel-id: bom1::iad1::...` - the Vercel Function executing
+      `apps/web` runs in `iad1` (US East), while Neon and Render are both
+      `ap-southeast-1`/Singapore. `lib/trpc/server.ts`'s RSC caller
+      (`createAppRouter(noOpIo)`) makes Prisma queries to Neon DIRECTLY from
+      that function, over a raw TCP+TLS connection
+      (`packages/database/src/index.ts`'s `PrismaPg` from `@prisma/adapter-pg`,
+      shared by both `apps/api` and `apps/web`) - each one pays the
+      US-East-to-Singapore round trip (~500ms), and several sequential
+      queries per board render compound that to multiple seconds. Reproduced
+      a live 503 on the board's first RSC fetch this way, plus a recurring
+      runtime warning in Vercel's logs ("SSL modes 'prefer'/'require' are
+      treated as aliases for 'verify-full'") confirming the raw `pg`
+      connection path.
+      Immediate mitigation applied: `apps/web/vercel.json` now pins
+      `regions: ["sin1"]` (Singapore) so the function runs next to
+      Neon/Render instead of in `iad1` - cuts the round trip without
+      touching any code, but not yet committed/pushed (needs a redeploy to
+      take effect).
+      Real fix, bigger lift: `@prisma/adapter-neon` (Neon's HTTP/WebSocket
+      serverless driver, built for exactly this ephemeral-compute pattern -
+      avoids the per-invocation TCP+TLS+Postgres handshake and plays better
+      with Neon's pooler connection limits, which the observed 503 is
+      consistent with under load). Non-trivial because
+      `packages/database/src/index.ts`'s `prisma` singleton is shared by
+      `apps/api` (Render, a long-lived process - `adapter-pg`'s persistent
+      pool is actually correct there) and `apps/web` (Vercel, serverless) -
+      would need the adapter chosen per-runtime rather than swapped wholesale.
+
 ## Product features
 
 - [ ] **Multi-language support (i18n).** No i18n library or translated

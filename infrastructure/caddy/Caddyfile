@@ -1,0 +1,38 @@
+# Edge for docker-compose.monitoring.yml.
+# Caddy instead of the nginx/ image used by the local stack: Caddy issues
+# and renews its own Let's Encrypt cert automatically from the domain name
+# below (no certbot container/cron needed) - the local nginx setup never
+# needed TLS of its own since it's plain http://localhost.
+#
+# {$VAR} is Caddy's own env-var substitution, resolved when the config
+# loads - same idea as docker-compose.yml's *anchors, just Caddy's syntax
+# instead of YAML's.
+{$GRAFANA_MONITORING_DOMAIN} {
+	# handle (not handle_path): Grafana is configured with
+	# GF_SERVER_SERVE_FROM_SUB_PATH=true and expects the /grafana prefix to
+	# reach it intact - same pattern as the local nginx.conf's
+	# proxy_pass .../grafana/ (no strip).
+	handle /grafana/* {
+		reverse_proxy grafana:3000
+	}
+
+	# Alertmanager has no login of its own (same fact as the local nginx.conf
+	# docblock notes) - basic_auth here is the only thing gating it.
+	# {$ALERTMANAGER_HTPASSWD_HASH} is a bcrypt hash, not the plaintext
+	# password - generate it once with:
+	#   docker run --rm caddy:2.11.4 caddy hash-password --plaintext '<password>'
+	# and put the output (starts with $2a$) in the VM's .env, never the
+	# plaintext itself.
+	# handle (not handle_path): Alertmanager's --web.external-url derives
+	# --web.route-prefix as /alertmanager - it also expects the prefix intact.
+	handle /alertmanager/* {
+		basic_auth {
+			admin {$ALERTMANAGER_HTPASSWD_HASH}
+		}
+		reverse_proxy alertmanager:9093
+	}
+
+	handle / {
+		redir /grafana/
+	}
+}

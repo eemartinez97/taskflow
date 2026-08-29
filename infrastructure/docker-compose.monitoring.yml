@@ -1,0 +1,88 @@
+# Standalone monitoring stack for a separate always-on VM - see
+# docker-compose.yml because that file's prometheus/alertmanager/grafana run
+# alongside a LOCAL api/postgres on the same docker network; in production
+# api and postgres run on managed hosting elsewhere, so this stack only
+# needs the observability services, scraping api over the public internet
+# instead of the internal `api:8000` docker DNS name.
+#
+# Run from infrastructure/ on the VM:
+#   docker compose -f docker-compose.monitoring.yml up -d
+#
+# Reuses the same images/provisioning this repo already ships for local dev
+# (prometheus/, alertmanager/, grafana/provisioning/) unchanged - only the
+# prometheus scrape target and the edge proxy (Caddy here, nginx locally,
+# see caddy/Caddyfile's docblock) differ from docker-compose.yml at the repo
+# root.
+x-metrics-token: &metrics-token ${METRICS_TOKEN:?METRICS_TOKEN is required - must match the value set on the api host}
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.14.0
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        ESCAPED_METRICS_TOKEN=$$(printf '%s' "$$METRICS_TOKEN" | sed -e 's/[&#\\]/\\&/g') &&
+        ESCAPED_API_SCRAPE_TARGET=$$(printf '%s' "$$API_SCRAPE_TARGET" | sed -e 's/[&#\\]/\\&/g') &&
+        sed -e "s#__METRICS_TOKEN__#$$ESCAPED_METRICS_TOKEN#" -e "s#__API_SCRAPE_TARGET__#$$ESCAPED_API_SCRAPE_TARGET#" /etc/prometheus/prometheus.yml.template > /etc/prometheus/prometheus.yml &&
+        exec /bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus
+    environment:
+      METRICS_TOKEN: *metrics-token
+      API_SCRAPE_TARGET: ${API_SCRAPE_TARGET:?API_SCRAPE_TARGET is required (e.g. api.taskflow.example.com)}
+    volumes:
+      - ./prometheus/prometheus.prod.yml.template:/etc/prometheus/prometheus.yml.template:ro
+      - ./prometheus/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - prometheus_data:/prometheus
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.34.0
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --web.external-url=https://${GRAFANA_MONITORING_DOMAIN:?GRAFANA_MONITORING_DOMAIN is required}/alertmanager/
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:13.2.0
+    environment:
+      # Same rotation caveat as the local stack's GRAFANA_ADMIN_PASSWORD -
+      # only seeds the admin user on Grafana's first boot against the
+      # grafana_data volume below.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_SERVER_ROOT_URL: https://${GRAFANA_MONITORING_DOMAIN:?GRAFANA_MONITORING_DOMAIN is required}/grafana/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_SECURITY_CSRF_TRUSTED_ORIGINS: https://${GRAFANA_MONITORING_DOMAIN:?GRAFANA_MONITORING_DOMAIN is required}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.11.4
+    environment:
+      GRAFANA_MONITORING_DOMAIN: ${GRAFANA_MONITORING_DOMAIN:?GRAFANA_MONITORING_DOMAIN is required}
+      ALERTMANAGER_HTPASSWD_HASH: ${ALERTMANAGER_HTPASSWD_HASH:?ALERTMANAGER_HTPASSWD_HASH is required - see caddy/Caddyfile}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - grafana
+      - alertmanager
+    restart: unless-stopped
+
+volumes:
+  prometheus_data:
+  grafana_data:
+  alertmanager_data:
+  caddy_data:
+  caddy_config:

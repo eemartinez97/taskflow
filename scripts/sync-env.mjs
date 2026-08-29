@@ -73,6 +73,8 @@ const API_KEYS = [
   "RESEND_API_KEY",
   "EMAIL_FROM",
   "INTERNAL_API_SECRET",
+  "RATE_LIMIT_WINDOW_MS",
+  "RATE_LIMIT_MAX_REQUESTS",
 ];
 
 /**
@@ -162,4 +164,6 @@ for (const { relPath, keys } of TARGETS) {
   renderTarget(relPath, keys, rootEnv);
 }
 
-console.log(`sync-env: regenerated ${TARGETS.map((t) => t.relPath).join(", ")} from ${ROOT_ENV_PATH}.`);
+console.log(
+  `sync-env: regenerated ${TARGETS.map((t) => t.relPath).join(", ")} from ${ROOT_ENV_PATH}.`,
+);

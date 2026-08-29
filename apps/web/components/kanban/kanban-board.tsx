@@ -11,6 +11,7 @@ import {
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
+  type DragCancelEvent,
   type CollisionDetection,
 } from "@dnd-kit/core";
 import {
@@ -140,12 +141,13 @@ export function KanbanBoard({
       ]
     : presence;
 
-  const { columns, activeColumnId, onColumnDragStart, onColumnDragEnd } = useColumnDnD({
-    initialColumns,
-    onColumnsReordered: (payload) => {
-      reorderColumnsMutation.mutate({ orgId, payload: { boardId, ...payload } });
-    },
-  });
+  const { columns, activeColumnId, onColumnDragStart, onColumnDragEnd, onColumnDragCancel } =
+    useColumnDnD({
+      initialColumns,
+      onColumnsReordered: (payload) => {
+        reorderColumnsMutation.mutate({ orgId, payload: { boardId, ...payload } });
+      },
+    });
 
   const boardScrollRef = useRef<HTMLDivElement>(null);
   const { width: boardWidth } = useElementSize(boardScrollRef);
@@ -374,12 +376,16 @@ export function KanbanBoard({
     onError: () => {
       void utils.tasks.list.invalidate();
     },
+    onSettled: () => {
+      notifyMoveSettled();
+    },
   });
 
   const {
     activeTaskId,
     localTasks,
     handlers: taskHandlers,
+    notifyMoveSettled,
   } = useBoardDnD({
     initialTasks,
     onTaskMoved: ({ taskId, targetColumnId, newPosition }) => {
@@ -431,7 +437,9 @@ export function KanbanBoard({
   );
 
   // -- Unified drag handlers --
-  function isColumnDrag(e: DragStartEvent | DragEndEvent | DragOverEvent): boolean {
+  function isColumnDrag(
+    e: DragStartEvent | DragEndEvent | DragOverEvent | DragCancelEvent,
+  ): boolean {
     return e.active.data.current?.type === "column";
   }
 
@@ -458,6 +466,23 @@ export function KanbanBoard({
       onColumnDragEnd(e);
     } else {
       taskHandlers.onDragEnd(e);
+    }
+  }
+
+  // dnd-kit fires this instead of onDragEnd when a drag is cancelled (Escape,
+  // or a dropped-outside-any-droppable release) - every sensor listens for
+  // Escape by default, not just the keyboard one. Previously unwired, so a
+  // cancelled task drag left activeTaskId/localTasks exactly as onDragOver's
+  // optimistic cross-column move had last left them - the card stayed
+  // stacked at the end of whichever column it last hovered over instead of
+  // snapping back to its original spot.
+  function handleDragCancel(e: DragCancelEvent): void {
+    setOverId(null);
+    setIsDraggingColumn(false);
+    if (isColumnDrag(e)) {
+      onColumnDragCancel();
+    } else {
+      taskHandlers.onDragCancel();
     }
   }
 
@@ -573,6 +598,7 @@ export function KanbanBoard({
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
       >
         {/* Outer SortableContext: columns (horizontal) */}
         <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>

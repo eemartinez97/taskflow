@@ -269,6 +269,52 @@ describe("useBoardDnD", () => {
     expect(onTaskMoved).not.toHaveBeenCalled();
   });
 
+  it("onDragCancel reverts to the pre-drag snapshot instead of the last optimistic hover state", () => {
+    const { result } = renderHook(() => useBoardDnD({ initialTasks, onTaskMoved: vi.fn() }));
+    act(() => {
+      result.current.handlers.onDragStart(start(task1.id));
+    });
+    act(() => {
+      result.current.handlers.onDragOver(over(task1.id, VALID_COL_B_ID));
+    });
+    expect(result.current.localTasks[VALID_COL_B_ID]).toHaveLength(1);
+
+    act(() => {
+      result.current.handlers.onDragCancel();
+    });
+    expect(result.current.activeTaskId).toBeNull();
+    expect(result.current.localTasks[VALID_COL_A_ID]).toHaveLength(2);
+    expect(result.current.localTasks[VALID_COL_B_ID]).toHaveLength(0);
+  });
+
+  it("holds off the realtime-sync guard while a move is pending, then syncs once notifyMoveSettled fires", () => {
+    const onTaskMoved = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ initialTasks: it }) => useBoardDnD({ initialTasks: it, onTaskMoved }),
+      { initialProps: { initialTasks } },
+    );
+    act(() => {
+      result.current.handlers.onDragStart(start(task1.id));
+    });
+    act(() => {
+      result.current.handlers.onDragEnd(end(task1.id, VALID_COL_B_ID));
+    });
+    expect(onTaskMoved).toHaveBeenCalled();
+    expect(result.current.localTasks[VALID_COL_B_ID]).toHaveLength(1);
+
+    // An unrelated realtime update lands before the move mutation settles -
+    // activeTaskId is already null here, but the pending move must still
+    // block the sync guard, or the just-dropped task snaps back.
+    const staleEcho = { [VALID_COL_A_ID]: [task1, task2], [VALID_COL_B_ID]: [] };
+    rerender({ initialTasks: staleEcho });
+    expect(result.current.localTasks[VALID_COL_B_ID]).toHaveLength(1);
+
+    act(() => {
+      result.current.notifyMoveSettled();
+    });
+    expect(result.current.localTasks).toEqual(staleEcho);
+  });
+
   it("onDragEnd bails out when the target column cannot be resolved", () => {
     const onTaskMoved = vi.fn();
     const { result } = renderHook(() => useBoardDnD({ initialTasks, onTaskMoved }));

@@ -5,9 +5,18 @@ vi.mock("@/lib/hooks/use-board-realtime", () => ({ useBoardRealtime: vi.fn() }))
 vi.mock("@/lib/hooks/use-presence", () => ({ usePresence: vi.fn(() => []) }));
 vi.mock("@/lib/hooks/use-cursors", () => ({ useCursors: vi.fn(() => []) }));
 vi.mock("@/components/kanban/kanban-board", () => ({
-  KanbanBoard: ({ boardName, columns }: { boardName: string; columns: { id: string }[] }) => (
+  KanbanBoard: ({
+    boardName,
+    columns,
+    initialTasks,
+  }: {
+    boardName: string;
+    columns: { id: string }[];
+    initialTasks: Record<string, { id: string }[]>;
+  }) => (
     <p>
-      KanbanBoard: {boardName} ({columns.length} columns)
+      KanbanBoard: {boardName} ({columns.length} columns,{" "}
+      {Object.values(initialTasks).reduce((sum, tasks) => sum + tasks.length, 0)} tasks)
     </p>
   ),
 }));
@@ -73,7 +82,47 @@ describe("BoardPageClient", () => {
         canManageBoards={true}
       />,
     );
-    expect(screen.getByText("KanbanBoard: Main Board (1 columns)")).toBeInTheDocument();
+    expect(screen.getByText("KanbanBoard: Main Board (1 columns, 1 tasks)")).toBeInTheDocument();
+  });
+
+  it("updates liveTasks when a column's task query data actually changes on rerender", () => {
+    setupCommonMocks();
+    const { rerender } = render(
+      <BoardPageClient
+        orgId={VALID_ORG_ID}
+        projectId={VALID_PROJECT_ID}
+        boardId={VALID_BOARD_ID}
+        initialBoard={boardWithColumns}
+        initialTasks={{ [VALID_COL_A_ID]: [task] }}
+        projectName="Demo Project"
+        initialBoards={[board]}
+        canEdit={true}
+        canManageBoards={true}
+      />,
+    );
+    expect(screen.getByText("KanbanBoard: Main Board (1 columns, 1 tasks)")).toBeInTheDocument();
+
+    // Simulates a real task query refetch/socket update landing mid-session -
+    // Object.fromEntries alone would give `liveTasks` a new identity on
+    // EVERY render regardless of this change; the assertion below only
+    // passes if the adjust-during-render sync in board.tsx actually compares
+    // per-column data and propagates a real change through.
+    const secondTask = makeTask({ id: "task-2", columnId: VALID_COL_A_ID });
+    mockUseQueries([{ data: [task, secondTask] }]);
+    rerender(
+      <BoardPageClient
+        orgId={VALID_ORG_ID}
+        projectId={VALID_PROJECT_ID}
+        boardId={VALID_BOARD_ID}
+        initialBoard={boardWithColumns}
+        initialTasks={{ [VALID_COL_A_ID]: [task] }}
+        projectName="Demo Project"
+        initialBoards={[board]}
+        canEdit={true}
+        canManageBoards={true}
+      />,
+    );
+    expect(screen.getByText("KanbanBoard: Main Board (1 columns, 2 tasks)")).toBeInTheDocument();
   });
 
   it("builds the labelsByTask map from labelsByProject pairs", () => {

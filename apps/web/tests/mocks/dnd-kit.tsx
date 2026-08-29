@@ -44,6 +44,7 @@ export const capturedDndProps: {
   onDragStart?: (e: unknown) => void;
   onDragOver?: (e: unknown) => void;
   onDragEnd?: (e: unknown) => void;
+  onDragCancel?: (e: unknown) => void;
   collisionDetection?: (args: unknown) => unknown;
 } = {};
 
@@ -52,18 +53,21 @@ export function DndContext({
   onDragStart,
   onDragOver,
   onDragEnd,
+  onDragCancel,
   collisionDetection,
 }: {
   children: React.ReactNode;
   onDragStart?: unknown;
   onDragOver?: unknown;
   onDragEnd?: unknown;
+  onDragCancel?: unknown;
   collisionDetection?: unknown;
 }): JSX.Element {
   useEffect(() => {
     capturedDndProps.onDragStart = onDragStart as never;
     capturedDndProps.onDragOver = onDragOver as never;
     capturedDndProps.onDragEnd = onDragEnd as never;
+    capturedDndProps.onDragCancel = onDragCancel as never;
     capturedDndProps.collisionDetection = collisionDetection as never;
   });
   return <>{children}</>;

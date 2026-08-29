@@ -4,8 +4,10 @@ import type { Server as HttpServer } from "node:http";
 import {
   announceOfflineIfLast,
   announceOnlineIfFirst,
+  broadcastPresenceHeartbeat,
   buildOnlineSync,
   createPresenceHelpers,
+  PRESENCE_HEARTBEAT_INTERVAL_MS,
   registerPresenceHandlers,
   resolveColor,
 } from "./presence";
@@ -13,6 +15,7 @@ import { env } from "../config/env";
 import { logger } from "../config/logger";
 import { getSessionUser } from "../utils/auth";
 import { appCollectors } from "../metrics";
+import { fireAndForget } from "../utils/fire-and-forget";
 import {
   SOCKET_ORG_ROOM_PREFIX,
   SOCKET_ROOM_PREFIX,
@@ -142,6 +145,13 @@ export function createSocketServer(httpServer: HttpServer): AppServer {
       logger.debug({ userId: socket.data.userId, socketId: socket.id }, "Socket disconnected");
     });
   });
+
+  // Self-healing backstop for missed presence:leave packets - see
+  // broadcastPresenceHeartbeat's docblock. .unref() so this timer alone
+  // never keeps the process alive past shutdown()'s io.close()/httpServer.close().
+  setInterval(() => {
+    fireAndForget(broadcastPresenceHeartbeat(io), "Presence heartbeat failed");
+  }, PRESENCE_HEARTBEAT_INTERVAL_MS).unref();
 
   logger.info("Socket.IO server initialized");
 

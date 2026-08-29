@@ -1,6 +1,6 @@
 import rateLimit, { type Options, type RateLimitRequestHandler } from "express-rate-limit";
 
-import { isProduction } from "../config/env";
+import { env, isProduction } from "../config/env";
 
 /**
  * Base configuration shared by all rate limiters.
@@ -38,8 +38,8 @@ export function createRateLimiter({
   });
 }
 
-/** 100 req / 15 min - applied globally. */
+/** 100 req / 15 min by default - applied globally. Override via env - see config/env.ts. */
 export const defaultRateLimiter = createRateLimiter({
-  windowMs: 15 * 60 * 1000,
-  limit: isProduction() ? 100 : 1000,
+  windowMs: env.RATE_LIMIT_WINDOW_MS ?? 15 * 60 * 1000,
+  limit: env.RATE_LIMIT_MAX_REQUESTS ?? (isProduction() ? 100 : 1000),
 });

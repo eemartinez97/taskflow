@@ -44,6 +44,40 @@ describe("envSchema", () => {
     ).toBe(2000);
   });
 
+  it("leaves RATE_LIMIT_WINDOW_MS/RATE_LIMIT_MAX_REQUESTS undefined when omitted", () => {
+    const parsed = envSchema.parse(REQUIRED);
+    expect(parsed.RATE_LIMIT_WINDOW_MS).toBeUndefined();
+    expect(parsed.RATE_LIMIT_MAX_REQUESTS).toBeUndefined();
+  });
+
+  it("coerces RATE_LIMIT_WINDOW_MS/RATE_LIMIT_MAX_REQUESTS from strings", () => {
+    const parsed = envSchema.parse({
+      ...REQUIRED,
+      RATE_LIMIT_WINDOW_MS: "60000",
+      RATE_LIMIT_MAX_REQUESTS: "500",
+    });
+    expect(parsed.RATE_LIMIT_WINDOW_MS).toBe(60_000);
+    expect(parsed.RATE_LIMIT_MAX_REQUESTS).toBe(500);
+  });
+
+  it.each([
+    ["RATE_LIMIT_WINDOW_MS zero", { RATE_LIMIT_WINDOW_MS: "0" }],
+    ["RATE_LIMIT_WINDOW_MS negative", { RATE_LIMIT_WINDOW_MS: "-1" }],
+    ["RATE_LIMIT_MAX_REQUESTS zero", { RATE_LIMIT_MAX_REQUESTS: "0" }],
+  ])("rejects: %s", (_name, override) => {
+    expect(envSchema.safeParse({ ...REQUIRED, ...override }).success).toBe(false);
+  });
+
+  it("treats RATE_LIMIT_WINDOW_MS/RATE_LIMIT_MAX_REQUESTS: '' the same as unset (docker-compose ${VAR:-} idiom)", () => {
+    const parsed = envSchema.parse({
+      ...REQUIRED,
+      RATE_LIMIT_WINDOW_MS: "",
+      RATE_LIMIT_MAX_REQUESTS: "",
+    });
+    expect(parsed.RATE_LIMIT_WINDOW_MS).toBeUndefined();
+    expect(parsed.RATE_LIMIT_MAX_REQUESTS).toBeUndefined();
+  });
+
   it("treats METRICS_TOKEN: '' the same as unset (e.g. explicitly cleared in .env to disable /metrics)", () => {
     expect(envSchema.parse({ ...REQUIRED, METRICS_TOKEN: "" }).METRICS_TOKEN).toBeUndefined();
   });

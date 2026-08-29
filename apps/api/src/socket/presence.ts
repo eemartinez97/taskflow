@@ -51,6 +51,38 @@ function getBoardRooms(socket: AppSocket): string[] {
   return [...socket.rooms].filter((room) => room.startsWith(SOCKET_BOARD_ROOM_PREFIX));
 }
 
+interface PresenceRosterEntry {
+  userId: string;
+  name: string | null;
+  color: string;
+}
+
+/**
+ * Builds a de-duplicated (by userId) roster from a room's connected sockets.
+ * Shared by joinBoardRoom and broadcastPresenceHeartbeat so the two never
+ * drift on shape/dedup semantics again - see the heartbeat's own docblock
+ * for the bug this fixed (heartbeat used to include the recipient's own
+ * entry, which joinBoardRoom's independently-written loop never did).
+ */
+function buildRoomRoster(
+  peers: { data: { userId: string; userName: string | null; color: string } }[],
+): Map<string, PresenceRosterEntry> {
+  const roster = new Map<string, PresenceRosterEntry>();
+  for (const peer of peers) {
+    roster.set(peer.data.userId, {
+      userId: peer.data.userId,
+      name: peer.data.userName,
+      color: peer.data.color,
+    });
+  }
+  return roster;
+}
+
+/** Stable string key for a roster - order-independent, used to skip no-op heartbeat emits. */
+function rosterSignature(roster: Map<string, PresenceRosterEntry>): string {
+  return JSON.stringify([...roster.values()].sort((a, b) => a.userId.localeCompare(b.userId)));
+}
+
 /**
  * Registers ongoing presence event handlers on an authenticated socket.
  * Called once per connection from createSocketServer's "connection" handler.
@@ -156,13 +188,7 @@ export function createPresenceHelpers(
     socket.broadcast.to(room).emit(SOCKET_EVENTS.PRESENCE_JOIN, presencePayload.data);
 
     const peers = await io.in(room).fetchSockets();
-    const roster = new Map<string, { userId: string; name: string | null; color: string }>();
-
-    for (const peer of peers) {
-      if (peer.id === socket.id) continue;
-      const data = peer.data;
-      roster.set(data.userId, { userId: data.userId, name: data.userName, color: data.color });
-    }
+    const roster = buildRoomRoster(peers.filter((peer) => peer.id !== socket.id));
 
     socket.emit(SOCKET_EVENTS.PRESENCE_SYNC, { users: [...roster.values()] });
     logger.debug({ userId, room, socketId: socket.id }, "Socket joined board room");
@@ -210,6 +236,71 @@ async function emitLeaveIfLastSocket(
   // when the socket may already be fully disconnected.
   io.to(room).except(socket.id).emit(SOCKET_EVENTS.PRESENCE_LEAVE, { userId });
   logger.debug({ userId, room }, "Broadcast presence:leave");
+}
+
+// ---------------------------------------------------------------- Heartbeat
+
+/** How often the full board roster is re-broadcast - see broadcastPresenceHeartbeat. */
+export const PRESENCE_HEARTBEAT_INTERVAL_MS = 15_000;
+
+/**
+ * Re-broadcasts the full presence:sync roster to every board:<id> room on an
+ * interval, so a client that never received its presence:leave packet - e.g.
+ * a peer's socket held open past disconnect by connectionStateRecovery, or a
+ * process crash that skipped the "disconnecting" handler entirely - self-
+ * corrects within one interval instead of showing a stale viewer forever.
+ * usePresence's client-side state is otherwise pure event-patch with no
+ * other re-sync (apps/web/lib/hooks/use-presence.ts), so a single dropped
+ * leave packet is not recoverable without this.
+ *
+ * Reads the adapter's live room registry rather than tracking board rooms
+ * separately - that state would need the same join/leave bookkeeping this
+ * heartbeat exists to backstop, and would drift the same way.
+ *
+ * Each recipient gets the room's roster with their OWN entry filtered out
+ * (io.to(room).emit() can't do this - it sends one identical payload to
+ * everyone - so this emits per-peer instead), matching joinBoardRoom's and
+ * apps/web's documented "presence rosters exclude self" invariant.
+ *
+ * Skips the emit entirely for a room whose live membership (fetchSockets())
+ * is byte-identical to what was last sent - `lastHeartbeatRosterSignature`
+ * caches by room. This does NOT weaken the self-correction this heartbeat
+ * exists for: membership is re-read from the adapter fresh every tick, so a
+ * peer that actually left (even via a dropped presence:leave packet) changes
+ * the signature and still triggers a resync on the very next tick.
+ */
+const lastHeartbeatRosterSignature = new Map<string, string>();
+
+/** Test-only: clears the heartbeat's roster-diff cache between test cases. */
+export function __resetPresenceHeartbeatCacheForTests(): void {
+  lastHeartbeatRosterSignature.clear();
+}
+
+export async function broadcastPresenceHeartbeat(io: AppServer): Promise<void> {
+  const rooms = [...io.of("/").adapter.rooms.keys()].filter((room) =>
+    room.startsWith(SOCKET_BOARD_ROOM_PREFIX),
+  );
+
+  const activeRooms = new Set(rooms);
+  for (const room of lastHeartbeatRosterSignature.keys()) {
+    if (!activeRooms.has(room)) lastHeartbeatRosterSignature.delete(room);
+  }
+
+  await Promise.all(
+    rooms.map(async (room) => {
+      const peers = await io.in(room).fetchSockets();
+      const roster = buildRoomRoster(peers);
+
+      const signature = rosterSignature(roster);
+      if (lastHeartbeatRosterSignature.get(room) === signature) return;
+      lastHeartbeatRosterSignature.set(room, signature);
+
+      for (const peer of peers) {
+        const ownRoster = [...roster.values()].filter((entry) => entry.userId !== peer.data.userId);
+        peer.emit(SOCKET_EVENTS.PRESENCE_SYNC, { users: ownRoster });
+      }
+    }),
+  );
 }
 
 // ---------------------------------------------------------- Global org presence

@@ -49,6 +49,20 @@ export const envSchema = z
     // only one side's TTL leaves the other still trusting a revoked session
     // for up to the old value.
     PASSWORD_CHANGED_AT_CACHE_TTL_MS: z.coerce.number().int().min(0).default(60_000),
+    // Overrides for middleware/rate-limit.ts's defaultRateLimiter (global,
+    // per-IP, applied to every route below it in app.ts - see that file's
+    // own docblock for why per-IP can be too coarse behind a shared NAT).
+    // Left unset in dev/test/docker-compose.yml - createRateLimiter falls
+    // back to its own isProduction() ? 100 : 1000 default when either is
+    // undefined, so this only needs to be set where the default is wrong.
+    RATE_LIMIT_WINDOW_MS: z.preprocess(
+      emptyStringToUndefined,
+      z.coerce.number().int().positive().optional(),
+    ),
+    RATE_LIMIT_MAX_REQUESTS: z.preprocess(
+      emptyStringToUndefined,
+      z.coerce.number().int().positive().optional(),
+    ),
     // RESEND_API_KEY, EMAIL_FROM: see packages/mail's mailEnvShape - the same
     // shape apps/web spreads into its own schema, so the two apps can never
     // define this contract differently. RESEND_API_KEY additionally gets the

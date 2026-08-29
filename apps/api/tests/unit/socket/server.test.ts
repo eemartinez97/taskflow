@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Server as HttpServer } from "node:http";
 import { Server } from "socket.io";
 import { SOCKET_ROOM_PREFIX, SOCKET_USER_ROOM_PREFIX } from "@taskflow/shared";
@@ -7,8 +7,10 @@ import { appCollectors } from "../../../src/metrics";
 import {
   announceOfflineIfLast,
   announceOnlineIfFirst,
+  broadcastPresenceHeartbeat,
   buildOnlineSync,
   createPresenceHelpers,
+  PRESENCE_HEARTBEAT_INTERVAL_MS,
   registerPresenceHandlers,
   resolveColor,
 } from "../../../src/socket/presence";
@@ -41,6 +43,7 @@ vi.mock("../../../src/socket/presence", async (importOriginal) => {
     announceOnlineIfFirst: vi.fn(),
     announceOfflineIfLast: vi.fn(),
     buildOnlineSync: vi.fn(),
+    broadcastPresenceHeartbeat: vi.fn(() => Promise.resolve()),
   };
 });
 
@@ -51,10 +54,33 @@ vi.mock("../../../src/socket/presence-repo", () => ({
 const inst = getMockIoInstance();
 const httpServer = {} as HttpServer;
 
+// createSocketServer starts a real, unref'd setInterval (the presence
+// heartbeat) on every call with no way to stop it from the outside. Most
+// tests below call it with real timers active, so left untracked each one
+// leaks a live 15s interval into the test worker for the rest of the run -
+// a late unrelated test can then observe a stray broadcastPresenceHeartbeat
+// call from a stale interval's closure. Capture every interval this file
+// creates and clear it in afterEach; the two "presence heartbeat" tests use
+// vi.useFakeTimers() themselves, which discards their fake interval on
+// vi.useRealTimers() and never goes through this real setInterval at all.
+const realSetInterval = global.setInterval;
+let createdIntervals: NodeJS.Timeout[] = [];
+
 beforeEach(() => {
   inst._reset();
   joinBoardRoom.mockReset();
   appCollectors.socketConnectedClients.reset();
+
+  createdIntervals = [];
+  vi.spyOn(global, "setInterval").mockImplementation((...args: Parameters<typeof setInterval>) => {
+    const id = Reflect.apply(realSetInterval, global, args);
+    createdIntervals.push(id);
+    return id;
+  });
+});
+
+afterEach(() => {
+  for (const id of createdIntervals) clearInterval(id);
 });
 
 describe("authenticateSocket", () => {
@@ -184,6 +210,33 @@ describe("createSocketServer", () => {
       { userId: VALID_USER.id, socketId: socket.id },
       "Socket disconnected",
     );
+  });
+});
+
+describe("presence heartbeat", () => {
+  it("re-broadcasts the presence roster on an unref'd interval", () => {
+    vi.useFakeTimers();
+    const io = createSocketServer(httpServer);
+
+    expect(broadcastPresenceHeartbeat).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(PRESENCE_HEARTBEAT_INTERVAL_MS);
+
+    expect(broadcastPresenceHeartbeat).toHaveBeenCalledWith(io);
+    vi.useRealTimers();
+  });
+
+  it("logs instead of throwing when the heartbeat rejects", async () => {
+    const boom = new Error("adapter exploded");
+    vi.mocked(broadcastPresenceHeartbeat).mockRejectedValueOnce(boom);
+    vi.useFakeTimers();
+    createSocketServer(httpServer);
+
+    vi.advanceTimersByTime(PRESENCE_HEARTBEAT_INTERVAL_MS);
+    vi.useRealTimers();
+
+    await vi.waitFor(() => {
+      expect(mockLogger.error).toHaveBeenCalledWith({ err: boom }, "Presence heartbeat failed");
+    });
   });
 });
 

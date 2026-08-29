@@ -15,11 +15,14 @@ import {
   mockFetchSockets,
   mockIn,
   mockTo,
+  setAdapterRooms,
   setRoomPeers,
 } from "../../mocks/socket";
 import {
+  __resetPresenceHeartbeatCacheForTests,
   announceOfflineIfLast,
   announceOnlineIfFirst,
+  broadcastPresenceHeartbeat,
   broadcastProfileNameUpdate,
   buildOnlineSync,
   createPresenceHelpers,
@@ -57,6 +60,7 @@ beforeEach(() => {
   vi.mocked(shouldDropPresencePacket).mockReturnValue(false);
   cursorParse.mockReturnValue({ success: true, data: { x: 1, y: 2 } } as never);
   userParse.mockReturnValue({ success: true, data: PRESENCE_USER } as never);
+  __resetPresenceHeartbeatCacheForTests();
 });
 
 describe("resolveColor", () => {
@@ -299,6 +303,93 @@ describe("createPresenceHelpers", () => {
 
     expect(broadcastToMock).not.toHaveBeenCalled();
     expect(emitMock).not.toHaveBeenCalledWith(SOCKET_EVENTS.PRESENCE_SYNC, expect.anything());
+  });
+});
+
+describe("broadcastPresenceHeartbeat", () => {
+  it("re-syncs every board room, deduped by userId, self excluded, and ignores non-board rooms", async () => {
+    const secondRoom = `${SOCKET_BOARD_ROOM_PREFIX}other`;
+    setAdapterRooms(
+      new Map([
+        [ROOM, new Set(["a"])],
+        [secondRoom, new Set(["b"])],
+        [`org:${VALID_ORG_ID}`, new Set(["socket-c"])], // not a board room - must be skipped
+      ]),
+    );
+    const alice = makePeer({ id: "a", userId: VALID_USER.id, userName: "Alice" });
+    const bob = makePeer({ id: "b", userId: ANOTHER_UUID, userName: "Bob" });
+    const bobTab2 = makePeer({ id: "c", userId: ANOTHER_UUID, userName: "Bob" }); // same user, second tab
+    setRoomPeers([alice, bob, bobTab2]);
+
+    await broadcastPresenceHeartbeat(mockAppServer);
+
+    // Alice's own roster excludes Alice, includes Bob (deduped across his two tabs).
+    expect(alice.emit).toHaveBeenCalledWith(SOCKET_EVENTS.PRESENCE_SYNC, {
+      users: [expect.objectContaining({ userId: ANOTHER_UUID })],
+    });
+    // Bob's own roster (either tab) excludes Bob, includes Alice.
+    expect(bob.emit).toHaveBeenCalledWith(SOCKET_EVENTS.PRESENCE_SYNC, {
+      users: [expect.objectContaining({ userId: VALID_USER.id })],
+    });
+    expect(bobTab2.emit).toHaveBeenCalledWith(SOCKET_EVENTS.PRESENCE_SYNC, {
+      users: [expect.objectContaining({ userId: VALID_USER.id })],
+    });
+  });
+
+  it("does nothing when no board rooms exist", async () => {
+    setAdapterRooms(new Map([[`org:${VALID_ORG_ID}`, new Set(["socket-c"])]]));
+
+    await broadcastPresenceHeartbeat(mockAppServer);
+
+    expect(mockTo).not.toHaveBeenCalled();
+  });
+
+  it("skips re-emitting to a room whose roster is unchanged since the last tick", async () => {
+    setAdapterRooms(new Map([[ROOM, new Set(["a"])]]));
+    const alice = makePeer({ id: "a", userId: VALID_USER.id, userName: "Alice" });
+    const bob = makePeer({ id: "b", userId: ANOTHER_UUID, userName: "Bob" });
+    setRoomPeers([alice, bob]);
+
+    await broadcastPresenceHeartbeat(mockAppServer);
+    expect(alice.emit).toHaveBeenCalledTimes(1);
+
+    await broadcastPresenceHeartbeat(mockAppServer);
+    expect(alice.emit).toHaveBeenCalledTimes(1); // unchanged roster - no second emit
+  });
+
+  it("re-emits once the roster actually changes after an unchanged tick", async () => {
+    setAdapterRooms(new Map([[ROOM, new Set(["a"])]]));
+    const alice = makePeer({ id: "a", userId: VALID_USER.id, userName: "Alice" });
+    const bob = makePeer({ id: "b", userId: ANOTHER_UUID, userName: "Bob" });
+    setRoomPeers([alice, bob]);
+    await broadcastPresenceHeartbeat(mockAppServer);
+    expect(alice.emit).toHaveBeenCalledTimes(1);
+
+    setRoomPeers([alice]); // Bob disconnected without a leave packet reaching Alice
+    await broadcastPresenceHeartbeat(mockAppServer);
+
+    expect(alice.emit).toHaveBeenCalledTimes(2);
+    expect(alice.emit).toHaveBeenLastCalledWith(SOCKET_EVENTS.PRESENCE_SYNC, { users: [] });
+  });
+
+  it("evicts a room's cached signature once the room itself disappears between ticks", async () => {
+    setAdapterRooms(new Map([[ROOM, new Set(["a"])]]));
+    const alice = makePeer({ id: "a", userId: VALID_USER.id, userName: "Alice" });
+    setRoomPeers([alice]);
+    await broadcastPresenceHeartbeat(mockAppServer);
+    expect(alice.emit).toHaveBeenCalledTimes(1);
+
+    // Board room emptied out entirely (last socket left) - no longer in the adapter's room list.
+    setAdapterRooms(new Map());
+    await broadcastPresenceHeartbeat(mockAppServer);
+
+    // Room re-appears with the SAME roster it had before eviction - if the stale cache entry
+    // survived, this would be wrongly treated as unchanged and skipped.
+    setAdapterRooms(new Map([[ROOM, new Set(["a"])]]));
+    setRoomPeers([alice]);
+    await broadcastPresenceHeartbeat(mockAppServer);
+
+    expect(alice.emit).toHaveBeenCalledTimes(2);
   });
 });
 

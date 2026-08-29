@@ -14,6 +14,8 @@ export type EmitMock = MockInstance<(event: string, payload: unknown) => boolean
 export interface RemoteSocketLike {
   id: string;
   data: SocketData;
+  /** Own emit mock per peer - broadcastPresenceHeartbeat emits per-recipient, not room-wide. */
+  emit: EmitMock;
 }
 
 // ---------------------------------------------------------------- Helpers
@@ -55,8 +57,10 @@ export const mockFetchSockets: MockInstance<() => Promise<RemoteSocketLike[]>> =
 export const mockIn: MockInstance<(room: string) => { fetchSockets: typeof mockFetchSockets }> =
   vi.fn();
 
-/** io.of("/").sockets.size - backs getConnectedCount(). */
-export const mockOf: MockInstance<(ns: string) => { sockets: { size: number } }> = vi.fn();
+/** io.of("/").sockets.size (getConnectedCount) and io.of("/").adapter.rooms (broadcastPresenceHeartbeat). */
+export const mockOf: MockInstance<
+  (ns: string) => { sockets: { size: number }; adapter: { rooms: Map<string, Set<string>> } }
+> = vi.fn();
 
 const _ioBase = { to: mockTo, in: mockIn, of: mockOf };
 
@@ -65,6 +69,20 @@ export const mockIo = _ioBase as unknown as AppServer;
 
 /** Alias kept for presence/server tests that import it by name. */
 export const mockAppServer = _ioBase as unknown as AppServer;
+
+function defaultSocketMockState(): {
+  sockets: { size: number };
+  adapter: { rooms: Map<string, Set<string>> };
+} {
+  return { sockets: { size: 0 }, adapter: { rooms: new Map() } };
+}
+
+/**
+ * Backing state for mockOf's return value. setSocketCount and setAdapterRooms
+ * each only care about one half of this shape - merging (not replacing) means
+ * calling one after the other doesn't silently drop the other's configuration.
+ */
+let socketMockState = defaultSocketMockState();
 
 /**
  * Re-applies every chained return value. `vi.resetAllMocks()` (run globally in
@@ -76,7 +94,8 @@ export function armSocketMocks(): void {
   mockTo.mockReturnValue({ emit: mockEmit, except: mockExcept });
   mockFetchSockets.mockResolvedValue([]);
   mockIn.mockReturnValue({ fetchSockets: mockFetchSockets });
-  mockOf.mockReturnValue({ sockets: { size: 0 } });
+  socketMockState = defaultSocketMockState();
+  mockOf.mockReturnValue(socketMockState);
 }
 
 /** Controls what io.in(room).fetchSockets() resolves with. */
@@ -84,9 +103,16 @@ export function setRoomPeers(peers: RemoteSocketLike[]): void {
   mockFetchSockets.mockResolvedValue(peers);
 }
 
-/** Controls the socket count for io.of("/").sockets.size */
+/** Controls the socket count for io.of("/").sockets.size - preserves any adapter rooms already set. */
 export function setSocketCount(size: number): void {
-  mockOf.mockReturnValue({ sockets: { size } });
+  socketMockState = { ...socketMockState, sockets: { size } };
+  mockOf.mockReturnValue(socketMockState);
+}
+
+/** Controls the room registry for io.of("/").adapter.rooms - preserves any socket count already set. */
+export function setAdapterRooms(rooms: Map<string, Set<string>>): void {
+  socketMockState = { ...socketMockState, adapter: { rooms } };
+  mockOf.mockReturnValue(socketMockState);
 }
 
 /** Builds a peer entry for setRoomPeers(). */
@@ -95,6 +121,7 @@ export function makePeer(overrides: Partial<SocketData> & { id?: string } = {}):
   return {
     id: overrides.id ?? `socket-${data.userId}`,
     data,
+    emit: vi.fn(() => true),
   };
 }
 

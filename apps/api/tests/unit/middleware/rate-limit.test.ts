@@ -7,11 +7,20 @@ vi.mock("express-rate-limit", () => ({ default: rateLimitFactory }));
 
 type RateLimitModule = typeof rateLimitModule;
 
-async function importFresh(isProduction = false): Promise<RateLimitModule> {
+interface EnvOverrides {
+  RATE_LIMIT_WINDOW_MS?: number;
+  RATE_LIMIT_MAX_REQUESTS?: number;
+}
+
+async function importFresh(
+  isProduction = false,
+  envOverrides: EnvOverrides = {},
+): Promise<RateLimitModule> {
   vi.resetModules();
   // vi.doMock is NOT hoisted - runs here with the correct value baked into the factory
   vi.doMock("../../../src/config/env", () => ({
     isProduction: vi.fn().mockReturnValue(isProduction),
+    env: envOverrides,
   }));
   return import("../../../src/middleware/rate-limit");
 }
@@ -61,6 +70,26 @@ describe("createRateLimiter", () => {
 
     expect(rateLimitFactory).toHaveBeenCalledWith(
       expect.objectContaining({ windowMs: 15 * 60 * 1000, limit }),
+    );
+  });
+
+  it("defaultRateLimiter uses RATE_LIMIT_WINDOW_MS/RATE_LIMIT_MAX_REQUESTS when set", async () => {
+    rateLimitFactory.mockClear();
+
+    await importFresh(true, { RATE_LIMIT_WINDOW_MS: 60_000, RATE_LIMIT_MAX_REQUESTS: 500 });
+
+    expect(rateLimitFactory).toHaveBeenCalledWith(
+      expect.objectContaining({ windowMs: 60_000, limit: 500 }),
+    );
+  });
+
+  it("defaultRateLimiter falls back to the isProduction() default for whichever override is unset", async () => {
+    rateLimitFactory.mockClear();
+
+    await importFresh(false, { RATE_LIMIT_WINDOW_MS: 60_000 });
+
+    expect(rateLimitFactory).toHaveBeenCalledWith(
+      expect.objectContaining({ windowMs: 60_000, limit: 1000 }),
     );
   });
 });

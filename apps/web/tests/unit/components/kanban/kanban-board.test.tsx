@@ -21,13 +21,20 @@ vi.mock("@/lib/hooks/use-column-dnd", () => ({
     activeColumnId: null,
     onColumnDragStart: vi.fn(),
     onColumnDragEnd: vi.fn(),
+    onColumnDragCancel: vi.fn(),
   })),
 }));
 vi.mock("@/lib/hooks/use-board-dnd", () => ({
   useBoardDnD: vi.fn(({ initialTasks }: { initialTasks: Record<string, unknown[]> }) => ({
     activeTaskId: null,
     localTasks: initialTasks,
-    handlers: { onDragStart: vi.fn(), onDragOver: vi.fn(), onDragEnd: vi.fn() },
+    handlers: {
+      onDragStart: vi.fn(),
+      onDragOver: vi.fn(),
+      onDragEnd: vi.fn(),
+      onDragCancel: vi.fn(),
+    },
+    notifyMoveSettled: vi.fn(),
   })),
 }));
 
@@ -894,7 +901,13 @@ describe("KanbanBoard - mutations and drag handlers", () => {
     vi.mocked(useBoardDnD).mockReturnValueOnce({
       activeTaskId: task.id,
       localTasks: { [VALID_COL_A_ID]: [task] },
-      handlers: { onDragStart: vi.fn(), onDragOver: vi.fn(), onDragEnd: vi.fn() },
+      handlers: {
+        onDragStart: vi.fn(),
+        onDragOver: vi.fn(),
+        onDragEnd: vi.fn(),
+        onDragCancel: vi.fn(),
+      },
+      notifyMoveSettled: vi.fn(),
     });
     renderBoard();
     // Ternary TRUE branch of `activeTaskId ? findTaskInMap(...) : null`,
@@ -918,6 +931,61 @@ describe("KanbanBoard - mutations and drag handlers", () => {
         over: { id: column.id },
       });
     });
+  });
+
+  it("routes onDragCancel to task handlers on Escape during a task drag", () => {
+    setupQueries();
+    const onDragCancel = vi.fn();
+    vi.mocked(useBoardDnD).mockReturnValueOnce({
+      activeTaskId: task.id,
+      localTasks: { [VALID_COL_A_ID]: [task] },
+      handlers: { onDragStart: vi.fn(), onDragOver: vi.fn(), onDragEnd: vi.fn(), onDragCancel },
+      notifyMoveSettled: vi.fn(),
+    });
+    renderBoard();
+    act(() => {
+      capturedDndProps.onDragCancel?.({ active: { id: task.id, data: { current: {} } } });
+    });
+    expect(onDragCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes onDragCancel to column handlers on Escape during a column drag", () => {
+    setupQueries();
+    const onColumnDragCancel = vi.fn();
+    vi.mocked(useColumnDnD).mockReturnValueOnce({
+      columns: [column],
+      activeColumnId: column.id,
+      onColumnDragStart: vi.fn(),
+      onColumnDragEnd: vi.fn(),
+      onColumnDragCancel,
+    });
+    renderBoard();
+    act(() => {
+      capturedDndProps.onDragCancel?.({
+        active: { id: column.id, data: { current: { type: "column" } } },
+      });
+    });
+    expect(onColumnDragCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("notifies useBoardDnD when the move mutation settles", () => {
+    setupQueries();
+    const notifyMoveSettled = vi.fn();
+    vi.mocked(useBoardDnD).mockReturnValueOnce({
+      activeTaskId: null,
+      localTasks: { [VALID_COL_A_ID]: [task] },
+      handlers: {
+        onDragStart: vi.fn(),
+        onDragOver: vi.fn(),
+        onDragEnd: vi.fn(),
+        onDragCancel: vi.fn(),
+      },
+      notifyMoveSettled,
+    });
+    renderBoard();
+    const call = getLastMutationOptions<{ onSettled?: () => void }>(api.tasks.move);
+    call.onSettled?.();
+    expect(notifyMoveSettled).toHaveBeenCalledTimes(1);
   });
 
   it("renames a column via the InlineEditText onSave", () => {

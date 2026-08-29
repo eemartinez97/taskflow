@@ -23,6 +23,7 @@ interface UseColumnDnDResult {
   activeColumnId: string | null;
   onColumnDragStart: (e: DragStartEvent) => void;
   onColumnDragEnd: (e: DragEndEvent) => void;
+  onColumnDragCancel: () => void;
 }
 
 /**
@@ -85,5 +86,10 @@ export function useColumnDnD({
     onColumnsReordered({ columns: [{ id: activeId, position: newPosition }] });
   }
 
-  return { columns, activeColumnId, onColumnDragStart, onColumnDragEnd };
+  /** dnd-kit fires this on Escape instead of onColumnDragEnd - nothing to revert, columns only mutates on end. */
+  function onColumnDragCancel(): void {
+    setActiveColumnId(null);
+  }
+
+  return { columns, activeColumnId, onColumnDragStart, onColumnDragEnd, onColumnDragCancel };
 }

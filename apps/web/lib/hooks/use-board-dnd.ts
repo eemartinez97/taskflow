@@ -12,6 +12,7 @@ export interface DragHandlers {
   onDragStart: (e: DragStartEvent) => void;
   onDragOver: (e: DragOverEvent) => void;
   onDragEnd: (e: DragEndEvent) => void;
+  onDragCancel: () => void;
 }
 
 export interface MovePayload {
@@ -30,6 +31,8 @@ interface UseBoardDndResult {
   activeTaskId: string | null;
   localTasks: TasksMap;
   handlers: DragHandlers;
+  /** Call from the move mutation's onSettled so the realtime-sync guard below stops holding off. */
+  notifyMoveSettled: () => void;
 }
 
 /**
@@ -48,10 +51,21 @@ export function useBoardDnD({ initialTasks, onTaskMoved }: UseBoardDnDOptions): 
   const [localTasks, setLocalTasks] = useState<TasksMap>(initialTasks);
   /** Column the task lived in when the drag STARTED (before onDragOver moves it). */
   const [originColumnId, setOriginColumnId] = useState<string | null>(null);
+  /** localTasks as it stood right before the drag started - restored verbatim on cancel. */
+  const [dragSnapshot, setDragSnapshot] = useState<TasksMap | null>(null);
+  /**
+   * Task whose move was just committed via onTaskMoved but whose mutation
+   * hasn't settled yet. activeTaskId already goes back to null in onDragEnd
+   * (before the mutation resolves) so the realtime-sync guard below needs a
+   * second signal - otherwise an unrelated Socket.IO update landing in that
+   * window makes the guard think no drag is in flight and snaps the just-
+   * dropped task back to its pre-drag column until the mutation responds.
+   */
+  const [pendingMoveTaskId, setPendingMoveTaskId] = useState<string | null>(null);
 
   /**
    * Sync localTasks when the TanStack Query cache changes externally
-   * (e.g. via a Socket.IO event) and no drag is in progress.
+   * (e.g. via a Socket.IO event) and no drag/pending move is in progress.
    *
    * WHY during-render, not useEffect:
    * Calling setState inside useEffect causes an extra committed render before
@@ -62,7 +76,7 @@ export function useBoardDnD({ initialTasks, onTaskMoved }: UseBoardDnDOptions): 
    * @see https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
    */
   const [prevInitialTasks, setPrevInitialTasks] = useState<TasksMap>(initialTasks);
-  if (prevInitialTasks !== initialTasks && activeTaskId === null) {
+  if (prevInitialTasks !== initialTasks && activeTaskId === null && pendingMoveTaskId === null) {
     setPrevInitialTasks(initialTasks);
     setLocalTasks(initialTasks);
   }
@@ -71,6 +85,7 @@ export function useBoardDnD({ initialTasks, onTaskMoved }: UseBoardDnDOptions): 
     const id = String(e.active.id);
     setActiveTaskId(id);
     setOriginColumnId(findColumnIdForTask(localTasks, id));
+    setDragSnapshot(localTasks);
   }
 
   /**
@@ -113,6 +128,7 @@ export function useBoardDnD({ initialTasks, onTaskMoved }: UseBoardDnDOptions): 
 
     setActiveTaskId(null);
     setOriginColumnId(null);
+    setDragSnapshot(null);
 
     if (!over || !sourceColId) return;
 
@@ -151,6 +167,7 @@ export function useBoardDnD({ initialTasks, onTaskMoved }: UseBoardDnDOptions): 
         ),
       }));
 
+      setPendingMoveTaskId(activeId);
       onTaskMoved({
         taskId: activeId,
         sourceColumnId: sourceColId,
@@ -180,6 +197,7 @@ export function useBoardDnD({ initialTasks, onTaskMoved }: UseBoardDnDOptions): 
       ],
     }));
 
+    setPendingMoveTaskId(activeId);
     onTaskMoved({
       taskId: activeId,
       sourceColumnId: sourceColId,
@@ -188,9 +206,22 @@ export function useBoardDnD({ initialTasks, onTaskMoved }: UseBoardDnDOptions): 
     });
   }
 
+  /** Reverts to the pre-drag snapshot - dnd-kit fires this on Escape instead of onDragEnd. */
+  function onDragCancel(): void {
+    if (dragSnapshot) setLocalTasks(dragSnapshot);
+    setActiveTaskId(null);
+    setOriginColumnId(null);
+    setDragSnapshot(null);
+  }
+
+  function notifyMoveSettled(): void {
+    setPendingMoveTaskId(null);
+  }
+
   return {
     activeTaskId,
     localTasks,
-    handlers: { onDragStart, onDragOver, onDragEnd },
+    handlers: { onDragStart, onDragOver, onDragEnd, onDragCancel },
+    notifyMoveSettled,
   };
 }

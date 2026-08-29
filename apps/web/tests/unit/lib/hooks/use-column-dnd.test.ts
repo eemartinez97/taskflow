@@ -117,6 +117,21 @@ describe("useColumnDnD", () => {
     expect(result.current.columns).toHaveLength(1);
   });
 
+  it("onColumnDragCancel clears activeColumnId without touching columns", () => {
+    const { result } = renderHook(() =>
+      useColumnDnD({ initialColumns: twoColumns, onColumnsReordered: vi.fn() }),
+    );
+    act(() => {
+      result.current.onColumnDragStart(dragEvent(columnA.id));
+    });
+    expect(result.current.activeColumnId).toBe(columnA.id);
+    act(() => {
+      result.current.onColumnDragCancel();
+    });
+    expect(result.current.activeColumnId).toBeNull();
+    expect(result.current.columns).toEqual(twoColumns);
+  });
+
   it("computes a position with no previous column when dropped at the start", () => {
     const onColumnsReordered = vi.fn();
     const { result } = renderHook(() =>

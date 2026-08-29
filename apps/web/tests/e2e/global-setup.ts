@@ -23,9 +23,14 @@ async function resetE2EData(): Promise<void> {
     headers: { "x-e2e-secret": process.env.E2E_TEST_SECRET ?? "" },
   });
   if (!response.ok) {
+    const hint =
+      response.status === 404
+        ? "apps/api rejected the request - check ENABLE_TEST_ROUTES/E2E_TEST_SECRET " +
+          "(see apps/api/src/utils/e2e.ts's isAuthorizedE2ERequest)."
+        : "the route itself failed - check apps/api's logs and that migrations are " +
+          "applied (pnpm --filter @taskflow/database db:migrate:deploy).";
     throw new Error(
-      `[global-setup] Failed to reset E2E data: HTTP ${String(response.status)}. ` +
-        "Ensure ENABLE_TEST_ROUTES=true is set for the web dev server.",
+      `[global-setup] Failed to reset E2E data: HTTP ${String(response.status)}. ${hint}`,
     );
   }
 }
